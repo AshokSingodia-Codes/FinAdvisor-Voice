@@ -1,0 +1,23 @@
+[
+  {
+    "question": "What was Apple's total net sales in 2024?",
+    "expected_answer": "$391,035 million",
+    "relevant_context": "Total net sales in 2024 were $391,035 million...",
+    "category": "Numerical",
+    "difficulty": "Easy"
+  },
+  {
+    "question": "Compare the gross margin percentage of Products vs Services in 2024.",
+    "expected_answer": "In 2024, Products gross margin was 36.8% and Services gross margin was 73.8%.",
+    "relevant_context": "Products gross margin was 36.8% in 2024... Services gross margin was 73.8% in 2024...",
+    "category": "Comparative",
+    "difficulty": "Medium"
+  },
+  {
+    "question": "What are the primary business risks Apple faces related to artificial intelligence?",
+    "expected_answer": "Apple faces risks related to the complex and rapidly evolving nature of AI algorithms, competitive pressure, and the need for significant investment in infrastructure.",
+    "relevant_context": "The development of artificial intelligence features involves complex algorithms... requires substantial investment...",
+    "category": "Risk",
+    "difficulty": "Hard"
+  }
+]
