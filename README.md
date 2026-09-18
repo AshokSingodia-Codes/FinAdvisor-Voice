@@ -4,7 +4,7 @@ FinAdvisor-X is a production-ready, state-of-the-art **Agentic Retrieval-Augment
 
 The application features a gorgeous "Siri-style" Voice UI built in Streamlit.
 
-## 🌟 Key Features
+## Key Features
 
 * **Advanced Hybrid Retrieval**: Combines Neo4j Vector Search with Knowledge Graph extraction, merged via Reciprocal Rank Fusion (RRF), and locally reranked using FlashRank.
 * **Agentic LangGraph Architecture**: 
