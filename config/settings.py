@@ -4,9 +4,9 @@ from typing import Optional
 
 class Settings(BaseSettings):
     # Neo4j Settings
-    AURA_INSTANCENAME: str = Field(..., description="Neo4j Aura Instance Name")
+    AURA_INSTANCENAME: Optional[str] = Field("Instance01", description="Neo4j Aura Instance Name")
     NEO4J_URI: str = Field(..., description="Neo4j Connection URI")
-    NEO4J_USERNAME: str = Field(..., description="Neo4j Username")
+    NEO4J_USERNAME: str = Field("neo4j", description="Neo4j Username")
     NEO4J_PASSWORD: str = Field(..., description="Neo4j Password")
     
     GROQ_API_KEY: str = Field(..., description="Groq API Key")
