@@ -13,8 +13,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
+import { API_BASE } from '../config';
 
 export const LoginPage: React.FC = () => {
   const { login } = useAuth();

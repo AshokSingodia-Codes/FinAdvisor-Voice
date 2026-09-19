@@ -1,42 +1,39 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { API_BASE } from '../config';
 
-export interface UserProfile {
+export interface User {
   id: string;
   email: string;
-  created_at?: string;
 }
 
 interface AuthContextType {
-  user: UserProfile | null;
+  user: User | null;
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (token: string, user: UserProfile) => void;
-  logout: () => void;
-  authFetch: (url: string, options?: RequestInit) => Promise<Response>;
   isAuthModalOpen: boolean;
   authModalInitialTab: 'signin' | 'register' | 'forgot';
+  login: (token: string, user: User) => void;
+  logout: () => void;
   openAuthModal: (tab?: 'signin' | 'register' | 'forgot') => void;
   closeAuthModal: () => void;
+  authFetch: (url: string, options?: RequestInit) => Promise<Response>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const TOKEN_KEY = 'finadvisor_jwt_token';
-const USER_KEY = 'finadvisor_user_profile';
+const USER_KEY = 'finadvisor_user';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
-  const [user, setUser] = useState<UserProfile | null>(() => {
+  const [user, setUser] = useState<User | null>(() => {
     const saved = localStorage.getItem(USER_KEY);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return null;
-      }
+    try {
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
     }
-    return null;
   });
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
@@ -44,7 +41,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     // Validate existing token with /api/auth/me
-    const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
     const checkAuth = async () => {
       const storedToken = localStorage.getItem(TOKEN_KEY);
       if (storedToken) {

@@ -14,14 +14,13 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE } from '../config';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialTab?: 'signin' | 'register' | 'forgot';
 }
-
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTab = 'signin' }) => {
   const { login } = useAuth();

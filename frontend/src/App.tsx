@@ -24,12 +24,14 @@ import remarkGfm from 'remark-gfm';
 import { useAuth } from './context/AuthContext';
 import { AuthModal } from './components/AuthModal';
 import { LoginPage } from './components/LoginPage';
+import { API_BASE } from './config';
 
 interface ChatMessage {
   id?: number;
   role: 'user' | 'assistant';
   content: string;
-  timestamp?: string;
+  steps?: string[];
+  isError?: boolean;
 }
 
 interface ConversationItem {
@@ -40,8 +42,6 @@ interface ConversationItem {
   message_count: number;
   last_message?: string;
 }
-
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
 
 function formatRelativeTime(dateStr: string): string {
   if (!dateStr) return '';
