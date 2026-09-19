@@ -88,35 +88,41 @@ def send_otp_email(to_email: str, otp: str, purpose: str = "register") -> bool:
     </html>
     """
 
-    # If SMTP is configured, attempt sending email
+    # If SMTP is configured, attempt sending email with SSL/TLS auto-failover
     smtp_host = settings.effective_smtp_host
     if smtp_host and settings.SMTP_USER and settings.SMTP_PASSWORD:
-        try:
-            from_email = settings.SMTP_FROM_EMAIL or settings.SMTP_USER
-            msg = MIMEMultipart("alternative")
-            msg["Subject"] = subject
-            msg["From"] = f"FinAdvisor-X <{from_email}>"
-            msg["To"] = to_email
+        from_email = settings.SMTP_FROM_EMAIL or settings.SMTP_USER
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = f"FinAdvisor-X <{from_email}>"
+        msg["To"] = to_email
+        msg["Reply-To"] = from_email
 
-            text_part = MIMEText(f"Your FinAdvisor-X OTP is {otp}. Valid for 5 minutes.", "plain")
-            html_part = MIMEText(html_content, "html")
-            msg.attach(text_part)
-            msg.attach(html_part)
+        text_part = MIMEText(f"Your FinAdvisor-X OTP is {otp}. Valid for 5 minutes.", "plain")
+        html_part = MIMEText(html_content, "html")
+        msg.attach(text_part)
+        msg.attach(html_part)
 
-            if settings.SMTP_PORT == 465:
-                server = smtplib.SMTP_SSL(smtp_host, settings.SMTP_PORT, timeout=10)
-            else:
-                server = smtplib.SMTP(smtp_host, settings.SMTP_PORT, timeout=10)
-                if settings.SMTP_TLS:
+        # Try Port 465 (SSL) first, then Port 587 (TLS) for cloud platform resilience
+        ports_to_try = [465, 587] if settings.SMTP_PORT in (465, 587, None) else [settings.SMTP_PORT, 465, 587]
+        
+        for port in ports_to_try:
+            try:
+                if port == 465:
+                    server = smtplib.SMTP_SSL(smtp_host, 465, timeout=12)
+                else:
+                    server = smtplib.SMTP(smtp_host, port, timeout=12)
                     server.starttls()
-            
-            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.sendmail(from_email, [to_email], msg.as_string())
-            server.quit()
-            print(f"[AUTH] Successfully sent OTP email to {to_email}")
-            return True
-        except Exception as e:
-            print(f"[AUTH WARNING] SMTP send failed ({e}). Falling back to development log.")
+
+                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                server.sendmail(from_email, [to_email], msg.as_string())
+                server.quit()
+                print(f"[AUTH] Successfully sent OTP email to {to_email} via port {port}")
+                return True
+            except Exception as e:
+                print(f"[AUTH WARNING] SMTP attempt on port {port} failed: {e}")
+
+        print(f"[AUTH ERROR] All SMTP ports failed. Falling back to development log.")
 
     # Development fallback
     print(f"\n==================== [AUTH OTP DEV LOG] ====================")
