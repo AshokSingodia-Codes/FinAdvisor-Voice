@@ -132,6 +132,21 @@ def compound_interest(principal: float, annual_rate: float, years: float,
     return principal * (1 + annual_rate / compounds_per_year) ** (compounds_per_year * years)
 
 
+def sip_future_value(monthly_investment: float, annual_cagr: float, years: float) -> float:
+    """
+    Calculates Future Value of a Systematic Investment Plan (SIP).
+    Formula: FV = P * [((1 + i)^n - 1) / i] * (1 + i)
+    where i = annual_cagr / 12, n = years * 12
+    """
+    if monthly_investment is None or annual_cagr is None or years is None:
+        raise ValueError("Missing value for SIP calculation")
+    i = annual_cagr / 12.0
+    n = years * 12.0
+    if i == 0:
+        return monthly_investment * n
+    return monthly_investment * (((1 + i) ** n - 1) / i) * (1 + i)
+
+
 def percentage_of(value: float, percent: float) -> float:
     """Returns percent% of value. percent is a whole number (15 for 15%), not decimal."""
     if value is None or percent is None:
@@ -226,7 +241,15 @@ def npv(cash_flows: list[float], discount_rate: float) -> float:
         raise ValueError("No cash flows provided")
     return sum(cf / (1 + discount_rate) ** i for i, cf in enumerate(cash_flows))
 
+from financial.tax_rules_india import (
+    calculate_income_tax_new_regime,
+    calculate_income_tax_old_regime,
+    compare_tax_regimes,
+    calculate_capital_gains_tax
+)
+
 def strip_currency_and_commas(text: str) -> str:
     """Legacy backward compatibility method for basic math node."""
     cleaned = re.sub(r'(?i)\b(?:rs|inr|usd)\b\.?\s?|[₹$]', '', text)
     return cleaned.replace(',', '')
+

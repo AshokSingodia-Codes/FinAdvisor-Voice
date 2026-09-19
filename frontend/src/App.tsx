@@ -14,10 +14,16 @@ import {
   Bot,
   User as UserIcon,
   Shield,
-  Clock
+  Clock,
+  LogOut,
+  LogIn,
+  UserPlus
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useAuth } from './context/AuthContext';
+import { AuthModal } from './components/AuthModal';
+import { LoginPage } from './components/LoginPage';
 
 interface ChatMessage {
   id?: number;
@@ -40,7 +46,10 @@ const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
 function formatRelativeTime(dateStr: string): string {
   if (!dateStr) return '';
   try {
-    const d = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
+    const cleanStr = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T');
+    const normalized = cleanStr.endsWith('Z') ? cleanStr : cleanStr + 'Z';
+    const d = new Date(normalized);
+    if (isNaN(d.getTime())) return '';
     const now = new Date();
     const diffSec = Math.floor((now.getTime() - d.getTime()) / 1000);
     
@@ -55,6 +64,18 @@ function formatRelativeTime(dateStr: string): string {
 }
 
 function App() {
+  const { 
+    user, 
+    isAuthenticated, 
+    isLoading,
+    authFetch, 
+    logout, 
+    isAuthModalOpen, 
+    authModalInitialTab, 
+    openAuthModal, 
+    closeAuthModal 
+  } = useAuth();
+
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [activeConvId, setActiveConvId] = useState<string>(() => {
     return crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
@@ -69,12 +90,15 @@ function App() {
   const [editTitleInput, setEditTitleInput] = useState('');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const isInitialLoad = useRef(true);
 
   // Load conversations list
   const fetchConversations = async () => {
+    if (!isAuthenticated) {
+      setConversations([]);
+      return [];
+    }
     try {
-      const res = await fetch(`${API_BASE}/api/conversations`);
+      const res = await authFetch(`${API_BASE}/api/conversations`);
       if (res.ok) {
         const data: ConversationItem[] = await res.json();
         setConversations(data);
@@ -88,8 +112,9 @@ function App() {
 
   // Load single conversation messages
   const loadConversation = async (convId: string) => {
+    if (!isAuthenticated) return;
     try {
-      const res = await fetch(`${API_BASE}/api/conversations/${convId}`);
+      const res = await authFetch(`${API_BASE}/api/conversations/${convId}`);
       if (res.ok) {
         const data = await res.json();
         setActiveConvId(data.id);
@@ -109,22 +134,24 @@ function App() {
     }
   };
 
-  // Initial load
+  // When auth changes (user signs in or out), load conversations
   useEffect(() => {
     const init = async () => {
-      if (!isInitialLoad.current) return;
-      isInitialLoad.current = false;
-      const convs = await fetchConversations();
-      if (convs && convs.length > 0) {
-        // Load the most recently active conversation
-        await loadConversation(convs[0].id);
+      if (isAuthenticated) {
+        const convs = await fetchConversations();
+        if (convs && convs.length > 0) {
+          await loadConversation(convs[0].id);
+        } else {
+          handleNewChat();
+        }
       } else {
-        // Start fresh
+        setConversations([]);
+        setMessages([]);
         handleNewChat();
       }
     };
     init();
-  }, []);
+  }, [isAuthenticated]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -139,7 +166,6 @@ function App() {
     setActiveConvId(newId);
     setActiveTitle('New Chat');
     setMessages([]);
-    setInput('');
   };
 
   const handleSelectConversation = async (convId: string) => {
@@ -150,7 +176,7 @@ function App() {
   const handleDeleteConversation = async (e: React.MouseEvent, convId: string) => {
     e.stopPropagation();
     try {
-      const res = await fetch(`${API_BASE}/api/conversations/${convId}`, { method: 'DELETE' });
+      const res = await authFetch(`${API_BASE}/api/conversations/${convId}`, { method: 'DELETE' });
       if (res.ok) {
         const updated = conversations.filter(c => c.id !== convId);
         setConversations(updated);
@@ -181,7 +207,7 @@ function App() {
       return;
     }
     try {
-      const res = await fetch(`${API_BASE}/api/conversations/${convId}`, {
+      const res = await authFetch(`${API_BASE}/api/conversations/${convId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: trimmed })
@@ -200,6 +226,11 @@ function App() {
   };
 
   const handleSend = async (textToSend?: string) => {
+    if (!isAuthenticated) {
+      openAuthModal('signin');
+      return;
+    }
+
     const userMsg = (textToSend ?? input).trim();
     if (!userMsg || loading) return;
 
@@ -209,7 +240,7 @@ function App() {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE}/api/chat`, {
+      const response = await authFetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -241,8 +272,32 @@ function App() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-bgMain text-textMain">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accentPrimary to-accentHover flex items-center justify-center shadow-lg animate-pulse">
+            <TrendingUp size={22} className="text-[#0d0f14]" />
+          </div>
+          <span className="text-xs text-textDim font-medium animate-pulse">Initializing FinAdvisor-X...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
+
   return (
     <div className="flex h-screen bg-bgMain text-textMain overflow-hidden font-sans select-none">
+      {/* Auth Modal Component */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={closeAuthModal}
+        initialTab={authModalInitialTab}
+      />
+
       {/* Sidebar */}
       <aside className="w-72 bg-bgCard border-r border-borderDim flex flex-col shrink-0">
         {/* Brand Header */}
@@ -261,7 +316,13 @@ function App() {
         {/* New Chat Button */}
         <div className="p-3">
           <button
-            onClick={handleNewChat}
+            onClick={() => {
+              if (!isAuthenticated) {
+                openAuthModal('signin');
+              } else {
+                handleNewChat();
+              }
+            }}
             className="w-full flex items-center justify-center gap-2.5 bg-gradient-to-r from-accentPrimary/15 to-accentHover/15 border border-accentPrimary/40 hover:border-accentPrimary hover:bg-accentPrimary/25 text-accentPrimary hover:text-white transition-all duration-200 rounded-xl py-2.5 px-4 text-sm font-semibold shadow-sm cursor-pointer active:scale-[0.98]"
           >
             <Plus size={16} className="stroke-[2.5]" />
@@ -269,22 +330,35 @@ function App() {
           </button>
         </div>
 
-        {/* Recent Chats Section */}
+        {/* Recent Chats Section Header */}
         <div className="px-3 pt-2 pb-1">
           <div className="flex items-center justify-between px-2 mb-2">
             <span className="text-[11px] font-bold text-textDim tracking-wider uppercase flex items-center gap-1.5">
               <Clock size={12} />
               Recent Chats
             </span>
-            <span className="text-[10px] bg-borderDim/80 text-textDim px-1.5 py-0.5 rounded-full font-mono font-medium">
-              {conversations.length}
-            </span>
+            {isAuthenticated && (
+              <span className="text-[10px] bg-borderDim/80 text-textDim px-1.5 py-0.5 rounded-full font-mono font-medium">
+                {conversations.length}
+              </span>
+            )}
           </div>
         </div>
 
         {/* Chats List */}
         <div className="flex-1 overflow-y-auto px-2 space-y-1">
-          {conversations.length === 0 ? (
+          {!isAuthenticated ? (
+            <div className="text-center py-8 px-4 text-textDim text-xs leading-relaxed">
+              <p className="mb-3">Sign in to save and sync your chat history securely.</p>
+              <button
+                onClick={() => openAuthModal('signin')}
+                className="inline-flex items-center gap-1.5 text-xs text-accentPrimary font-semibold hover:underline cursor-pointer"
+              >
+                <LogIn size={13} />
+                <span>Sign In Now</span>
+              </button>
+            </div>
+          ) : conversations.length === 0 ? (
             <div className="text-center py-8 px-4 text-textDim text-xs leading-relaxed">
               No conversations yet.<br />Click <span className="text-accentPrimary font-medium">+ New Chat</span> to start!
             </div>
@@ -375,18 +449,48 @@ function App() {
 
         {/* User Footer Card */}
         <div className="p-3 border-t border-borderDim">
-          <div className="flex items-center gap-3 p-2 rounded-xl bg-borderDim/30 border border-borderDim/50">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 via-purple-500 to-accentPrimary flex items-center justify-center font-bold text-white text-xs shadow-inner">
-              <UserIcon size={15} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-semibold truncate text-textMain">Personal Advisor</div>
-              <div className="text-[10px] text-accentPrimary flex items-center gap-1 font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-accentPrimary animate-pulse"></span>
-                Memory Active
+          {isAuthenticated && user ? (
+            <div className="flex items-center justify-between p-2 rounded-xl bg-borderDim/30 border border-borderDim/50">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 via-purple-500 to-accentPrimary flex items-center justify-center font-bold text-white text-xs shadow-inner shrink-0">
+                  <UserIcon size={14} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-semibold truncate text-textMain" title={user.email}>
+                    {user.email}
+                  </div>
+                  <div className="text-[10px] text-accentPrimary flex items-center gap-1 font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accentPrimary animate-pulse"></span>
+                    Authenticated (JWT)
+                  </div>
+                </div>
               </div>
+              <button
+                onClick={logout}
+                title="Sign Out"
+                className="p-1.5 text-textDim hover:text-red-400 hover:bg-borderDim rounded-lg transition-colors cursor-pointer shrink-0"
+              >
+                <LogOut size={16} />
+              </button>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <button
+                onClick={() => openAuthModal('signin')}
+                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-accentPrimary to-accentHover text-bgMain font-bold py-2 px-3 rounded-xl text-xs shadow-md hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer"
+              >
+                <LogIn size={14} />
+                <span>Sign In</span>
+              </button>
+              <button
+                onClick={() => openAuthModal('register')}
+                className="w-full flex items-center justify-center gap-2 bg-borderDim hover:bg-borderDim/80 text-textMain font-medium py-1.5 px-3 rounded-xl text-xs border border-borderDim hover:border-accentPrimary/40 transition-all cursor-pointer"
+              >
+                <UserPlus size={13} />
+                <span>Create New Account</span>
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -408,13 +512,22 @@ function App() {
               <span className="w-2 h-2 rounded-full bg-accentPrimary animate-pulse"></span>
               <span>Indian Market & RAG Active</span>
             </div>
+            {!isAuthenticated && (
+              <button
+                onClick={() => openAuthModal('signin')}
+                className="ml-2 flex items-center gap-1.5 bg-accentPrimary/20 hover:bg-accentPrimary/30 text-accentPrimary border border-accentPrimary/40 px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer"
+              >
+                <LogIn size={13} />
+                <span>Sign In</span>
+              </button>
+            )}
           </div>
         </header>
 
         {/* Chat Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-36 scroll-smooth">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 scroll-smooth">
           {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center max-w-2xl mx-auto px-4 mt-[-4vh]">
+            <div className="min-h-full flex flex-col items-center justify-center text-center max-w-2xl mx-auto px-4 py-8">
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-accentPrimary/20 via-borderDim to-bgCard border border-accentPrimary/30 flex items-center justify-center mb-6 shadow-xl">
                 <Sparkles size={32} className="text-accentPrimary" />
               </div>
@@ -424,6 +537,32 @@ function App() {
               <p className="text-textDim text-sm sm:text-base mb-8 leading-relaxed max-w-lg">
                 I maintain conversational memory within this chat to help you plan budgets, analyze stocks, model SIP returns, and evaluate tax strategies.
               </p>
+              
+              {!isAuthenticated && (
+                <div className="mb-8 p-4 rounded-2xl bg-borderDim/30 border border-accentPrimary/30 max-w-md w-full flex flex-col items-center text-center">
+                  <span className="text-xs font-semibold text-accentPrimary uppercase tracking-wider mb-1">
+                    Authentication Required
+                  </span>
+                  <p className="text-xs text-textDim mb-3">
+                    Sign in or create an account with email OTP verification to start asking questions.
+                  </p>
+                  <div className="flex gap-2.5">
+                    <button
+                      onClick={() => openAuthModal('signin')}
+                      className="bg-accentPrimary text-bgMain px-4 py-2 rounded-xl text-xs font-bold hover:brightness-110 shadow-sm cursor-pointer"
+                    >
+                      Sign In
+                    </button>
+                    <button
+                      onClick={() => openAuthModal('register')}
+                      className="bg-borderDim text-textMain px-4 py-2 rounded-xl text-xs font-semibold border border-borderDim hover:border-accentPrimary/50 cursor-pointer"
+                    >
+                      Create Account
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="grid sm:grid-cols-3 gap-3.5 w-full">
                 <div
                   onClick={() => handleSend("I am an Indian student earning ₹20,000 per month. How should I start managing my money?")}
@@ -452,7 +591,7 @@ function App() {
               </div>
             </div>
           ) : (
-            <div className="max-w-4xl mx-auto space-y-6">
+            <div className="max-w-4xl mx-auto space-y-6 pb-6">
               {messages.map((msg, i) => (
                 <div key={i} className={`flex gap-3.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   {msg.role === 'assistant' && (
@@ -534,22 +673,22 @@ function App() {
           )}
         </div>
 
-        {/* Input Bar */}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-bgMain via-bgMain/95 to-transparent pt-6 pb-4 px-4 sm:px-6 z-10 pointer-events-none">
-          <div className="max-w-4xl mx-auto pointer-events-auto relative">
+        {/* Input Bar (Solid Non-Overlapping Footer) */}
+        <div className="border-t border-borderDim bg-bgCard/90 backdrop-blur-md pt-3 pb-3 px-4 sm:px-6 z-10">
+          <div className="max-w-4xl mx-auto relative">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               disabled={loading}
-              placeholder="Ask for financial advice, stock updates, budgeting, or return calculations..."
-              className="w-full bg-bgCard border border-borderDim rounded-xl pl-5 pr-14 py-3.5 text-textMain text-sm focus:outline-none focus:border-accentPrimary focus:ring-1 focus:ring-accentPrimary/50 shadow-lg placeholder:text-textDim/60 disabled:opacity-50 transition-all"
+              placeholder={isAuthenticated ? "Ask for financial advice, stock updates, budgeting, or return calculations..." : "Please sign in to start asking questions..."}
+              className="w-full bg-bgMain border border-borderDim rounded-xl pl-5 pr-14 py-3 text-textMain text-sm focus:outline-none focus:border-accentPrimary focus:ring-1 focus:ring-accentPrimary/50 shadow-inner placeholder:text-textDim/60 disabled:opacity-50 transition-all"
             />
             <button
               onClick={() => handleSend()}
               disabled={loading || !input.trim()}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-borderDim hover:bg-accentPrimary text-textMain hover:text-bgMain disabled:opacity-40 disabled:hover:bg-borderDim disabled:hover:text-textMain transition-all shadow-sm cursor-pointer"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-borderDim hover:bg-accentPrimary text-textMain hover:text-bgMain disabled:opacity-40 disabled:hover:bg-borderDim disabled:hover:text-textMain transition-all shadow-sm cursor-pointer"
             >
               <Send size={16} />
             </button>

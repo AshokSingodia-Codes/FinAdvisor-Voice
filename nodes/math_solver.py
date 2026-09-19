@@ -6,9 +6,11 @@ Math Solver node. Split responsibility:
 from tools.calculator import (
     normalize_currency, extract_all_currency_values, extract_percentage,
     extract_all_percentages,
-    extract_years, extract_compounding_frequency, compound_interest,
+    extract_years, extract_compounding_frequency, compound_interest, sip_future_value,
     percentage_of, percentage_change, cagr_solve, npv,
-    margin, yoy_growth, dcf, wacc
+    margin, yoy_growth, dcf, wacc,
+    calculate_income_tax_new_regime, calculate_income_tax_old_regime,
+    compare_tax_regimes, calculate_capital_gains_tax
 )
 from core.db import chat
 
@@ -17,7 +19,10 @@ Classify this financial math question into exactly ONE category. Reply with
 ONLY the category name, nothing else.
 
 Categories:
-- compound_interest: investing/growing/losing money over time at a rate
+- income_tax: calculating Indian income tax on a salary/income, comparing new vs old tax regime
+- capital_gains: calculating capital gains tax on selling stocks, mutual funds, property, gold, or crypto
+- sip: monthly regular investing, systematic investment plan, "₹X monthly for Y years at Z% return"
+- compound_interest: lump sum investing/growing/losing money over time at a rate
 - percentage_of: "what is X% of Y"
 - percentage_change: "changed from X to Y, what's the % change"
 - cagr_solve: "invested X, now worth Y, what's the growth rate" (SOLVING FOR rate)
@@ -32,6 +37,7 @@ Question: {query}
 Category:
 """
 
+
 def classify_formula(query: str) -> str:
     response = chat.invoke(FORMULA_CLASSIFICATION_PROMPT.format(query=query))
     return response.content.strip().lower()
@@ -43,7 +49,38 @@ def solve_math(state):
     formula = classify_formula(query)
 
     try:
-        if formula == "compound_interest":
+        if formula == "sip" or ("monthly" in query.lower() and "sip" in query.lower()):
+            rate = extract_percentage(query)
+            years = extract_years(query)
+
+            import re
+            cleaned_query = re.sub(r'(-?\d+\.?\d*)\s*%', '', query)
+            cleaned_query = re.sub(r'(\d+\.?\d*)\s*(?:years?|yrs?)', '', cleaned_query, flags=re.IGNORECASE)
+            monthly_inv = normalize_currency(cleaned_query)
+
+            if monthly_inv is None or rate is None or years is None:
+                return {"draft_answer": (
+                    "I couldn't extract the monthly amount, expected rate, or duration "
+                    "clearly from your question. Could you rephrase with explicit "
+                    "numbers, e.g. '₹5,000 monthly SIP for 10 years at 12% return'?"
+                )}
+
+            fv = sip_future_value(monthly_inv, rate, years)
+            total_invested = monthly_inv * (years * 12)
+            wealth_gain = fv - total_invested
+            return {"draft_answer": (
+                f"### 📊 Systematic Investment Plan (SIP) Projection\n\n"
+                f"* **Monthly SIP Amount**: ₹{monthly_inv:,.2f}\n"
+                f"* **Expected Return (CAGR)**: {rate * 100:.1f}%\n"
+                f"* **Investment Duration**: {years:.0f} years ({years * 12:.0f} monthly installments)\n\n"
+                f"**Financial Breakdown**:\n"
+                f"* **Total Capital Invested**: ₹{total_invested:,.2f}\n"
+                f"* **Estimated Wealth Gained**: ₹{wealth_gain:,.2f}\n"
+                f"* **Total Future Value**: **₹{fv:,.2f}**\n\n"
+                f"> 💡 *Financial Advisor Insight: A ₹{monthly_inv:,.0f} monthly SIP over {years:.0f} years at {rate*100:.0f}% CAGR generates ₹{wealth_gain:,.0f} in compounding gains on top of your ₹{total_invested:,.0f} invested.*"
+            )}
+
+        elif formula == "compound_interest":
             rate = extract_percentage(query)
             years = extract_years(query)
             n = extract_compounding_frequency(query)

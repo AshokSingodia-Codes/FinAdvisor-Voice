@@ -27,9 +27,20 @@ class Settings(BaseSettings):
     LANGCHAIN_PROJECT: str = Field("finadvisor-x", description="LangSmith Project Name")
     LANGCHAIN_ENDPOINT: str = Field("https://api.smith.langchain.com", description="LangSmith Endpoint")
     
-    # Redis / API Settings
-    REDIS_URL: Optional[str] = Field(None, description="Redis Connection URL")
-    JWT_SECRET: str = Field("default_insecure_secret_change_me", description="JWT Secret Key")
+    # Auth & Security Settings
+    JWT_SECRET: str = Field("finadvisor-secure-jwt-secret-key-2026-x", description="JWT Secret Key")
+    JWT_SECRET_KEY: Optional[str] = Field(None, description="Alternative JWT Secret Key alias")
+    JWT_ALGORITHM: str = Field("HS256", description="JWT Algorithm")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(60 * 24, description="JWT Expiration in minutes")
+    
+    # SMTP / Email Settings
+    SMTP_HOST: Optional[str] = Field(None, description="SMTP Server Host (e.g. smtp.gmail.com)")
+    SMTP_SERVER: Optional[str] = Field(None, description="Alternative alias for SMTP Server Host")
+    SMTP_PORT: int = Field(587, description="SMTP Server Port")
+    SMTP_USER: Optional[str] = Field(None, description="SMTP Username")
+    SMTP_PASSWORD: Optional[str] = Field(None, description="SMTP Password / App Password")
+    SMTP_FROM_EMAIL: Optional[str] = Field(None, description="Sender email address")
+    SMTP_TLS: bool = Field(True, description="Enable STARTTLS for SMTP")
     
     model_config = SettingsConfigDict(
         env_file=".env", 
@@ -38,5 +49,15 @@ class Settings(BaseSettings):
         case_sensitive=False
     )
 
+    @property
+    def effective_jwt_secret(self) -> str:
+        return self.JWT_SECRET_KEY or self.JWT_SECRET
+
+    @property
+    def effective_smtp_host(self) -> Optional[str]:
+        return self.SMTP_HOST or self.SMTP_SERVER
+
+
 # Instantiate a singleton settings object
 settings = Settings()
+
