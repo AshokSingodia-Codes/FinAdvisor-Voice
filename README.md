@@ -45,6 +45,10 @@ FinAdvisor-X combines **Neo4j AuraDB** (Graph & Vector Store), **LangGraph** (St
 
 ## 🌟 Key Features
 
+* **Secure JWT Authentication & Email OTP Verification**:
+  Complete authentication lifecycle featuring cryptographic 6-digit email OTP delivery via SMTP, salted SHA-256 OTP hashing with cooldown and expiration rules, bcrypt password hashing, and signed JWT access tokens for protected API routes.
+* **Strict User-Level Conversation Data Isolation**:
+  Multi-user SQLite conversational memory architecture where every conversation and message is cryptographically bounded to the verified JWT context (`user_id`). Prevents cross-tenant chat retrieval, mutation, or deletion leaks.
 * **Hybrid Retrieval with Reciprocal Rank Fusion (RRF)**:
   Executes parallel queries against Neo4j Vector Index (`sentence-transformers/all-mpnet-base-v2` dense embeddings) and Lucene Full-Text Index (`keyword_markdown`), blending rank scores via configurable RRF (`k=60`).
 * **FlashRank Neural Cross-Encoder Reranker**:
@@ -57,8 +61,8 @@ FinAdvisor-X combines **Neo4j AuraDB** (Graph & Vector Store), **LangGraph** (St
   Extracts parameters and executes complex financial calculations—such as Discounted Cash Flow (DCF), Weighted Average Cost of Capital (WACC), Net Present Value (NPV), CAGR, SIP projections, and loan amortization—using verified Python execution tools rather than hallucination-prone LLM arithmetic.
 * **Live Market Intelligence (`yfinance`)**:
   Fetches real-time market prices, P/E ratios, market caps, 52-week highs/lows, dividends, balance sheet metrics, and recent corporate news.
-* **Modern React 19 + Vite Dashboard**:
-  Fast, responsive dark-mode interface featuring real-time chat streaming, execution step indicators, syntax-highlighted Markdown and GFM tables, quick-start financial prompts, and recent query history.
+* **Modern React 19 + Vite Dashboard & Auth UI**:
+  Fast, responsive dark-mode interface featuring a glassmorphic login / registration portal, real-time chat streaming, execution step indicators, syntax-highlighted Markdown and GFM tables, quick-start financial prompts, and user-isolated conversation management.
 * **Multi-LLM Fallback Resilience**:
   Primary high-speed inference on Groq (`openai/gpt-oss-120b` / `llama-3.3-70b-versatile`) with seamless cascade fallbacks to GitHub Models (`gpt-4o-mini`), OpenRouter, and Google Gemini (`gemini-2.5-flash`).
 
@@ -149,11 +153,14 @@ Hybrid-Graph-RAG-Financial-Analyser/
 │   └── settings.py              # Pydantic BaseSettings loading .env configuration
 ├── core/
 │   ├── __init__.py
-│   └── db.py                    # Neo4jGraph, Neo4jVector, HuggingFace embeddings & LLM setup
+│   ├── auth.py                  # JWT tokens, bcrypt hashing, and SMTP OTP verification
+│   ├── db.py                    # Neo4jGraph, Neo4jVector, embeddings & LLM setup
+│   └── memory.py                # User-isolated SQLite conversations & message stores
 ├── data/                        # Investment reference PDFs (Malkiel, Personal Finance)
 ├── financial/
 │   ├── __init__.py
-│   └── parser.py                # FinancialTable & Evidence data schemas
+│   ├── parser.py                # FinancialTable & Evidence data schemas
+│   └── tax_rules_india.py       # Indian taxation rules, slabs, and deductions (80C, 80D, etc.)
 ├── frontend/                    # React 19 + TypeScript + Vite + Tailwind CSS Web App
 │   ├── index.html
 │   ├── package.json
@@ -162,7 +169,12 @@ Hybrid-Graph-RAG-Financial-Analyser/
 │       ├── App.tsx              # Main interactive chat UI with financial dashboard
 │       ├── App.css
 │       ├── index.css            # Tailwind CSS styling tokens
-│       └── main.tsx
+│       ├── main.tsx
+│       ├── components/
+│       │   ├── AuthModal.tsx    # Modal auth dialog
+│       │   └── LoginPage.tsx    # Full-screen glassmorphic Auth portal (Login, Register, Forgot)
+│       └── context/
+│           └── AuthContext.tsx  # JWT authentication state and authenticated fetch client
 ├── graph/
 │   ├── __init__.py
 │   ├── state.py                 # AgentState TypedDict definition
@@ -188,8 +200,10 @@ Hybrid-Graph-RAG-Financial-Analyser/
 │   └── simulate_conversation.py # Stress testing and conversation simulation runner
 ├── tests/                       # Pytest test suite
 │   ├── conftest.py
+│   ├── test_auth.py             # Auth & OTP verification tests
 │   ├── test_calculator.py
 │   ├── test_calculator_extraction.py
+│   ├── test_data_isolation.py   # Multi-user conversation data isolation tests
 │   ├── test_market_data.py
 │   ├── test_math_solver.py
 │   ├── test_router.py
@@ -284,9 +298,21 @@ MAX_RETRIEVAL_ITERATIONS=3
 RRF_K=60
 
 # ==============================================================================
-# Security & Observability (Optional)
+# Security & Authentication (JWT & Email OTP)
 # ==============================================================================
-JWT_SECRET="super-secret-key-change-in-production"
+JWT_SECRET="your-super-secret-jwt-key-here"
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
+
+# SMTP Email Configuration (e.g., Gmail App Password)
+SMTP_SERVER="smtp.gmail.com"
+SMTP_PORT=587
+SMTP_USER="your-email@gmail.com"
+SMTP_PASSWORD="your-gmail-app-password"
+SMTP_FROM_EMAIL="your-email@gmail.com"
+
+# ==============================================================================
+# Observability (Optional)
+# ==============================================================================
 LANGCHAIN_TRACING_V2="false"
 ```
 
@@ -355,64 +381,89 @@ Open your browser and navigate to **`http://localhost:5173`** to access the FinA
 
 The FastAPI backend exposes the following endpoints on `http://localhost:8000`:
 
-### `GET /`
-Health check endpoint.
-- **Response**: `{"status": "FinAdvisor-X API is running"}`
+### 🔐 Authentication Endpoints
+
+#### `POST /api/auth/send-otp`
+Sends a secure 6-digit verification OTP to the specified email address for `register` or `forgot_password`.
+- **Request Body**: `{"email": "user@example.com", "purpose": "register"}`
+- **Response**: `{"message": "OTP sent successfully to email"}`
+
+#### `POST /api/auth/verify-otp`
+Verifies the 6-digit OTP and generates a temporary `verification_token`.
+- **Request Body**: `{"email": "user@example.com", "otp": "123456", "purpose": "register"}`
+- **Response**: `{"message": "OTP verified successfully", "verification_token": "..."}`
+
+#### `POST /api/auth/register`
+Creates a new user account after OTP verification.
+- **Request Body**: `{"email": "user@example.com", "password": "securepassword", "verification_token": "..."}`
+- **Response**: `{"access_token": "...", "token_type": "bearer", "user": {"id": "...", "email": "..."}}`
+
+#### `POST /api/auth/login`
+Authenticates with email and password to receive a JWT access token.
+- **Request Body**: `{"email": "user@example.com", "password": "securepassword"}`
+- **Response**: `{"access_token": "...", "token_type": "bearer", "user": {"id": "...", "email": "..."}}`
+
+#### `POST /api/auth/forgot-password/reset`
+Resets the user's password using the OTP-verified token.
+- **Request Body**: `{"email": "user@example.com", "new_password": "newsecurepassword", "verification_token": "..."}`
+- **Response**: `{"message": "Password reset successfully"}`
+
+#### `GET /api/auth/me`
+Retrieves current authenticated user profile (requires `Authorization: Bearer <token>`).
 
 ---
 
-### `POST /api/chat`
-Execute a query through the LangGraph agent pipeline.
+### 💬 Chat & Agent Intelligence (Protected)
 
-#### Request Body
+#### `POST /api/chat`
+Execute a query through the LangGraph agent pipeline.
+- **Headers**: `Authorization: Bearer <token>`
+- **Request Body**:
 ```json
 {
   "message": "What were Apple's total net sales in FY2024, and what is its current stock price?",
-  "chat_history": [
-    {
-      "role": "user",
-      "content": "Hello"
-    },
-    {
-      "role": "assistant",
-      "content": "Hello! How can I assist you with financial analysis today?"
-    }
-  ]
+  "conversation_id": "optional-uuid",
+  "chat_history": []
+}
+```
+- **Response Body**:
+```json
+{
+  "answer": "According to Apple Inc.'s 2024 Form 10-K, total net sales for fiscal year 2024 were $391,035 million...",
+  "intermediate_steps": ["router", "decompose", "retriever", "live_data", "evidence_builder", "verifier"],
+  "conversation_id": "uuid"
 }
 ```
 
-#### Response Body
-```json
-{
-  "answer": "According to Apple Inc.'s 2024 Form 10-K, total net sales for fiscal year 2024 were $391,035 million (approximately $391.04 billion), an increase from $383,285 million in 2023.\n\nRegarding live market data, Apple Inc. (AAPL) is currently trading at approximately $237.40 with a market capitalization of ~$3.60 trillion.",
-  "intermediate_steps": [
-    "router",
-    "decompose",
-    "retriever",
-    "live_data",
-    "evidence_builder",
-    "verifier"
-  ]
-}
-```
+---
+
+### 📂 Conversation Management (User-Isolated)
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/conversations` | List all conversations owned by the authenticated user |
+| `GET` | `/api/conversations/{id}` | Retrieve full message history of an owned conversation |
+| `POST` | `/api/conversations` | Create a new conversation for the authenticated user |
+| `PUT` | `/api/conversations/{id}` | Rename a conversation title |
+| `DELETE` | `/api/conversations/{id}` | Delete a conversation and its messages |
 
 ---
 
 ## 🧪 Automated Testing & Evaluation
 
-FinAdvisor-X includes comprehensive automated tests covering the routing logic, mathematical tools, market data fetching, and workflow compilation:
+FinAdvisor-X includes comprehensive automated tests covering the authentication system, data isolation, routing logic, mathematical tools, market data fetching, and workflow compilation:
 
 ### Run the Pytest Suite
 
 ```bash
-# Run all unit and integration tests
+# Run all unit and integration tests (including Auth & Data Isolation)
 pytest tests/ -v
 
-# Run a specific test module
-pytest tests/test_router.py -v
-pytest tests/test_calculator.py -v
-pytest tests/test_market_data.py -v
-pytest tests/test_workflow.py -v
+# Run authentication and data-isolation tests
+pytest tests/test_auth.py tests/test_data_isolation.py -v
+
+# Run financial math and tool tests
+pytest tests/test_router.py tests/test_calculator.py tests/test_market_data.py -v
 ```
 
 ### Run Conversation & Hallucination Simulations
@@ -441,7 +492,13 @@ All settings can be customized in [`config/settings.py`](file:///e:/finaceadvise
 | `KEYWORD_INDEX_NAME`| `keyword_markdown`| Name of the Neo4j Lucene full-text index |
 | `MAX_RETRIEVAL_ITERATIONS` | `3` | Maximum Self-RAG loop attempts upon verification failure |
 | `RRF_K` | `60` | Rank constant for Reciprocal Rank Fusion blending |
-| `JWT_SECRET` | `default_insecure...` | Secret key for future JWT auth token signing |
+| `JWT_SECRET` | `default_insecure...` | Secret key for JWT access token signing |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | `1440` | JWT token lifetime (1 day) |
+| `SMTP_SERVER` / `SMTP_HOST` | `smtp.gmail.com` | SMTP host for delivering OTP verification emails |
+| `SMTP_PORT` | `587` | SMTP port (587 for TLS, 465 for SSL) |
+| `SMTP_USER` | `""` | SMTP sender email/username |
+| `SMTP_PASSWORD` | `""` | SMTP app password / authentication token |
+| `SMTP_FROM_EMAIL` | `""` | Outgoing From email header address |
 
 ---
 
