@@ -1,5 +1,7 @@
 # FinAdvisor-X: Agentic Hybrid Graph RAG Financial Intelligence Platform 📈🏛️
 
+[![Live Frontend](https://img.shields.io/badge/Live_Frontend-Vercel-black.svg?logo=vercel&logoColor=white)](https://fin-advisor-voice.vercel.app/)
+[![Live Backend](https://img.shields.io/badge/Live_API-Render-46E3B7.svg?logo=render&logoColor=white)](https://finadvisor-voice.onrender.com/docs)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/React-19.2+-61DAFB.svg?logo=react&logoColor=black)](https://react.dev/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-Agentic_Workflow-FF6F00.svg?logo=langchain&logoColor=white)](https://python.langchain.com/v0.1/docs/langgraph/)
@@ -9,7 +11,12 @@
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-4.3+-06B6D4.svg?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**FinAdvisor-X** is an enterprise-grade, state-of-the-art **Agentic Hybrid Graph Retrieval-Augmented Generation (RAG)** platform designed for in-depth financial analysis, numerical valuation, and market intelligence.
+> 🚀 **Live Demo & API**:
+> - 🖥️ **Web Application**: [https://fin-advisor-voice.vercel.app](https://fin-advisor-voice.vercel.app)
+> - ⚙️ **Backend API (Swagger Docs)**: [https://finadvisor-voice.onrender.com/docs](https://finadvisor-voice.onrender.com/docs)
+> - 📦 **GitHub Repository**: [AshokSingodia-Codes/FinAdvisor-Voice](https://github.com/AshokSingodia-Codes/FinAdvisor-Voice)
+
+**FinAdvisor-X (v2.0)** is an enterprise-grade, state-of-the-art **Agentic Hybrid Graph Retrieval-Augmented Generation (RAG)** platform with **Isolated Multi-Turn Conversation Memory** and real-time financial intelligence.
 
 FinAdvisor-X combines **Neo4j AuraDB** (Graph & Vector Store), **LangGraph** (Stateful Multi-Agent Orchestration), **FlashRank** (Local Cross-Encoder Reranking), **Groq LPU LLM inference** (with automatic multi-provider fallbacks), and a modern **React 19 + Vite** responsive dashboard. It reasons over SEC 10-K filings (Apple Inc. FY2024), a comprehensive Chartered Accountant (CA) finance knowledge base, classic investment literature, and real-time Yahoo Finance market feeds.
 
