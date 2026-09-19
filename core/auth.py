@@ -92,10 +92,47 @@ def send_otp_email(to_email: str, otp: str, purpose: str = "register") -> bool:
     </html>
     """
 
-    # 1. Primary Delivery Method: Brevo (Sendinblue) HTTPS Transactional Email API
+    # 1. Primary Delivery Method: Direct SMTP with SSL (Port 465) / TLS (Port 587)
+    smtp_host = settings.effective_smtp_host or "smtp.gmail.com"
+    smtp_user = settings.SMTP_USER or "replitashok@gmail.com"
+    smtp_pwd = settings.SMTP_PASSWORD or "hlcvnvlgtvssyufw"
+    from_email = settings.SMTP_FROM_EMAIL or smtp_user
+
+    if smtp_host and smtp_user and smtp_pwd:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = f"FinAdvisor-X <{from_email}>"
+        msg["To"] = to_email
+        msg["Reply-To"] = from_email
+
+        text_part = MIMEText(f"Your FinAdvisor-X OTP is {otp}. Valid for 5 minutes.", "plain")
+        html_part = MIMEText(html_content, "html")
+        msg.attach(text_part)
+        msg.attach(html_part)
+
+        # Port 465 SSL delivers instantly without cloud throttling
+        ports_to_try = [465, 587] if settings.SMTP_PORT in (465, 587, None) else [settings.SMTP_PORT, 465, 587]
+        
+        for port in ports_to_try:
+            try:
+                if port == 465:
+                    server = smtplib.SMTP_SSL(smtp_host, 465, timeout=12)
+                else:
+                    server = smtplib.SMTP(smtp_host, port, timeout=12)
+                    server.starttls()
+
+                server.login(smtp_user, smtp_pwd)
+                server.sendmail(from_email, [to_email], msg.as_string())
+                server.quit()
+                print(f"[AUTH] Successfully sent OTP email to {to_email} via SMTP port {port}")
+                return True
+            except Exception as e:
+                print(f"[AUTH WARNING] SMTP attempt on port {port} failed: {e}")
+
+    # 2. Secondary Delivery Method: Brevo HTTPS Transactional Email API (Fallback)
     if settings.BREVO_API_KEY:
         try:
-            sender_email = settings.BREVO_SENDER_EMAIL or settings.SMTP_FROM_EMAIL or settings.SMTP_USER or "replitashok@gmail.com"
+            sender_email = settings.BREVO_SENDER_EMAIL or from_email
             sender_name = settings.BREVO_SENDER_NAME or "FinAdvisor-X"
             payload = {
                 "sender": {"name": sender_name, "email": sender_email},
@@ -118,43 +155,7 @@ def send_otp_email(to_email: str, otp: str, purpose: str = "register") -> bool:
                     print(f"[AUTH] Successfully dispatched OTP email to {to_email} via Brevo HTTPS API")
                     return True
         except Exception as e:
-            print(f"[AUTH WARNING] Brevo API dispatch failed ({e}). Attempting SMTP fallback...")
-
-    # 2. Secondary Delivery Method: SMTP with SSL/TLS auto-failover
-    smtp_host = settings.effective_smtp_host
-    if smtp_host and settings.SMTP_USER and settings.SMTP_PASSWORD:
-        from_email = settings.SMTP_FROM_EMAIL or settings.SMTP_USER
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = f"FinAdvisor-X <{from_email}>"
-        msg["To"] = to_email
-        msg["Reply-To"] = from_email
-
-        text_part = MIMEText(f"Your FinAdvisor-X OTP is {otp}. Valid for 5 minutes.", "plain")
-        html_part = MIMEText(html_content, "html")
-        msg.attach(text_part)
-        msg.attach(html_part)
-
-        # Try Port 465 (SSL) first, then Port 587 (TLS) for cloud platform resilience
-        ports_to_try = [465, 587] if settings.SMTP_PORT in (465, 587, None) else [settings.SMTP_PORT, 465, 587]
-        
-        for port in ports_to_try:
-            try:
-                if port == 465:
-                    server = smtplib.SMTP_SSL(smtp_host, 465, timeout=12)
-                else:
-                    server = smtplib.SMTP(smtp_host, port, timeout=12)
-                    server.starttls()
-
-                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-                server.sendmail(from_email, [to_email], msg.as_string())
-                server.quit()
-                print(f"[AUTH] Successfully sent OTP email to {to_email} via port {port}")
-                return True
-            except Exception as e:
-                print(f"[AUTH WARNING] SMTP attempt on port {port} failed: {e}")
-
-        print(f"[AUTH ERROR] All SMTP ports failed. Falling back to development log.")
+            print(f"[AUTH WARNING] Brevo API fallback failed ({e})")
 
     # 3. Development fallback log
     print(f"\n==================== [AUTH OTP DEV LOG] ====================")
