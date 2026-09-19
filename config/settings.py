@@ -5,11 +5,11 @@ from typing import Optional
 class Settings(BaseSettings):
     # Neo4j Settings
     AURA_INSTANCENAME: Optional[str] = Field("Instance01", description="Neo4j Aura Instance Name")
-    NEO4J_URI: str = Field(..., description="Neo4j Connection URI")
+    NEO4J_URI: str = Field("bolt://localhost:7687", description="Neo4j Connection URI")
     NEO4J_USERNAME: str = Field("neo4j", description="Neo4j Username")
-    NEO4J_PASSWORD: str = Field(..., description="Neo4j Password")
+    NEO4J_PASSWORD: str = Field("password", description="Neo4j Password")
     
-    GROQ_API_KEY: str = Field(..., description="Groq API Key")
+    GROQ_API_KEY: str = Field("", description="Groq API Key")
     GROQ_MODEL: str = Field("qwen/qwen3.8-27b", description="Groq Model to use")
     GITHUB_API_KEY: Optional[str] = Field(None, description="GitHub PAT for Models API fallback")
     OPENROUTER_API_KEY: Optional[str] = Field(None, description="OpenRouter API Key for fallback")
@@ -31,7 +31,12 @@ class Settings(BaseSettings):
     REDIS_URL: Optional[str] = Field(None, description="Redis Connection URL")
     JWT_SECRET: str = Field("default_insecure_secret_change_me", description="JWT Secret Key")
     
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env", 
+        env_file_encoding="utf-8", 
+        extra="ignore",
+        case_sensitive=False
+    )
 
 # Instantiate a singleton settings object
 settings = Settings()
