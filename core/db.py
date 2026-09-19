@@ -21,6 +21,7 @@ if settings.GROQ_API_KEY:
 from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.embeddings import Embeddings
 
 # Shared LLM (Groq primary with smart fallbacks)
 primary_chat = ChatGroq(
@@ -68,6 +69,26 @@ def get_structured_chat(schema, **kwargs):
         return primary_structured.with_fallbacks(fallback_structured)
     return primary_structured
 
+# Ultra-lightweight ONNX-based FastEmbed Wrapper (<25MB RAM vs 500MB PyTorch)
+class FastEmbedWrapper(Embeddings):
+    def __init__(self, model_name="sentence-transformers/all-MiniLM-L6-v2"):
+        self.model_name = model_name
+        self._model = None
+
+    def _get_model(self):
+        if self._model is None:
+            from fastembed import TextEmbedding
+            self._model = TextEmbedding(model_name=self.model_name)
+        return self._model
+
+    def embed_documents(self, texts):
+        model = self._get_model()
+        return [list(emb) for emb in model.embed(texts)]
+
+    def embed_query(self, text):
+        model = self._get_model()
+        return list(next(model.embed([text])))
+
 # Lazy Proxy helper to defer heavy memory allocations and connections
 class LazyProxy:
     def __init__(self, init_fn):
@@ -105,15 +126,10 @@ def init_kg():
 
 def init_hf():
     try:
-        from langchain_huggingface import HuggingFaceEmbeddings
-        # Use lightweight MiniLM (80MB) instead of heavy mpnet (450MB) to stay well under 512MB RAM
-        return HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2",
-            model_kwargs={'device': 'cpu'},
-            encode_kwargs={'normalize_embeddings': False}
-        )
+        # FastEmbed uses ONNX runtime (~25MB RAM) with ZERO PyTorch overhead
+        return FastEmbedWrapper(model_name="sentence-transformers/all-MiniLM-L6-v2")
     except Exception as e:
-        print(f"Warning: HuggingFaceEmbeddings initialization deferred/failed: {e}")
+        print(f"Warning: Embeddings initialization deferred/failed: {e}")
         return None
 
 def init_vector_index():
@@ -136,7 +152,7 @@ def init_vector_index():
         print(f"Warning: Neo4jVector initialization deferred/failed: {e}")
         return None
 
-# Lazy proxy instances that won't allocate 500MB on app startup
+# Lazy proxy instances
 kg = LazyProxy(init_kg)
 hf = LazyProxy(init_hf)
 vector_index = LazyProxy(init_vector_index)
