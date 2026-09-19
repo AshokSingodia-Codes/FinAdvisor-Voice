@@ -1,4 +1,5 @@
 import os
+import glob
 from dotenv import load_dotenv
 from langchain_community.document_loaders import PDFPlumberLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -11,14 +12,23 @@ NEO4J_URI = os.environ["NEO4J_URI"]
 NEO4J_USERNAME = os.environ["NEO4J_USERNAME"]
 NEO4J_PASSWORD = os.environ["NEO4J_PASSWORD"]
 
-print("1. Parsing PDF with PDFPlumber (better table handling)...")
-loader = PDFPlumberLoader(r"Annual Report\NASDAQ_AAPL_2024.pdf")
-docs = loader.load()
+data_dir = "data"
+pdf_files = glob.glob(os.path.join(data_dir, "*.pdf"))
+
+if not pdf_files:
+    print(f"No PDFs found in '{data_dir}' directory. Please add some PDFs and run again.")
+    exit(0)
+
+all_docs = []
+for pdf_file in pdf_files:
+    print(f"1. Parsing PDF with PDFPlumber: {pdf_file}")
+    loader = PDFPlumberLoader(pdf_file)
+    all_docs.extend(loader.load())
 
 print("2. Splitting text...")
 splitter = RecursiveCharacterTextSplitter(chunk_size=1200, chunk_overlap=200)
-documents = splitter.split_documents(docs)
-print(f"Created {len(documents)} documents.")
+documents = splitter.split_documents(all_docs)
+print(f"Created {len(documents)} document chunks.")
 
 print("3. Initializing Embedding Model...")
 hf = HuggingFaceEmbeddings(
@@ -28,8 +38,7 @@ hf = HuggingFaceEmbeddings(
 )
 
 print("4. Pushing new Vectors to Neo4j...")
-vector_index = Neo4jVector.from_documents(
-    documents,
+vector_index = Neo4jVector.from_existing_index(
     hf,
     url=NEO4J_URI,
     username=NEO4J_USERNAME,
@@ -39,5 +48,6 @@ vector_index = Neo4jVector.from_documents(
     search_type="hybrid",
     database=NEO4J_USERNAME
 )
+vector_index.add_documents(documents)
 
 print("Done! The database now has properly formatted PDF text.")

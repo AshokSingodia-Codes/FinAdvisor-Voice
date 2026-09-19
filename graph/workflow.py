@@ -5,6 +5,9 @@ from nodes.decomposition import decompose_question
 from nodes.retriever import retrieve_context
 from nodes.evidence_builder import build_evidence
 from nodes.verifier import verify_answer
+from nodes.math_solver import solve_math
+from nodes.math_calculation import do_math_calculation
+from nodes.market_data import fetch_live_data
 from config.settings import settings
 
 # Define graph
@@ -16,6 +19,9 @@ workflow.add_node("decompose", decompose_question)
 workflow.add_node("retriever", retrieve_context)
 workflow.add_node("evidence_builder", build_evidence)
 workflow.add_node("verifier", verify_answer)
+workflow.add_node("math_solver", solve_math)
+workflow.add_node("math_calculation", do_math_calculation)
+workflow.add_node("live_data", fetch_live_data)
 
 # Set entry point
 workflow.set_entry_point("router")
@@ -27,6 +33,12 @@ def route_decision(state: AgentState):
         return "decompose"
     elif decision == "hybrid_search":
         return "hybrid_search"
+    elif decision == "calculation":
+        return "calculation"
+    elif decision == "math_calculation":
+        return "math_calculation"
+    elif decision == "live_market_data":
+        return "live_market_data"
     else:
         # direct_answer bypasses retrieval and goes straight to evidence builder
         return "direct_answer"
@@ -37,6 +49,9 @@ workflow.add_conditional_edges(
     {
         "decompose": "decompose",
         "hybrid_search": "retriever",
+        "calculation": "math_solver",
+        "math_calculation": "math_calculation",
+        "live_market_data": "live_data",
         "direct_answer": "evidence_builder"
     }
 )
@@ -49,6 +64,15 @@ workflow.add_edge("retriever", "evidence_builder")
 
 # Flow from evidence builder
 workflow.add_edge("evidence_builder", "verifier")
+
+# Flow from math solver
+workflow.add_edge("math_solver", "verifier")
+
+# Flow from math calculation
+workflow.add_edge("math_calculation", "verifier")
+
+# Flow from live data
+workflow.add_edge("live_data", "evidence_builder")
 
 # Conditional edges from verifier (Multi-hop Iterative loop)
 def check_verification(state: AgentState):

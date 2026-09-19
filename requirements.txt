@@ -1,4 +1,5 @@
-streamlit==1.64.0
+fastapi
+uvicorn
 langchain-core==1.6.3
 langchain-groq==1.1.3
 langgraph==1.2.11
@@ -9,6 +10,10 @@ sentence-transformers==6.0.1
 pydantic==2.13.5
 pydantic-settings==2.15.0
 python-dotenv==1.2.3
-gTTS==2.5.4
 groq==0.37.1
 FlashRank==0.2.10
+yfinance==0.2.40
+pytest
+pytest-mock
+pytest-asyncio
+langchain-google-genai

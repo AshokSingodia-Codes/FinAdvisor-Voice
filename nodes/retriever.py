@@ -2,7 +2,7 @@ from typing import List
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from graph.state import AgentState
-from core.db import kg, vector_index, chat
+from core.db import kg, vector_index, chat, get_structured_chat
 from config.settings import settings
 from retrieval.hybrid_rrf import reciprocal_rank_fusion
 from retrieval.reranker import cross_encode_rerank
@@ -14,7 +14,7 @@ entity_prompt = ChatPromptTemplate.from_messages([
     ("system", "Extract organization and person entities from the text."),
     ("human", "Extract all the entities from the following input: {question}")
 ])
-entity_chain = entity_prompt | chat.with_structured_output(Entities)
+entity_chain = entity_prompt | get_structured_chat(Entities)
 
 def structured_retriever(question: str) -> List[str]:
     results_list = []

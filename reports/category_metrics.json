@@ -1,0 +1,82 @@
+{
+  "INCOME_STATEMENT": {
+    "total": 56,
+    "passed": 0,
+    "failed": 56,
+    "errors": {
+      "API_FAILURE": 56
+    }
+  },
+  "BALANCE_SHEET": {
+    "total": 26,
+    "passed": 0,
+    "failed": 26,
+    "errors": {
+      "API_FAILURE": 26
+    }
+  },
+  "CASH_FLOW": {
+    "total": 11,
+    "passed": 0,
+    "failed": 11,
+    "errors": {
+      "API_FAILURE": 11
+    }
+  },
+  "SEGMENT_ANALYSIS": {
+    "total": 25,
+    "passed": 0,
+    "failed": 25,
+    "errors": {
+      "API_FAILURE": 25
+    }
+  },
+  "RISK_ANALYSIS": {
+    "total": 34,
+    "passed": 0,
+    "failed": 34,
+    "errors": {
+      "API_FAILURE": 34
+    }
+  },
+  "ADVERSARIAL": {
+    "total": 7,
+    "passed": 0,
+    "failed": 7,
+    "errors": {
+      "API_FAILURE": 7
+    }
+  },
+  "MARKET_DATA": {
+    "total": 2,
+    "passed": 0,
+    "failed": 2,
+    "errors": {
+      "API_FAILURE": 2
+    }
+  },
+  "CROSS_STATEMENT": {
+    "total": 70,
+    "passed": 0,
+    "failed": 70,
+    "errors": {
+      "API_FAILURE": 70
+    }
+  },
+  "FOOTNOTES": {
+    "total": 30,
+    "passed": 0,
+    "failed": 30,
+    "errors": {
+      "API_FAILURE": 30
+    }
+  },
+  "TEMPORAL_REASONING": {
+    "total": 60,
+    "passed": 0,
+    "failed": 60,
+    "errors": {
+      "API_FAILURE": 60
+    }
+  }
+}

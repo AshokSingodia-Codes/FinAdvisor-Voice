@@ -1,10 +1,9 @@
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from typing import List
-from langchain_google_genai import ChatGoogleGenerativeAI
 from graph.state import AgentState
 
-from core.db import chat
+from core.db import chat, get_structured_chat
 
 class SubQuery(BaseModel):
     query: str = Field(description="The standalone sub-query text.")
@@ -21,7 +20,7 @@ decompose_prompt = ChatPromptTemplate.from_messages([
     ("human", "{question}")
 ])
 
-decompose_chain = decompose_prompt | chat.with_structured_output(SubQueries)
+decompose_chain = decompose_prompt | get_structured_chat(SubQueries)
 
 def decompose_question(state: AgentState):
     print("---NODE: DECOMPOSITION---")

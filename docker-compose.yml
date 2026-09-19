@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  finadvisor-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: finadvisor-x-v2
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

@@ -1,6 +1,6 @@
-from typing import TypedDict, List
+from typing import TypedDict, List, Dict, Any
 
-class AgentState(TypedDict):
+class AgentState(TypedDict, total=False):
     original_question: str
     decomposed_questions: List[str] # If the question was broken down
     current_question: str # The question currently being processed
@@ -9,3 +9,6 @@ class AgentState(TypedDict):
     final_answer: str # The final verified answer
     routing_decision: str # e.g., 'direct_answer', 'vector_search', 'graph_search'
     verification_passed: bool # True if the Verifier accepts the draft
+    chat_history: List[Dict[str, str]] # Kept for backwards compatibility
+    memory_context: str # The formatted recent history and facts
+    conversation_id: str # ID of the current conversation

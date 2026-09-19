@@ -9,13 +9,11 @@ class Settings(BaseSettings):
     NEO4J_USERNAME: str = Field(..., description="Neo4j Username")
     NEO4J_PASSWORD: str = Field(..., description="Neo4j Password")
     
-    # LLM Settings (Groq replaces Gemini for fast agent execution)
     GROQ_API_KEY: str = Field(..., description="Groq API Key")
-    GROQ_MODEL: str = Field("openai/gpt-oss-120b", description="Groq Model to use")
-    
-    # Gemini Fallback (if still used anywhere)
-    GEMINI_API_KEY: Optional[str] = Field(None, description="Gemini API Key")
-    GEMINI_MODEL: str = Field("gemini-3.6-flash", description="Gemini Model to use")
+    GROQ_MODEL: str = Field("qwen/qwen3.8-27b", description="Groq Model to use")
+    GITHUB_API_KEY: Optional[str] = Field(None, description="GitHub PAT for Models API fallback")
+    OPENROUTER_API_KEY: Optional[str] = Field(None, description="OpenRouter API Key for fallback")
+    GOOGLE_API_KEY: Optional[str] = Field(None, description="Google API Key for Gemini fallback")
     
     # RAG Settings
     VECTOR_INDEX_NAME: str = Field("vector_markdown", description="Vector Index Name")
