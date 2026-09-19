@@ -33,7 +33,12 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = Field("HS256", description="JWT Algorithm")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(60 * 24, description="JWT Expiration in minutes")
     
-    # SMTP / Email Settings
+    # Brevo (Sendinblue) HTTPS Email API
+    BREVO_API_KEY: Optional[str] = Field(None, description="Brevo (Sendinblue) API Key")
+    BREVO_SENDER_EMAIL: Optional[str] = Field(None, description="Brevo Verified Sender Email")
+    BREVO_SENDER_NAME: str = Field("FinAdvisor-X", description="Brevo Sender Display Name")
+
+    # SMTP / Email Settings (Fallback)
     SMTP_HOST: Optional[str] = Field(None, description="SMTP Server Host (e.g. smtp.gmail.com)")
     SMTP_SERVER: Optional[str] = Field(None, description="Alternative alias for SMTP Server Host")
     SMTP_PORT: int = Field(587, description="SMTP Server Port")

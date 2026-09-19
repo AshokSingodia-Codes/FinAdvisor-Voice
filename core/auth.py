@@ -46,10 +46,14 @@ def generate_verification_token() -> str:
     """Generate a single-use token after successful OTP verification."""
     return secrets.token_urlsafe(32)
 
+import json
+import urllib.request
+import urllib.error
+
 # --- Email Sending Service ---
 def send_otp_email(to_email: str, otp: str, purpose: str = "register") -> bool:
     """
-    Send OTP via SMTP email if configured.
+    Send OTP via Brevo HTTPS API (primary) or SMTP (fallback).
     Falls back gracefully to console logging in development mode.
     """
     subject_map = {
@@ -88,7 +92,35 @@ def send_otp_email(to_email: str, otp: str, purpose: str = "register") -> bool:
     </html>
     """
 
-    # If SMTP is configured, attempt sending email with SSL/TLS auto-failover
+    # 1. Primary Delivery Method: Brevo (Sendinblue) HTTPS Transactional Email API
+    if settings.BREVO_API_KEY:
+        try:
+            sender_email = settings.BREVO_SENDER_EMAIL or settings.SMTP_FROM_EMAIL or settings.SMTP_USER or "replitashok@gmail.com"
+            sender_name = settings.BREVO_SENDER_NAME or "FinAdvisor-X"
+            payload = {
+                "sender": {"name": sender_name, "email": sender_email},
+                "to": [{"email": to_email}],
+                "subject": subject,
+                "htmlContent": html_content
+            }
+            req = urllib.request.Request(
+                "https://api.brevo.com/v3/smtp/email",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "api-key": settings.BREVO_API_KEY.strip(),
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                },
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=10) as response:
+                if response.status in (200, 201, 202):
+                    print(f"[AUTH] Successfully dispatched OTP email to {to_email} via Brevo HTTPS API")
+                    return True
+        except Exception as e:
+            print(f"[AUTH WARNING] Brevo API dispatch failed ({e}). Attempting SMTP fallback...")
+
+    # 2. Secondary Delivery Method: SMTP with SSL/TLS auto-failover
     smtp_host = settings.effective_smtp_host
     if smtp_host and settings.SMTP_USER and settings.SMTP_PASSWORD:
         from_email = settings.SMTP_FROM_EMAIL or settings.SMTP_USER
@@ -124,7 +156,7 @@ def send_otp_email(to_email: str, otp: str, purpose: str = "register") -> bool:
 
         print(f"[AUTH ERROR] All SMTP ports failed. Falling back to development log.")
 
-    # Development fallback
+    # 3. Development fallback log
     print(f"\n==================== [AUTH OTP DEV LOG] ====================")
     print(f"  To:       {to_email}")
     print(f"  Purpose:  {purpose}")

@@ -23,10 +23,14 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_SENDER_EMAIL
+        sync: false
       - key: SMTP_SERVER
         sync: false
       - key: SMTP_PORT
-        value: "587"
+        value: "465"
       - key: SMTP_USER
         sync: false
       - key: SMTP_PASSWORD
