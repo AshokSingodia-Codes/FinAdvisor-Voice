@@ -56,6 +56,12 @@ def send_otp_email(to_email: str, otp: str, purpose: str = "register") -> bool:
     Send OTP via Brevo HTTPS API (primary) or SMTP (fallback).
     Falls back gracefully to console logging in development mode.
     """
+    # Skip external email dispatch in test environments or for mock domains
+    test_domains = ("example.com", "test.com", "isolation.com", "mock.com", "localhost")
+    if os.getenv("PYTEST_CURRENT_TEST") or any(to_email.lower().endswith("@" + d) for d in test_domains):
+        print(f"\n[AUTH DEV/TEST LOG] OTP for {to_email} ({purpose}): {otp} (Expires: {OTP_EXPIRY_MINUTES}m)\n")
+        return True
+
     subject_map = {
         "register": "FinAdvisor-X - Verify Your Email",
         "forgot_password": "FinAdvisor-X - Password Reset OTP",

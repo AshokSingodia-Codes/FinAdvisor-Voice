@@ -42,6 +42,52 @@ def get_database_url() -> str:
         
     return db_url
 
+def _resolve_host_fallback(hostname: str) -> Optional[str]:
+    """Resolves hostname via system DNS or falls back to public DNS (8.8.8.8 / 1.1.1.1)."""
+    import socket
+    import struct
+    try:
+        return socket.gethostbyname(hostname)
+    except Exception:
+        pass
+    
+    # Fallback to direct DNS query via UDP socket for serverless cloud databases
+    for dns_server in ("8.8.8.8", "1.1.1.1"):
+        try:
+            packet = bytearray()
+            packet.extend(b'\xaa\xbb\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00')
+            for part in hostname.split('.'):
+                packet.append(len(part))
+                packet.extend(part.encode())
+            packet.append(0)
+            packet.extend(b'\x00\x01\x00\x01') # Type A, Class IN
+            
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.settimeout(3.0)
+            try:
+                sock.sendto(packet, (dns_server, 53))
+                data, _ = sock.recvfrom(1024)
+                idx = len(packet)
+                while idx < len(data):
+                    if data[idx] >= 192:
+                        idx += 2
+                    else:
+                        while idx < len(data) and data[idx] != 0:
+                            idx += 1 + data[idx]
+                        idx += 1
+                    if idx + 10 > len(data):
+                        break
+                    rtype, rclass, ttl, rdlength = struct.unpack('!HHIH', data[idx:idx+10])
+                    idx += 10
+                    if rtype == 1 and rdlength == 4 and idx + 4 <= len(data):
+                        return socket.inet_ntoa(data[idx:idx+4])
+                    idx += rdlength
+            finally:
+                sock.close()
+        except Exception:
+            continue
+    return None
+
 def create_db_engine(db_url: Optional[str] = None):
     url = db_url or get_database_url()
     if url.startswith("sqlite"):
@@ -51,15 +97,27 @@ def create_db_engine(db_url: Optional[str] = None):
             poolclass=StaticPool if ":memory:" in url else None
         )
     else:
+        connect_args = {}
+        # Check if host needs fallback resolution for Windows/local environments
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            if parsed.hostname:
+                resolved_ip = _resolve_host_fallback(parsed.hostname)
+                if resolved_ip:
+                    connect_args["hostaddr"] = resolved_ip
+        except Exception:
+            pass
+
         # PostgreSQL / Neon Serverless configuration:
-        # pool_pre_ping: Validates connection health before issuing queries
-        # pool_recycle: Recycles stale connections (vital for serverless postgres scaling)
+        # pool_recycle: Recycles connections periodically to align with PgBouncer
         return create_engine(
             url,
-            pool_pre_ping=True,
-            pool_recycle=300,
-            pool_size=10,
-            max_overflow=20
+            pool_pre_ping=False,
+            pool_recycle=600,
+            pool_size=15,
+            max_overflow=25,
+            connect_args=connect_args
         )
 
 # Global engine instance
@@ -148,6 +206,12 @@ def init_db(target_engine=None):
 init_db()
 
 
+# --- In-Memory Fast Cache for User Authentication ---
+import time
+_USER_CACHE: Dict[str, Any] = {}
+_USER_CACHE_TTL = 300  # 5 minutes cache for active tokens
+
+
 # --- User Management ---
 
 def create_user(email: str, password_hash: str) -> Dict[str, Any]:
@@ -164,7 +228,9 @@ def create_user(email: str, password_hash: str) -> Dict[str, Any]:
             {"id": uid, "email": email_clean, "password_hash": password_hash, "created_at": now, "updated_at": now}
         )
         conn.commit()
-    return {"id": uid, "email": email_clean, "created_at": now}
+    user_dict = {"id": uid, "email": email_clean, "created_at": now}
+    _USER_CACHE[uid] = ({"id": uid, "email": email_clean, "password_hash": password_hash, "created_at": now, "updated_at": now}, time.time() + _USER_CACHE_TTL)
+    return user_dict
 
 def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
     email_clean = email.strip().lower()
@@ -174,19 +240,32 @@ def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
             {"email": email_clean}
         )
         row = result.mappings().fetchone()
-        return dict(row) if row else None
+        user_dict = dict(row) if row else None
+        if user_dict:
+            _USER_CACHE[user_dict["id"]] = (user_dict, time.time() + _USER_CACHE_TTL)
+        return user_dict
 
 def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
+    now_ts = time.time()
+    if user_id in _USER_CACHE:
+        cached_user, exp_ts = _USER_CACHE[user_id]
+        if now_ts < exp_ts:
+            return cached_user
+
     with get_db_connection() as conn:
         result = conn.execute(
             text("SELECT id, email, password_hash, created_at, updated_at FROM users WHERE id = :id"),
             {"id": user_id}
         )
         row = result.mappings().fetchone()
-        return dict(row) if row else None
+        user_dict = dict(row) if row else None
+        if user_dict:
+            _USER_CACHE[user_id] = (user_dict, now_ts + _USER_CACHE_TTL)
+        return user_dict
 
 def update_user_password(user_id: str, new_password_hash: str) -> bool:
     now = _get_utc_now()
+    _USER_CACHE.pop(user_id, None)
     with get_db_connection() as conn:
         res = conn.execute(
             text("UPDATE users SET password_hash = :password_hash, updated_at = :updated_at WHERE id = :id"),
