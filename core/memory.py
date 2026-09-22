@@ -1,101 +1,152 @@
-import sqlite3
 import os
 import json
 import re
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional
+from contextlib import contextmanager
+
+from sqlalchemy import (
+    create_engine,
+    text,
+    MetaData,
+    Table,
+    Column,
+    String,
+    Text,
+    Integer,
+    ForeignKey,
+    Index
+)
+from sqlalchemy.pool import StaticPool
+from config.settings import settings
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'conversations.db')
 
-def _get_utc_now():
+def _get_utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
-def get_db_connection():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-def init_db():
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        # Users table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                id TEXT PRIMARY KEY,
-                email TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        cursor.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)')
-
-        # OTPs table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS otps (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT NOT NULL,
-                otp_hash TEXT NOT NULL,
-                purpose TEXT NOT NULL,
-                verification_token TEXT,
-                expires_at DATETIME NOT NULL,
-                attempts INTEGER DEFAULT 0,
-                is_verified INTEGER DEFAULT 0,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_otps_email_purpose ON otps(email, purpose)')
-
-        # Conversations table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS conversations (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                title TEXT NOT NULL DEFAULT 'New Chat',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-        ''')
+def get_database_url() -> str:
+    """
+    Returns the configured PostgreSQL database URL from settings,
+    or falls back to a local SQLite database for local offline development/testing.
+    """
+    db_url = settings.effective_database_url
+    if not db_url:
+        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+        return f"sqlite:///{DB_PATH}"
+    
+    # Ensure Neon sslmode is set if connecting to a remote postgres
+    if "postgresql" in db_url and "sslmode=" not in db_url:
+        separator = "&" if "?" in db_url else "?"
+        db_url = f"{db_url}{separator}sslmode=require"
         
-        # Migration: Check if user_id column exists
-        cursor.execute("PRAGMA table_info(conversations)")
-        columns = [row[1] for row in cursor.fetchall()]
-        if 'user_id' not in columns:
-            try:
-                cursor.execute("ALTER TABLE conversations ADD COLUMN user_id TEXT")
-            except Exception:
-                pass
+    return db_url
 
-        # Purge unowned / legacy NULL conversations to prevent data leakage
-        cursor.execute("DELETE FROM conversations WHERE user_id IS NULL OR user_id = ''")
+def create_db_engine(db_url: Optional[str] = None):
+    url = db_url or get_database_url()
+    if url.startswith("sqlite"):
+        return create_engine(
+            url,
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool if ":memory:" in url else None
+        )
+    else:
+        # PostgreSQL / Neon Serverless configuration:
+        # pool_pre_ping: Validates connection health before issuing queries
+        # pool_recycle: Recycles stale connections (vital for serverless postgres scaling)
+        return create_engine(
+            url,
+            pool_pre_ping=True,
+            pool_recycle=300,
+            pool_size=10,
+            max_overflow=20
+        )
 
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                conversation_id TEXT NOT NULL,
-                role TEXT NOT NULL,
-                content TEXT NOT NULL,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS conversation_memory (
-                conversation_id TEXT PRIMARY KEY,
-                summary TEXT DEFAULT '',
-                facts TEXT DEFAULT '{}',
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
-            )
-        ''')
-        # Fast query indexing
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id, timestamp)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id, updated_at)')
+# Global engine instance
+engine = create_db_engine()
+
+metadata = MetaData()
+
+# Define Tables
+users_table = Table(
+    'users',
+    metadata,
+    Column('id', String(64), primary_key=True),
+    Column('email', String(255), unique=True, nullable=False),
+    Column('password_hash', Text, nullable=False),
+    Column('created_at', String(64), default=_get_utc_now),
+    Column('updated_at', String(64), default=_get_utc_now),
+)
+
+otps_table = Table(
+    'otps',
+    metadata,
+    Column('id', Integer, primary_key=True, autoincrement=True),
+    Column('email', String(255), nullable=False),
+    Column('otp_hash', Text, nullable=False),
+    Column('purpose', String(64), nullable=False),
+    Column('verification_token', String(255), nullable=True),
+    Column('expires_at', String(64), nullable=False),
+    Column('attempts', Integer, default=0),
+    Column('is_verified', Integer, default=0),
+    Column('created_at', String(64), default=_get_utc_now),
+    Index('idx_otps_email_purpose', 'email', 'purpose')
+)
+
+conversations_table = Table(
+    'conversations',
+    metadata,
+    Column('id', String(64), primary_key=True),
+    Column('user_id', String(64), ForeignKey('users.id', ondelete='CASCADE'), nullable=False),
+    Column('title', String(255), nullable=False, default='New Chat'),
+    Column('created_at', String(64), default=_get_utc_now),
+    Column('updated_at', String(64), default=_get_utc_now),
+    Index('idx_conversations_user', 'user_id', 'updated_at')
+)
+
+messages_table = Table(
+    'messages',
+    metadata,
+    Column('id', Integer, primary_key=True, autoincrement=True),
+    Column('conversation_id', String(64), ForeignKey('conversations.id', ondelete='CASCADE'), nullable=False),
+    Column('role', String(32), nullable=False),
+    Column('content', Text, nullable=False),
+    Column('timestamp', String(64), default=_get_utc_now),
+    Index('idx_messages_conv', 'conversation_id', 'timestamp')
+)
+
+conversation_memory_table = Table(
+    'conversation_memory',
+    metadata,
+    Column('conversation_id', String(64), ForeignKey('conversations.id', ondelete='CASCADE'), primary_key=True),
+    Column('summary', Text, default=''),
+    Column('facts', Text, default='{}'),
+    Column('updated_at', String(64), default=_get_utc_now)
+)
+
+
+@contextmanager
+def get_db_connection(custom_engine=None):
+    """Context manager yielding an active SQLAlchemy connection."""
+    target_engine = custom_engine or engine
+    with target_engine.connect() as conn:
+        yield conn
+
+
+def init_db(target_engine=None):
+    """Initializes all database tables and indexes."""
+    eng = target_engine or engine
+    metadata.create_all(bind=eng)
+    
+    # Purge any legacy NULL user_id conversations
+    with get_db_connection(custom_engine=eng) as conn:
+        conn.execute(text("DELETE FROM conversations WHERE user_id IS NULL OR user_id = ''"))
         conn.commit()
 
+
+# Auto-initialize database on import
 init_db()
+
 
 # --- User Management ---
 
@@ -105,68 +156,78 @@ def create_user(email: str, password_hash: str) -> Dict[str, Any]:
     now = _get_utc_now()
     email_clean = email.strip().lower()
     with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO users (id, email, password_hash, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (uid, email_clean, password_hash, now, now))
+        conn.execute(
+            text("""
+                INSERT INTO users (id, email, password_hash, created_at, updated_at)
+                VALUES (:id, :email, :password_hash, :created_at, :updated_at)
+            """),
+            {"id": uid, "email": email_clean, "password_hash": password_hash, "created_at": now, "updated_at": now}
+        )
         conn.commit()
     return {"id": uid, "email": email_clean, "created_at": now}
 
 def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
     email_clean = email.strip().lower()
     with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT id, email, password_hash, created_at, updated_at FROM users WHERE email = ?', (email_clean,))
-        row = cursor.fetchone()
+        result = conn.execute(
+            text("SELECT id, email, password_hash, created_at, updated_at FROM users WHERE email = :email"),
+            {"email": email_clean}
+        )
+        row = result.mappings().fetchone()
         return dict(row) if row else None
 
 def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
     with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT id, email, password_hash, created_at, updated_at FROM users WHERE id = ?', (user_id,))
-        row = cursor.fetchone()
+        result = conn.execute(
+            text("SELECT id, email, password_hash, created_at, updated_at FROM users WHERE id = :id"),
+            {"id": user_id}
+        )
+        row = result.mappings().fetchone()
         return dict(row) if row else None
 
 def update_user_password(user_id: str, new_password_hash: str) -> bool:
     now = _get_utc_now()
     with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            UPDATE users
-            SET password_hash = ?, updated_at = ?
-            WHERE id = ?
-        ''', (new_password_hash, now, user_id))
+        res = conn.execute(
+            text("UPDATE users SET password_hash = :password_hash, updated_at = :updated_at WHERE id = :id"),
+            {"password_hash": new_password_hash, "updated_at": now, "id": user_id}
+        )
         conn.commit()
-        return cursor.rowcount > 0
+        return res.rowcount > 0
+
 
 # --- OTP Database Operations ---
 
 def save_otp_record(email: str, otp_hash: str, purpose: str, expires_at_iso: str):
     email_clean = email.strip().lower()
     with get_db_connection() as conn:
-        cursor = conn.cursor()
         # Invalidate any prior unused OTPs for this email and purpose
-        cursor.execute('''
-            DELETE FROM otps WHERE email = ? AND purpose = ?
-        ''', (email_clean, purpose))
-        cursor.execute('''
-            INSERT INTO otps (email, otp_hash, purpose, expires_at, attempts, is_verified, created_at)
-            VALUES (?, ?, ?, ?, 0, 0, ?)
-        ''', (email_clean, otp_hash, purpose, expires_at_iso, _get_utc_now()))
+        conn.execute(
+            text("DELETE FROM otps WHERE email = :email AND purpose = :purpose"),
+            {"email": email_clean, "purpose": purpose}
+        )
+        conn.execute(
+            text("""
+                INSERT INTO otps (email, otp_hash, purpose, expires_at, attempts, is_verified, created_at)
+                VALUES (:email, :otp_hash, :purpose, :expires_at, 0, 0, :created_at)
+            """),
+            {"email": email_clean, "otp_hash": otp_hash, "purpose": purpose, "expires_at": expires_at_iso, "created_at": _get_utc_now()}
+        )
         conn.commit()
 
 def get_last_otp_record(email: str, purpose: str) -> Optional[Dict[str, Any]]:
     email_clean = email.strip().lower()
     with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT id, email, otp_hash, purpose, verification_token, expires_at, attempts, is_verified, created_at
-            FROM otps
-            WHERE email = ? AND purpose = ?
-            ORDER BY id DESC LIMIT 1
-        ''', (email_clean, purpose))
-        row = cursor.fetchone()
+        result = conn.execute(
+            text("""
+                SELECT id, email, otp_hash, purpose, verification_token, expires_at, attempts, is_verified, created_at
+                FROM otps
+                WHERE email = :email AND purpose = :purpose
+                ORDER BY id DESC LIMIT 1
+            """),
+            {"email": email_clean, "purpose": purpose}
+        )
+        row = result.mappings().fetchone()
         return dict(row) if row else None
 
 def verify_and_claim_otp(email: str, plain_otp: str, purpose: str) -> Dict[str, Any]:
@@ -176,14 +237,16 @@ def verify_and_claim_otp(email: str, plain_otp: str, purpose: str) -> Dict[str, 
     now_dt = datetime.now(timezone.utc)
     
     with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT id, otp_hash, expires_at, attempts, is_verified
-            FROM otps
-            WHERE email = ? AND purpose = ?
-            ORDER BY id DESC LIMIT 1
-        ''', (email_clean, purpose))
-        row = cursor.fetchone()
+        result = conn.execute(
+            text("""
+                SELECT id, otp_hash, expires_at, attempts, is_verified
+                FROM otps
+                WHERE email = :email AND purpose = :purpose
+                ORDER BY id DESC LIMIT 1
+            """),
+            {"email": email_clean, "purpose": purpose}
+        )
+        row = result.mappings().fetchone()
         
         if not row:
             return {"valid": False, "detail": "No active OTP found for this email. Please request a new OTP."}
@@ -203,7 +266,10 @@ def verify_and_claim_otp(email: str, plain_otp: str, purpose: str) -> Dict[str, 
             return {"valid": False, "detail": "Invalid OTP expiration format."}
         
         # Increment attempts count
-        cursor.execute('UPDATE otps SET attempts = attempts + 1 WHERE id = ?', (row["id"],))
+        conn.execute(
+            text("UPDATE otps SET attempts = attempts + 1 WHERE id = :id"),
+            {"id": row["id"]}
+        )
         conn.commit()
         
         if not verify_otp_hash(plain_otp.strip(), row["otp_hash"]):
@@ -212,11 +278,10 @@ def verify_and_claim_otp(email: str, plain_otp: str, purpose: str) -> Dict[str, 
         
         # Valid OTP -> issue verification token
         vtoken = secrets.token_urlsafe(32)
-        cursor.execute('''
-            UPDATE otps
-            SET is_verified = 1, verification_token = ?
-            WHERE id = ?
-        ''', (vtoken, row["id"]))
+        conn.execute(
+            text("UPDATE otps SET is_verified = 1, verification_token = :vtoken WHERE id = :id"),
+            {"vtoken": vtoken, "id": row["id"]}
+        )
         conn.commit()
         
         return {"valid": True, "verification_token": vtoken}
@@ -225,13 +290,15 @@ def consume_verification_token(email: str, purpose: str, token: str) -> bool:
     email_clean = email.strip().lower()
     now_dt = datetime.now(timezone.utc)
     with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT id, expires_at FROM otps
-            WHERE email = ? AND purpose = ? AND verification_token = ? AND is_verified = 1
-            ORDER BY id DESC LIMIT 1
-        ''', (email_clean, purpose, token.strip()))
-        row = cursor.fetchone()
+        result = conn.execute(
+            text("""
+                SELECT id, expires_at FROM otps
+                WHERE email = :email AND purpose = :purpose AND verification_token = :token AND is_verified = 1
+                ORDER BY id DESC LIMIT 1
+            """),
+            {"email": email_clean, "purpose": purpose, "token": token.strip()}
+        )
+        row = result.mappings().fetchone()
         if not row:
             return False
         
@@ -246,9 +313,13 @@ def consume_verification_token(email: str, purpose: str, token: str) -> bool:
             return False
         
         # Consume token so it cannot be used again
-        cursor.execute('DELETE FROM otps WHERE id = ?', (row["id"],))
+        conn.execute(
+            text("DELETE FROM otps WHERE id = :id"),
+            {"id": row["id"]}
+        )
         conn.commit()
         return True
+
 
 # --- Conversation Management (Strictly User Isolated) ---
 
@@ -259,17 +330,22 @@ def create_conversation(title: str = "New Chat", user_id: str = "", conversation
     cid = conversation_id or str(uuid.uuid4())
     now = _get_utc_now()
     with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO conversations (id, user_id, title, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET updated_at = excluded.updated_at
-        ''', (cid, user_id, title, now, now))
-        cursor.execute('''
-            INSERT INTO conversation_memory (conversation_id, summary, facts, updated_at)
-            VALUES (?, '', '{}', ?)
-            ON CONFLICT(conversation_id) DO NOTHING
-        ''', (cid, now))
+        conn.execute(
+            text("""
+                INSERT INTO conversations (id, user_id, title, created_at, updated_at)
+                VALUES (:id, :user_id, :title, :created_at, :updated_at)
+                ON CONFLICT (id) DO UPDATE SET updated_at = EXCLUDED.updated_at
+            """),
+            {"id": cid, "user_id": user_id, "title": title, "created_at": now, "updated_at": now}
+        )
+        conn.execute(
+            text("""
+                INSERT INTO conversation_memory (conversation_id, summary, facts, updated_at)
+                VALUES (:cid, '', '{}', :updated_at)
+                ON CONFLICT (conversation_id) DO NOTHING
+            """),
+            {"cid": cid, "updated_at": now}
+        )
         conn.commit()
     return cid
 
@@ -277,48 +353,55 @@ def get_conversations(user_id: str) -> List[Dict[str, Any]]:
     if not user_id:
         return []
     with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT c.id, c.user_id, c.title, c.created_at, c.updated_at,
-                   COUNT(m.id) as message_count,
-                   (SELECT content FROM messages WHERE conversation_id = c.id ORDER BY timestamp DESC LIMIT 1) as last_message
-            FROM conversations c
-            LEFT JOIN messages m ON c.id = m.conversation_id
-            WHERE c.user_id = ?
-            GROUP BY c.id
-            ORDER BY c.updated_at DESC
-        ''', (user_id,))
-        rows = cursor.fetchall()
+        result = conn.execute(
+            text("""
+                SELECT c.id, c.user_id, c.title, c.created_at, c.updated_at,
+                       COUNT(m.id) as message_count,
+                       (SELECT content FROM messages WHERE conversation_id = c.id ORDER BY timestamp DESC, id DESC LIMIT 1) as last_message
+                FROM conversations c
+                LEFT JOIN messages m ON c.id = m.conversation_id
+                WHERE c.user_id = :user_id
+                GROUP BY c.id, c.user_id, c.title, c.created_at, c.updated_at
+                ORDER BY c.updated_at DESC
+            """),
+            {"user_id": user_id}
+        )
+        rows = result.mappings().fetchall()
         return [dict(row) for row in rows]
 
 def get_conversation_raw(conversation_id: str) -> Optional[Dict[str, Any]]:
     """Internal check to inspect conversation existence across users for access control."""
     with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT id, user_id, title, created_at, updated_at FROM conversations WHERE id = ?', (conversation_id,))
-        row = cursor.fetchone()
+        result = conn.execute(
+            text("SELECT id, user_id, title, created_at, updated_at FROM conversations WHERE id = :id"),
+            {"id": conversation_id}
+        )
+        row = result.mappings().fetchone()
         return dict(row) if row else None
 
 def get_conversation(conversation_id: str, user_id: str) -> Optional[Dict[str, Any]]:
     if not user_id:
         return None
     with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT id, user_id, title, created_at, updated_at FROM conversations WHERE id = ? AND user_id = ?', (conversation_id, user_id))
-        conv_row = cursor.fetchone()
+        result = conn.execute(
+            text("SELECT id, user_id, title, created_at, updated_at FROM conversations WHERE id = :id AND user_id = :user_id"),
+            {"id": conversation_id, "user_id": user_id}
+        )
+        conv_row = result.mappings().fetchone()
         if not conv_row:
             return None
         
-        cursor.execute('''
-            SELECT id, role, content, timestamp
-            FROM messages
-            WHERE conversation_id = ?
-            ORDER BY timestamp ASC
-        ''', (conversation_id,))
-        msg_rows = cursor.fetchall()
+        msg_result = conn.execute(
+            text("SELECT id, role, content, timestamp FROM messages WHERE conversation_id = :cid ORDER BY timestamp ASC, id ASC"),
+            {"cid": conversation_id}
+        )
+        msg_rows = msg_result.mappings().fetchall()
         
-        cursor.execute('SELECT summary, facts FROM conversation_memory WHERE conversation_id = ?', (conversation_id,))
-        mem_row = cursor.fetchone()
+        mem_result = conn.execute(
+            text("SELECT summary, facts FROM conversation_memory WHERE conversation_id = :cid"),
+            {"cid": conversation_id}
+        )
+        mem_row = mem_result.mappings().fetchone()
         
         facts_dict = {}
         summary_text = ""
@@ -346,28 +429,32 @@ def rename_conversation(conversation_id: str, new_title: str, user_id: str) -> b
         return False
     now = _get_utc_now()
     with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            UPDATE conversations
-            SET title = ?, updated_at = ?
-            WHERE id = ? AND user_id = ?
-        ''', (new_title, now, conversation_id, user_id))
+        res = conn.execute(
+            text("UPDATE conversations SET title = :title, updated_at = :updated_at WHERE id = :id AND user_id = :user_id"),
+            {"title": new_title, "updated_at": now, "id": conversation_id, "user_id": user_id}
+        )
         conn.commit()
-        return cursor.rowcount > 0
+        return res.rowcount > 0
 
 def delete_conversation(conversation_id: str, user_id: str) -> bool:
     if not user_id:
         return False
     with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT id FROM conversations WHERE id = ? AND user_id = ?', (conversation_id, user_id))
-        if not cursor.fetchone():
+        chk = conn.execute(
+            text("SELECT id FROM conversations WHERE id = :id AND user_id = :user_id"),
+            {"id": conversation_id, "user_id": user_id}
+        ).mappings().fetchone()
+        if not chk:
             return False
-        cursor.execute('DELETE FROM messages WHERE conversation_id = ?', (conversation_id,))
-        cursor.execute('DELETE FROM conversation_memory WHERE conversation_id = ?', (conversation_id,))
-        cursor.execute('DELETE FROM conversations WHERE id = ? AND user_id = ?', (conversation_id, user_id))
+        conn.execute(text("DELETE FROM messages WHERE conversation_id = :cid"), {"cid": conversation_id})
+        conn.execute(text("DELETE FROM conversation_memory WHERE conversation_id = :cid"), {"cid": conversation_id})
+        res = conn.execute(
+            text("DELETE FROM conversations WHERE id = :id AND user_id = :user_id"),
+            {"id": conversation_id, "user_id": user_id}
+        )
         conn.commit()
-        return cursor.rowcount > 0
+        return res.rowcount > 0
+
 
 # --- Message Storage (User Scoped) ---
 
@@ -376,77 +463,96 @@ def add_message(conversation_id: str, role: str, content: str, user_id: str):
         raise ValueError("user_id is required to add messages.")
     now = _get_utc_now()
     with get_db_connection() as conn:
-        cursor = conn.cursor()
         # Check if conversation exists
-        cursor.execute('SELECT id, user_id FROM conversations WHERE id = ?', (conversation_id,))
-        conv = cursor.fetchone()
+        conv = conn.execute(
+            text("SELECT id, user_id FROM conversations WHERE id = :id"),
+            {"id": conversation_id}
+        ).mappings().fetchone()
         if conv:
             if conv["user_id"] != user_id:
                 raise PermissionError("Access denied: Conversation belongs to another user.")
-            cursor.execute('UPDATE conversations SET updated_at = ? WHERE id = ?', (now, conversation_id))
+            conn.execute(
+                text("UPDATE conversations SET updated_at = :updated_at WHERE id = :id"),
+                {"updated_at": now, "id": conversation_id}
+            )
         else:
             # Create new user-owned conversation
-            cursor.execute('''
-                INSERT INTO conversations (id, user_id, title, created_at, updated_at)
-                VALUES (?, ?, 'New Chat', ?, ?)
-            ''', (conversation_id, user_id, now, now))
+            conn.execute(
+                text("""
+                    INSERT INTO conversations (id, user_id, title, created_at, updated_at)
+                    VALUES (:id, :user_id, 'New Chat', :created_at, :updated_at)
+                """),
+                {"id": conversation_id, "user_id": user_id, "created_at": now, "updated_at": now}
+            )
         
-        cursor.execute('''
-            INSERT INTO messages (conversation_id, role, content, timestamp)
-            VALUES (?, ?, ?, ?)
-        ''', (conversation_id, role, content, now))
+        conn.execute(
+            text("""
+                INSERT INTO messages (conversation_id, role, content, timestamp)
+                VALUES (:conversation_id, :role, :content, :timestamp)
+            """),
+            {"conversation_id": conversation_id, "role": role, "content": content, "timestamp": now}
+        )
         
-        cursor.execute('''
-            INSERT INTO conversation_memory (conversation_id, summary, facts, updated_at)
-            VALUES (?, '', '{}', ?)
-            ON CONFLICT(conversation_id) DO UPDATE SET updated_at = excluded.updated_at
-        ''', (conversation_id, now))
+        conn.execute(
+            text("""
+                INSERT INTO conversation_memory (conversation_id, summary, facts, updated_at)
+                VALUES (:cid, '', '{}', :updated_at)
+                ON CONFLICT (conversation_id) DO UPDATE SET updated_at = EXCLUDED.updated_at
+            """),
+            {"cid": conversation_id, "updated_at": now}
+        )
         
         conn.commit()
 
 def get_all_messages(conversation_id: str, user_id: Optional[str] = None) -> List[Dict[str, str]]:
     with get_db_connection() as conn:
-        cursor = conn.cursor()
         if user_id:
-            cursor.execute('SELECT id FROM conversations WHERE id = ? AND user_id = ?', (conversation_id, user_id))
-            if not cursor.fetchone():
+            chk = conn.execute(
+                text("SELECT id FROM conversations WHERE id = :id AND user_id = :user_id"),
+                {"id": conversation_id, "user_id": user_id}
+            ).mappings().fetchone()
+            if not chk:
                 return []
-        cursor.execute('''
-            SELECT role, content FROM messages
-            WHERE conversation_id = ?
-            ORDER BY timestamp ASC
-        ''', (conversation_id,))
-        rows = cursor.fetchall()
+        result = conn.execute(
+            text("SELECT role, content FROM messages WHERE conversation_id = :cid ORDER BY timestamp ASC, id ASC"),
+            {"cid": conversation_id}
+        )
+        rows = result.mappings().fetchall()
         return [{"role": row["role"], "content": row["content"]} for row in rows]
 
 def get_recent_messages(conversation_id: str, limit: int = 8, user_id: Optional[str] = None) -> List[Dict[str, str]]:
     with get_db_connection() as conn:
-        cursor = conn.cursor()
         if user_id:
-            cursor.execute('SELECT id FROM conversations WHERE id = ? AND user_id = ?', (conversation_id, user_id))
-            if not cursor.fetchone():
+            chk = conn.execute(
+                text("SELECT id FROM conversations WHERE id = :id AND user_id = :user_id"),
+                {"id": conversation_id, "user_id": user_id}
+            ).mappings().fetchone()
+            if not chk:
                 return []
-        cursor.execute('''
-            SELECT role, content FROM messages
-            WHERE conversation_id = ?
-            ORDER BY timestamp DESC
-            LIMIT ?
-        ''', (conversation_id, limit))
-        rows = cursor.fetchall()
+        result = conn.execute(
+            text("SELECT role, content FROM messages WHERE conversation_id = :cid ORDER BY timestamp DESC, id DESC LIMIT :limit"),
+            {"cid": conversation_id, "limit": limit}
+        )
+        rows = result.mappings().fetchall()
         # Return in chronological order
         return [{"role": row["role"], "content": row["content"]} for row in reversed(rows)]
+
 
 # --- Facts & Memory Management (User Scoped) ---
 
 def get_memory_facts(conversation_id: str, user_id: Optional[str] = None) -> Dict[str, Any]:
     with get_db_connection() as conn:
-        cursor = conn.cursor()
         if user_id:
-            cursor.execute('SELECT id FROM conversations WHERE id = ? AND user_id = ?', (conversation_id, user_id))
-            if not cursor.fetchone():
+            chk = conn.execute(
+                text("SELECT id FROM conversations WHERE id = :id AND user_id = :user_id"),
+                {"id": conversation_id, "user_id": user_id}
+            ).mappings().fetchone()
+            if not chk:
                 return {}
-        cursor.execute('SELECT facts FROM conversation_memory WHERE conversation_id = ?', (conversation_id,))
-        row = cursor.fetchone()
+        row = conn.execute(
+            text("SELECT facts FROM conversation_memory WHERE conversation_id = :cid"),
+            {"cid": conversation_id}
+        ).mappings().fetchone()
         if row and row["facts"]:
             try:
                 return json.loads(row["facts"])
@@ -458,34 +564,42 @@ def update_memory_facts(conversation_id: str, facts: Dict[str, Any]):
     now = _get_utc_now()
     facts_str = json.dumps(facts, ensure_ascii=False)
     with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO conversation_memory (conversation_id, summary, facts, updated_at)
-            VALUES (?, '', ?, ?)
-            ON CONFLICT(conversation_id) DO UPDATE SET facts = excluded.facts, updated_at = excluded.updated_at
-        ''', (conversation_id, facts_str, now))
+        conn.execute(
+            text("""
+                INSERT INTO conversation_memory (conversation_id, summary, facts, updated_at)
+                VALUES (:cid, '', :facts, :updated_at)
+                ON CONFLICT (conversation_id) DO UPDATE SET facts = EXCLUDED.facts, updated_at = EXCLUDED.updated_at
+            """),
+            {"cid": conversation_id, "facts": facts_str, "updated_at": now}
+        )
         conn.commit()
 
 def get_memory_summary(conversation_id: str, user_id: Optional[str] = None) -> str:
     with get_db_connection() as conn:
-        cursor = conn.cursor()
         if user_id:
-            cursor.execute('SELECT id FROM conversations WHERE id = ? AND user_id = ?', (conversation_id, user_id))
-            if not cursor.fetchone():
+            chk = conn.execute(
+                text("SELECT id FROM conversations WHERE id = :id AND user_id = :user_id"),
+                {"id": conversation_id, "user_id": user_id}
+            ).mappings().fetchone()
+            if not chk:
                 return ""
-        cursor.execute('SELECT summary FROM conversation_memory WHERE conversation_id = ?', (conversation_id,))
-        row = cursor.fetchone()
+        row = conn.execute(
+            text("SELECT summary FROM conversation_memory WHERE conversation_id = :cid"),
+            {"cid": conversation_id}
+        ).mappings().fetchone()
         return row["summary"] if row and row["summary"] else ""
 
 def update_memory_summary(conversation_id: str, summary: str):
     now = _get_utc_now()
     with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO conversation_memory (conversation_id, summary, facts, updated_at)
-            VALUES (?, ?, '{}', ?)
-            ON CONFLICT(conversation_id) DO UPDATE SET summary = excluded.summary, updated_at = excluded.updated_at
-        ''', (conversation_id, summary, now))
+        conn.execute(
+            text("""
+                INSERT INTO conversation_memory (conversation_id, summary, facts, updated_at)
+                VALUES (:cid, :summary, '{}', :updated_at)
+                ON CONFLICT (conversation_id) DO UPDATE SET summary = EXCLUDED.summary, updated_at = EXCLUDED.updated_at
+            """),
+            {"cid": conversation_id, "summary": summary, "updated_at": now}
+        )
         conn.commit()
 
 def get_conversation_context(conversation_id: str, user_id: Optional[str] = None, max_turns: int = 8) -> str:
@@ -515,6 +629,7 @@ def get_conversation_context(conversation_id: str, user_id: Optional[str] = None
         sections.append("### Recent Conversation History (use this for 'this', 'that', and references):\n" + "\n".join(formatted))
         
     return "\n\n".join(sections)
+
 
 # --- Heuristic & LLM Extraction ---
 
@@ -597,12 +712,16 @@ def extract_and_update_memory(conversation_id: str, user_message: str, assistant
     """
     try:
         with get_db_connection() as conn:
-            cursor = conn.cursor()
             if user_id:
-                cursor.execute('SELECT title FROM conversations WHERE id = ? AND user_id = ?', (conversation_id, user_id))
+                row = conn.execute(
+                    text("SELECT title FROM conversations WHERE id = :id AND user_id = :user_id"),
+                    {"id": conversation_id, "user_id": user_id}
+                ).mappings().fetchone()
             else:
-                cursor.execute('SELECT title FROM conversations WHERE id = ?', (conversation_id,))
-            row = cursor.fetchone()
+                row = conn.execute(
+                    text("SELECT title FROM conversations WHERE id = :id"),
+                    {"id": conversation_id}
+                ).mappings().fetchone()
             if not row:
                 return "New Chat"
             current_title = row["title"] if row else "New Chat"
@@ -626,4 +745,3 @@ def extract_and_update_memory(conversation_id: str, user_message: str, assistant
     except Exception as e:
         print(f"Memory extraction notice: {e}")
         return "New Chat"
-

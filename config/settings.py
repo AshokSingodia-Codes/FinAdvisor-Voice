@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = Field("HS256", description="JWT Algorithm")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(60 * 24, description="JWT Expiration in minutes")
     
+    # Database Settings (Neon PostgreSQL / Local SQLite Fallback)
+    DATABASE_URL: Optional[str] = Field(None, description="PostgreSQL Connection URI (Neon pooled connection with sslmode=require)")
+
     # Brevo (Sendinblue) HTTPS Email API
     BREVO_API_KEY: Optional[str] = Field(None, description="Brevo (Sendinblue) API Key")
     BREVO_SENDER_EMAIL: Optional[str] = Field(None, description="Brevo Verified Sender Email")
@@ -61,6 +64,16 @@ class Settings(BaseSettings):
     @property
     def effective_smtp_host(self) -> Optional[str]:
         return self.SMTP_HOST or self.SMTP_SERVER
+
+    @property
+    def effective_database_url(self) -> Optional[str]:
+        if not self.DATABASE_URL:
+            return None
+        url = self.DATABASE_URL.strip()
+        # Handle postgres:// prefix to ensure SQLAlchemy uses psycopg2/postgresql driver
+        if url.startswith("postgres://"):
+            url = "postgresql://" + url[len("postgres://"):]
+        return url
 
 
 # Instantiate a singleton settings object
