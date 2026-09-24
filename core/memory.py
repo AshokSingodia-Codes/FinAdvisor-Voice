@@ -35,6 +35,10 @@ def get_database_url() -> str:
         os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
         return f"sqlite:///{DB_PATH}"
     
+    # Normalize legacy postgres:// prefix from Render/Heroku to postgresql://
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+
     # Ensure Neon sslmode is set if connecting to a remote postgres
     if "postgresql" in db_url and "sslmode=" not in db_url:
         separator = "&" if "?" in db_url else "?"
