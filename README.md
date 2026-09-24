@@ -307,5 +307,11 @@ python -m pytest tests/test_router.py tests/test_verifier.py tests/test_mf_looku
 
 ---
 
+## 👨‍💻 Author & Maintainer
+Built with ❤️ by **[Ashok Singodia](https://github.com/AshokSingodia-Codes)** ([@AshokSingodia-Codes](https://github.com/AshokSingodia-Codes)).
+
+---
+
 ## 📄 License
 This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+
