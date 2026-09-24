@@ -1,0 +1,17 @@
+name: Keep Render Servers Awake
+
+on:
+  schedule:
+    # Runs every 14 minutes to prevent Render's 15-minute sleep
+    - cron: '*/14 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping-servers:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping FinAdvisor-Voice Backend
+        run: curl -s https://finadvisor-voice.onrender.com/ > /dev/null
+
+      - name: Ping Steelscan Backend
+        run: curl -s https://steelscan-backend-e2ub.onrender.com/health > /dev/null
