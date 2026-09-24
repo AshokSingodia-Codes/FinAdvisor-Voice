@@ -17,13 +17,6 @@ from core.memory import (
 
 client = TestClient(app)
 
-@pytest.fixture
-def auth_headers():
-    test_email = f"conv_user_{int(time.time()*1000)}@test.com"
-    user = create_user(test_email, hash_password("Password123!"))
-    token = create_access_token({"sub": test_email, "user_id": user["id"]})
-    return {"Authorization": f"Bearer {token}"}
-
 def test_conversation_crud_endpoints(auth_headers):
     # 1. Create conversation
     res = client.post("/api/conversations", json={"title": "Test Budgeting"}, headers=auth_headers)

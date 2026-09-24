@@ -97,27 +97,15 @@ def create_db_engine(db_url: Optional[str] = None):
             poolclass=StaticPool if ":memory:" in url else None
         )
     else:
-        connect_args = {}
-        # Check if host needs fallback resolution for Windows/local environments
-        try:
-            from urllib.parse import urlparse
-            parsed = urlparse(url)
-            if parsed.hostname:
-                resolved_ip = _resolve_host_fallback(parsed.hostname)
-                if resolved_ip:
-                    connect_args["hostaddr"] = resolved_ip
-        except Exception:
-            pass
-
         # PostgreSQL / Neon Serverless configuration:
+        # pool_pre_ping: Verifies connection liveness before checking out from pool
         # pool_recycle: Recycles connections periodically to align with PgBouncer
         return create_engine(
             url,
-            pool_pre_ping=False,
-            pool_recycle=600,
-            pool_size=15,
-            max_overflow=25,
-            connect_args=connect_args
+            pool_pre_ping=True,
+            pool_recycle=300,
+            pool_size=10,
+            max_overflow=20,
         )
 
 # Global engine instance
@@ -245,7 +233,13 @@ def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
             _USER_CACHE[user_dict["id"]] = (user_dict, time.time() + _USER_CACHE_TTL)
         return user_dict
 
-def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
+def get_user_by_id(user_id: Any) -> Optional[Dict[str, Any]]:
+    if isinstance(user_id, dict):
+        user_id = user_id.get("id") or user_id.get("user_id") or ""
+    if not user_id:
+        return None
+    user_id = str(user_id)
+
     now_ts = time.time()
     if user_id in _USER_CACHE:
         cached_user, exp_ts = _USER_CACHE[user_id]

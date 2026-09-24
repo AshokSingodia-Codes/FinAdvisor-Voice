@@ -17,13 +17,21 @@ import {
   Clock,
   LogOut,
   LogIn,
-  UserPlus
+  UserPlus,
+  Paperclip,
+  FileText,
+  AlertTriangle,
+  Upload,
+  Copy,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useAuth } from './context/AuthContext';
 import { AuthModal } from './components/AuthModal';
 import { LoginPage } from './components/LoginPage';
+import { VoiceInputButton } from './components/VoiceInputButton';
 import { API_BASE } from './config';
 
 interface ChatMessage {
@@ -41,6 +49,13 @@ interface ConversationItem {
   updated_at: string;
   message_count: number;
   last_message?: string;
+}
+
+interface ActiveDocument {
+  id: string;
+  filename: string;
+  chunk_count: number;
+  file_size_bytes: number;
 }
 
 function formatRelativeTime(dateStr: string): string {
@@ -83,13 +98,87 @@ function App() {
   const [activeTitle, setActiveTitle] = useState<string>('New Chat');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
+  const [interimVoice, setInterimVoice] = useState('');
   const [loading, setLoading] = useState(false);
-  
-  // Inline rename state
+
+  // Document upload state
+  const [activeDoc, setActiveDoc] = useState<ActiveDocument | null>(null);
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Rate limit toast
+  const [rateLimitSeconds, setRateLimitSeconds] = useState<number | null>(null);
   const [editingConvId, setEditingConvId] = useState<string | null>(null);
   const [editTitleInput, setEditTitleInput] = useState('');
   
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
+
+  const handleCopyMessage = (content: string, index: number) => {
+    if (!navigator.clipboard) {
+      const textArea = document.createElement("textarea");
+      textArea.value = content;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
+    } else {
+      navigator.clipboard.writeText(content);
+    }
+    setCopiedIndex(index);
+    setTimeout(() => {
+      setCopiedIndex((prev) => (prev === index ? null : prev));
+    }, 2000);
+  };
+
+  const handleToggleTTS = (content: string, index: number) => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+
+    if (speakingIndex === index) {
+      window.speechSynthesis.cancel();
+      setSpeakingIndex(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    // Strip markdown, code blocks, and table bars for natural voice reading
+    const cleanText = content
+      .replace(/```[\s\S]*?```/g, 'Code block omitted.')
+      .replace(/\|.*?\|/g, ' ')
+      .replace(/[#*_`~>-]/g, '')
+      .trim();
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    utterance.onend = () => setSpeakingIndex(null);
+    utterance.onerror = () => setSpeakingIndex(null);
+
+    setSpeakingIndex(index);
+    window.speechSynthesis.speak(utterance);
+  };
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Stop speech synthesis when conversation changes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    setSpeakingIndex(null);
+  }, [activeConvId]);
+
+  // Count down the rate-limit toast automatically
+  useEffect(() => {
+    if (rateLimitSeconds === null || rateLimitSeconds <= 0) return;
+    const timer = setTimeout(() => setRateLimitSeconds(s => (s !== null ? s - 1 : null)), 1000);
+    return () => clearTimeout(timer);
+  }, [rateLimitSeconds]);
+
+  // Detach document automatically when the user switches to a different conversation
+  useEffect(() => {
+    setActiveDoc(null);
+  }, [activeConvId]);
 
   // Load conversations list
   const fetchConversations = async () => {
@@ -166,6 +255,7 @@ function App() {
     setActiveConvId(newId);
     setActiveTitle('New Chat');
     setMessages([]);
+    setActiveDoc(null); // detach document when starting a new chat
   };
 
   const handleSelectConversation = async (convId: string) => {
@@ -246,9 +336,22 @@ function App() {
         body: JSON.stringify({
           message: userMsg,
           conversation_id: activeConvId,
-          chat_history: messages
+          chat_history: messages,
+          document_id: activeDoc?.id ?? null,
         })
       });
+
+      if (response.status === 429) {
+        const err = await response.json().catch(() => ({}));
+        const retryAfter = err?.detail?.retry_after_seconds ?? 60;
+        setRateLimitSeconds(retryAfter);
+        setMessages([...newMessages, {
+          role: 'assistant',
+          content: `⚠️ Rate limit reached. Please wait ${retryAfter} seconds before sending another message.`,
+          isError: true,
+        }]);
+        return;
+      }
 
       if (!response.ok) throw new Error('Network response was not ok');
       const data = await response.json();
@@ -269,6 +372,72 @@ function App() {
       ]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !isAuthenticated) return;
+
+    setUploadLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('conversation_id', activeConvId);
+
+      const res = await authFetch(`${API_BASE}/api/documents/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (res.status === 413) {
+        alert('File too large. Maximum size is 10 MB.');
+        return;
+      }
+      if (res.status === 415) {
+        alert('Unsupported file type. Please upload a PDF, plain text, or markdown file.');
+        return;
+      }
+      if (res.status === 422) {
+        const err = await res.json().catch(() => ({}));
+        const detailMsg = err?.detail || 'The uploaded document is not related to finance and was not added to the system.';
+        alert(`⚠️ Non-Financial Document Rejected\n\n${detailMsg}`);
+        return;
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(`Upload failed: ${err?.detail ?? res.statusText}`);
+        return;
+      }
+
+      const data = await res.json();
+      setActiveDoc({
+        id: data.document_id,
+        filename: file.name,
+        chunk_count: data.chunk_count,
+        file_size_bytes: data.file_size_bytes,
+      });
+    } catch (err) {
+      console.error('Upload error:', err);
+      alert('Upload failed. Please try again.');
+    } finally {
+      setUploadLoading(false);
+      // Reset file input so same file can be re-uploaded
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDetachDoc = async () => {
+    if (!activeDoc || !isAuthenticated) return;
+    try {
+      await authFetch(
+        `${API_BASE}/api/documents/${activeDoc.id}?conversation_id=${encodeURIComponent(activeConvId)}`,
+        { method: 'DELETE' }
+      );
+    } catch (err) {
+      console.error('Delete doc error:', err);
+    } finally {
+      setActiveDoc(null);
     }
   };
 
@@ -643,6 +812,78 @@ function App() {
                         >
                           {msg.content}
                         </ReactMarkdown>
+
+                        {/* Interactive Next-Step Action Chips */}
+                        {(() => {
+                          const suggestions: string[] = [];
+                          const regex = /\[([A-Za-z0-9\s₹$,%.\-/?!]{4,50})\]/g;
+                          let match;
+                          while ((match = regex.exec(msg.content)) !== null) {
+                            const act = match[1].trim();
+                            if (act && !suggestions.includes(act) && !act.toLowerCase().startsWith('action')) {
+                              suggestions.push(act);
+                            }
+                          }
+                          if (suggestions.length === 0) return null;
+                          return (
+                            <div className="mt-3 pt-2.5 border-t border-borderDim/40">
+                              <div className="text-[11px] font-semibold text-accentPrimary mb-2 flex items-center gap-1">
+                                <Sparkles size={12} />
+                                <span>Suggested Next Actions:</span>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {suggestions.slice(0, 3).map((actionText, actIdx) => (
+                                  <button
+                                    key={actIdx}
+                                    onClick={() => handleSend(actionText)}
+                                    disabled={loading}
+                                    className="flex items-center gap-1.5 text-xs bg-accentPrimary/10 hover:bg-accentPrimary/25 text-accentPrimary border border-accentPrimary/30 hover:border-accentPrimary/60 px-3 py-1.5 rounded-xl transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+                                  >
+                                    <span>{actionText}</span>
+                                    <span className="text-[10px] opacity-70">→</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Assistant Message Actions (Copy & Voice TTS) */}
+                        <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-borderDim/50 text-xs text-textDim">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-textDim/80 font-medium flex items-center gap-1">
+                              <Sparkles size={12} className="text-accentPrimary" />
+                              FinAdvisor-X Analysis
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleToggleTTS(msg.content, i)}
+                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                                speakingIndex === i
+                                  ? 'bg-accentPrimary/20 text-accentPrimary border border-accentPrimary/40 animate-pulse'
+                                  : 'hover:bg-borderDim/60 text-textDim hover:text-textMain'
+                              }`}
+                              title={speakingIndex === i ? 'Stop Speaking' : 'Read Aloud'}
+                            >
+                              {speakingIndex === i ? <VolumeX size={13} className="text-accentPrimary" /> : <Volume2 size={13} />}
+                              <span>{speakingIndex === i ? 'Stop' : 'Listen'}</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleCopyMessage(msg.content, i)}
+                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                                copiedIndex === i
+                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                  : 'hover:bg-borderDim/60 text-textDim hover:text-textMain'
+                              }`}
+                              title="Copy Answer to Clipboard"
+                            >
+                              {copiedIndex === i ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                              <span>{copiedIndex === i ? 'Copied!' : 'Copy'}</span>
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -675,28 +916,120 @@ function App() {
 
         {/* Input Bar (Solid Non-Overlapping Footer) */}
         <div className="border-t border-borderDim bg-bgCard/90 backdrop-blur-md pt-3 pb-3 px-4 sm:px-6 z-10">
-          <div className="max-w-4xl mx-auto relative">
+
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.txt,.md,.csv,text/plain,text/markdown,application/pdf"
+            className="hidden"
+            onChange={handleUpload}
+          />
+
+          {/* Rate-limit toast */}
+          {rateLimitSeconds !== null && rateLimitSeconds > 0 && (
+            <div className="max-w-4xl mx-auto mb-2 flex items-center gap-2 bg-amber-500/10 border border-amber-500/40 text-amber-400 rounded-xl px-4 py-2 text-xs font-medium animate-pulse">
+              <AlertTriangle size={14} className="shrink-0" />
+              <span>Rate limit reached. You can send another message in <strong>{rateLimitSeconds}s</strong>.</span>
+              <button onClick={() => setRateLimitSeconds(null)} className="ml-auto text-amber-400/60 hover:text-amber-400 cursor-pointer">
+                <X size={13} />
+              </button>
+            </div>
+          )}
+
+          {/* Active document chip + disclaimer banner */}
+          {activeDoc && (
+            <div className="max-w-4xl mx-auto mb-2 space-y-1.5">
+              {/* Document chip */}
+              <div className="flex items-center gap-2 bg-accentPrimary/10 border border-accentPrimary/30 rounded-xl px-3 py-1.5 text-xs">
+                <FileText size={13} className="text-accentPrimary shrink-0" />
+                <span className="text-accentPrimary font-semibold truncate max-w-[260px]" title={activeDoc.filename}>
+                  {activeDoc.filename}
+                </span>
+                <span className="text-textDim/70 font-mono shrink-0">
+                  {activeDoc.chunk_count} chunks · {(activeDoc.file_size_bytes / 1024).toFixed(0)} KB
+                </span>
+                <button
+                  onClick={handleDetachDoc}
+                  title="Detach & delete document"
+                  className="ml-auto p-0.5 text-textDim hover:text-red-400 transition-colors rounded cursor-pointer shrink-0"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+              {/* Disclaimer */}
+              <div className="flex items-start gap-2 bg-amber-500/5 border border-amber-500/25 rounded-xl px-3 py-1.5 text-[10px] text-amber-300/80 leading-relaxed">
+                <AlertTriangle size={11} className="shrink-0 mt-0.5 text-amber-400/70" />
+                <span>
+                  <strong className="font-semibold text-amber-300">Personal document mode active.</strong>{' '}
+                  Responses are based on your uploaded document. This is general guidance — not advice from a licensed financial advisor.
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="max-w-4xl mx-auto relative flex items-center bg-bgMain border border-borderDim rounded-xl focus-within:border-accentPrimary focus-within:ring-1 focus-within:ring-accentPrimary/50 shadow-inner transition-all overflow-visible">
             <input
               type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
+              value={interimVoice ? input + (input && !input.endsWith(' ') ? ' ' : '') + interimVoice : input}
+              onChange={(e) => {
+                setInput(e.target.value);
+                setInterimVoice('');
+              }}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               disabled={loading}
               placeholder={isAuthenticated ? "Ask for financial advice, stock updates, budgeting, or return calculations..." : "Please sign in to start asking questions..."}
-              className="w-full bg-bgMain border border-borderDim rounded-xl pl-5 pr-14 py-3 text-textMain text-sm focus:outline-none focus:border-accentPrimary focus:ring-1 focus:ring-accentPrimary/50 shadow-inner placeholder:text-textDim/60 disabled:opacity-50 transition-all"
+              className="flex-1 bg-transparent pl-5 pr-2 py-3 text-textMain text-sm focus:outline-none placeholder:text-textDim/60 disabled:opacity-50"
             />
-            <button
-              onClick={() => handleSend()}
-              disabled={loading || !input.trim()}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-borderDim hover:bg-accentPrimary text-textMain hover:text-bgMain disabled:opacity-40 disabled:hover:bg-borderDim disabled:hover:text-textMain transition-all shadow-sm cursor-pointer"
-            >
-              <Send size={16} />
-            </button>
+            
+            {interimVoice && (
+              <span className="absolute left-5 -top-6 text-[10px] text-accentPrimary font-medium bg-bgCard border border-borderDim px-2 py-0.5 rounded-md shadow-sm">
+                Listening...
+              </span>
+            )}
+            
+            <div className="flex items-center gap-1 pr-2 shrink-0 relative">
+              {/* Upload document button */}
+              {isAuthenticated && (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={loading || uploadLoading}
+                  title={uploadLoading ? "Uploading..." : activeDoc ? `Active: ${activeDoc.filename} — click to replace` : "Attach a financial document (PDF / TXT / MD, max 10 MB)"}
+                  className={`p-2 rounded-lg transition-all shadow-sm cursor-pointer z-10 relative ${
+                    activeDoc
+                      ? 'bg-accentPrimary/20 text-accentPrimary hover:bg-accentPrimary/30'
+                      : 'bg-borderDim text-textDim hover:text-accentPrimary hover:bg-accentPrimary/10'
+                  } disabled:opacity-40 disabled:cursor-not-allowed`}
+                >
+                  {uploadLoading ? (
+                    <Upload size={16} className="animate-bounce" />
+                  ) : (
+                    <Paperclip size={16} />
+                  )}
+                </button>
+              )}
+              <VoiceInputButton
+                disabled={loading}
+                onInterimResult={(text) => setInterimVoice(text)}
+                onFinalResult={(text) => {
+                  setInput(prev => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + text);
+                  setInterimVoice('');
+                }}
+              />
+              <button
+                onClick={() => handleSend()}
+                disabled={loading || (!input.trim() && !interimVoice.trim())}
+                className="p-2 rounded-lg bg-borderDim hover:bg-accentPrimary text-textMain hover:text-bgMain disabled:opacity-40 disabled:hover:bg-borderDim disabled:hover:text-textMain transition-all shadow-sm cursor-pointer z-10 relative"
+              >
+                <Send size={16} />
+              </button>
+            </div>
           </div>
           <div className="text-center mt-2 text-[11px] text-textDim/60">
             FinAdvisor-X is an AI financial assistant. Always verify critical decisions with a licensed advisor.
           </div>
         </div>
+
       </main>
     </div>
   );

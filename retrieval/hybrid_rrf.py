@@ -36,6 +36,8 @@ import concurrent.futures
 def get_hybrid_rrf_results(query: str, vector_index, graph_retriever_func, top_k: int = 10) -> List[str]:
     """
     Executes both vector and graph retrieval in PARALLEL, then combines them using RRF.
+    Used exclusively for the SHARED CORPUS (public knowledge base).
+    MUST NOT be called when a document_id is active — use get_personal_rrf_results() instead.
     """
     vector_results = []
     graph_results = []
@@ -59,3 +61,76 @@ def get_hybrid_rrf_results(query: str, vector_index, graph_retriever_func, top_k
     fused_results = reciprocal_rank_fusion([vector_results, graph_results])
     
     return fused_results
+
+
+def get_personal_rrf_results(
+    query: str,
+    user_id: str,
+    document_id: str,
+    conversation_id: str,
+    top_k: int = 10,
+) -> List[str]:
+    """
+    Executes PERSONAL DOCUMENT retrieval using RRF over the private Neo4j
+    PersonalChunk nodes.
+
+    Isolation contract — all three fields are REQUIRED and enforced by
+    every Cypher WHERE clause in personal_retriever:
+        user_id:         prevents cross-user leakage
+        document_id:     scopes to a specific uploaded document
+        conversation_id: prevents cross-conversation leakage of the same
+                         user's documents (a document uploaded in Conversation A
+                         is NOT visible in Conversation B unless re-attached)
+
+    This function MUST NOT be blended with get_hybrid_rrf_results().
+    The two retrieval modes are separate, independently-testable code paths
+    with different security models.  Blended retrieval is a future feature.
+    """
+    from retrieval.personal_retriever import (
+        personal_vector_search,
+        personal_keyword_search,
+        get_all_personal_document_chunks,
+    )
+
+    vector_results = []
+    keyword_results = []
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future_vec = executor.submit(
+            personal_vector_search,
+            query, user_id, document_id, conversation_id, top_k,
+        )
+        future_kw = executor.submit(
+            personal_keyword_search,
+            query, user_id, document_id, conversation_id, top_k,
+        )
+
+        try:
+            vector_results = future_vec.result()
+        except Exception as e:
+            print(f"[personal_rrf] Vector search error: {e}")
+
+        try:
+            keyword_results = future_kw.result()
+        except Exception as e:
+            print(f"[personal_rrf] Keyword search error: {e}")
+
+    fused = reciprocal_rank_fusion([vector_results, keyword_results])
+    
+    # If vector & keyword search yielded no or very few chunks (e.g. meta question like "do you get the pdf"),
+    # fall back to retrieving all chunks of this personal document.
+    if len(fused) < 2:
+        all_chunks = get_all_personal_document_chunks(
+            user_id=user_id,
+            document_id=document_id,
+            conversation_id=conversation_id,
+            limit=top_k,
+        )
+        seen = set(fused)
+        for c in all_chunks:
+            if c not in seen:
+                fused.append(c)
+                seen.add(c)
+
+    return fused
+

@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from typing import List
 from graph.state import AgentState
 
-from core.db import chat, get_structured_chat
+from core.db import fast_chat, get_structured_fast_chat
 
 class SubQuery(BaseModel):
     query: str = Field(description="The standalone sub-query text.")
@@ -20,7 +20,7 @@ decompose_prompt = ChatPromptTemplate.from_messages([
     ("human", "{question}")
 ])
 
-decompose_chain = decompose_prompt | get_structured_chat(SubQueries)
+decompose_chain = decompose_prompt | get_structured_fast_chat(SubQueries)
 
 def decompose_question(state: AgentState):
     print("---NODE: DECOMPOSITION---")

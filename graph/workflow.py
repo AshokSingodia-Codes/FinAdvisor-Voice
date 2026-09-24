@@ -39,6 +39,8 @@ def route_decision(state: AgentState):
         return "math_calculation"
     elif decision == "live_market_data":
         return "live_market_data"
+    elif decision == "financial_table":
+        return "hybrid_search" # Route financial_table to retriever
     else:
         # direct_answer bypasses retrieval and goes straight to evidence builder
         return "direct_answer"
@@ -76,18 +78,18 @@ workflow.add_edge("live_data", "evidence_builder")
 
 # Conditional edges from verifier (Multi-hop Iterative loop)
 def check_verification(state: AgentState):
-    # If verified, we are done
-    if state.get("verification_passed"):
+    # If verified, or in personal document mode, we are done
+    if state.get("verification_passed") or state.get("document_id"):
         return END
     
-    # If it failed, check if we have tried too many times
-    # Assuming each iteration brings ~5 chunks.
-    max_chunks = settings.MAX_RETRIEVAL_ITERATIONS * 5
-    if len(state.get("retrieved_context", [])) >= max_chunks:
-        print("---MAX RETRIES REACHED. ENDING.---")
+    # In shared corpus mode, allow at most 1 retrieval retry
+    retries = state.get("retrieval_retries", 0)
+    if retries >= 1:
+        print("---MAX RETRIES (1) REACHED. ENDING.---")
         return END
         
-    print("---VERIFICATION FAILED. LOOPING BACK TO RETRIEVER...---")
+    state["retrieval_retries"] = retries + 1
+    print("---VERIFICATION FAILED. RETRYING RETRIEVAL ONCE...---")
     return "retriever"
 
 workflow.add_conditional_edges(

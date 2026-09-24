@@ -7,7 +7,7 @@ if hasattr(sys.stdout, 'reconfigure'):
         pass
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Dict, Any, Optional
@@ -46,6 +46,16 @@ from core.auth import (
     get_current_user,
     OTP_EXPIRY_MINUTES,
     OTP_RESEND_COOLDOWN_SECONDS
+)
+from core.rate_limiter import chat_rate_limiter
+from core.cache import get_cached_response, set_cached_response, invalidate_document
+from core.document_store import (
+    ingest_document,
+    delete_document,
+    get_document_record,
+    get_active_document_for_conversation,
+    MAX_FILE_BYTES,
+    NonFinancialDocumentError,
 )
 
 load_dotenv()
@@ -106,6 +116,9 @@ class ChatRequest(BaseModel):
     message: str
     conversation_id: Optional[str] = None
     chat_history: Optional[List[ChatMessage]] = []
+    # When set, the retriever exclusively searches this personal document.
+    # Must match a document uploaded to the same conversation_id by the same user.
+    document_id: Optional[str] = None
 
 class ChatResponse(BaseModel):
     answer: str
@@ -366,7 +379,11 @@ def chat_endpoint(
         query = request.message.strip()
         user_id = current_user["id"]
         conv_id = request.conversation_id
-        
+        document_id = request.document_id or None
+
+        # --- Rate limiting ---
+        chat_rate_limiter.check_rate_limit(user_id)
+
         if conv_id:
             raw = get_conversation_raw(conv_id)
             if raw and raw["user_id"] != user_id:
@@ -379,48 +396,259 @@ def chat_endpoint(
         else:
             conv_id = str(uuid.uuid4())
             create_conversation(title="New Chat", user_id=user_id, conversation_id=conv_id)
-        
+
+        # If document_id is not explicitly provided in the request, resolve the active document for this conversation
+        if not document_id and conv_id:
+            active_doc_rec = get_active_document_for_conversation(user_id=user_id, conversation_id=conv_id)
+            if active_doc_rec:
+                document_id = active_doc_rec["id"]
+
+        # If a document_id is active, verify it belongs to this user AND this conversation
+        if document_id:
+            doc_record = get_document_record(document_id)
+            if not doc_record:
+                raise HTTPException(status_code=404, detail="Document not found.")
+            if doc_record["user_id"] != user_id:
+                raise HTTPException(status_code=403, detail="Access denied: Document does not belong to you.")
+            if doc_record["conversation_id"] != conv_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Access denied: Document was uploaded to a different conversation. "
+                           "Re-upload the document in the current conversation to use it here."
+                )
+            if doc_record["status"] != "ready":
+                raise HTTPException(status_code=409, detail=f"Document is not ready (status: {doc_record['status']}).")
+
+        # --- Cache check (skip for live market queries) ---
+        cached_answer = get_cached_response(
+            question=query,
+            conversation_id=conv_id,
+            document_id=document_id,
+        )
+        if cached_answer:
+            add_message(conv_id, "user", query, user_id=user_id)
+            add_message(conv_id, "assistant", cached_answer, user_id=user_id)
+            chat_title = extract_and_update_memory(conv_id, query, cached_answer, user_id=user_id)
+            return ChatResponse(answer=cached_answer, conversation_id=conv_id, title=chat_title)
+
         # Save user message with user_id
         add_message(conv_id, "user", query, user_id=user_id)
-        
+
         # Retrieve context (structured facts + summary + recent turns) for this conversation
         memory_ctx = get_conversation_context(conv_id, user_id=user_id)
-        
+
         # Prepare state for LangGraph
         initial_state = {
             "original_question": query,
             "current_question": query,
             "chat_history": [],
             "memory_context": memory_ctx,
-            "conversation_id": conv_id
+            "conversation_id": conv_id,
+            "user_id": user_id,
+            "document_id": document_id,
         }
-        
+
         final_state = {}
-        
+
         # Execute the LangGraph
         for out in app_graph.stream(initial_state):
             for node_name, state in out.items():
                 final_state = state
-                
+
         answer = final_state.get("final_answer") or final_state.get("draft_answer", "Sorry, I couldn't process your request.")
-        
+
+        # --- Cache the response ---
+        routing_decision = final_state.get("routing_decision")
+        set_cached_response(
+            question=query,
+            conversation_id=conv_id,
+            document_id=document_id,
+            answer=answer,
+            routing_decision=routing_decision,
+        )
+
         # Save assistant message with user_id
         add_message(conv_id, "assistant", answer, user_id=user_id)
-        
+
         # Extract facts, update conversation title if needed
         chat_title = extract_and_update_memory(conv_id, query, answer, user_id=user_id)
-        
+
         return ChatResponse(
             answer=answer,
             conversation_id=conv_id,
             title=chat_title
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# --- Document Upload & Management Endpoints ---
+
+ALLOWED_MIME_TYPES = {
+    "application/pdf",
+    "text/plain",
+    "text/markdown",
+    "text/csv",
+    "image/png",
+    "image/jpeg",
+    "image/jpg",
+    "image/webp",
+}
+
+@app.post("/api/documents/upload")
+async def upload_document(
+    file: UploadFile = File(...),
+    conversation_id: str = Form(...),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Upload a personal financial document and ingest it into Neo4j.
+
+    The document is scoped to (user_id, document_id, conversation_id) — the
+    same triple that every retrieval query filters on.  A document uploaded in
+    Conversation A is invisible to Conversation B even for the same user.
+
+    Limits: 10 MB, PDF / plain-text / markdown / CSV / Image (PNG, JPG, WEBP).
+    """
+    user_id = current_user["id"]
+
+    # Verify the conversation belongs to this user
+    raw = get_conversation_raw(conversation_id)
+    if not raw:
+        raise HTTPException(status_code=404, detail="Conversation not found.")
+    if raw["user_id"] != user_id:
+        raise HTTPException(status_code=403, detail="Access denied: Conversation does not belong to you.")
+
+    # Read file content
+    content = await file.read()
+
+    # Size check (10 MB)
+    if len(content) > MAX_FILE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum allowed size is 10 MB ({MAX_FILE_BYTES:,} bytes). "
+                   f"Your file is {len(content):,} bytes."
+        )
+
+    # MIME type check & normalizations with extension fallback
+    mime_type = (file.content_type or "application/octet-stream").lower()
+    filename = file.filename or "upload"
+    filename_lower = filename.lower()
+
+    if mime_type == "text/x-markdown" or filename_lower.endswith((".md", ".markdown")):
+        mime_type = "text/markdown"
+    elif filename_lower.endswith(".pdf"):
+        mime_type = "application/pdf"
+    elif filename_lower.endswith(".csv"):
+        mime_type = "text/csv"
+    elif filename_lower.endswith(".txt"):
+        mime_type = "text/plain"
+    elif filename_lower.endswith(".png"):
+        mime_type = "image/png"
+    elif filename_lower.endswith((".jpg", ".jpeg")):
+        mime_type = "image/jpeg"
+    elif filename_lower.endswith(".webp"):
+        mime_type = "image/webp"
+
+    if mime_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported file type '{mime_type}'. Allowed: PDF, plain text, markdown, CSV, and financial images (PNG, JPG, WEBP)."
+        )
+
+    try:
+        record = ingest_document(
+            content=content,
+            filename=filename,
+            mime_type=mime_type,
+            user_id=user_id,
+            conversation_id=conversation_id,
+        )
+        return {
+            "status": "success",
+            "document_id": record["id"],
+            "filename": record["filename"],
+            "chunk_count": record["chunk_count"],
+            "file_size_bytes": record["file_size_bytes"],
+            "conversation_id": conversation_id,
+            "message": (
+                f"Document '{filename}' ingested successfully ({record['chunk_count']} chunks). "
+                "Pass document_id in subsequent chat requests to query it."
+            )
+        }
+    except NonFinancialDocumentError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except ValueError as e:
+        # Size or MIME validation raised inside ingest_document
+        raise HTTPException(status_code=413, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Document ingestion failed: {e}")
+
+
+@app.delete("/api/documents/{document_id}")
+def delete_document_endpoint(
+    document_id: str,
+    conversation_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Permanently delete a personal document and all its Neo4j chunks.
+
+    The caller must be the document owner AND the conversation must match
+    the conversation the document was originally uploaded to.
+    Invalidates the cache for any answers derived from this document.
+    """
+    user_id = current_user["id"]
+
+    doc_record = get_document_record(document_id)
+    if not doc_record:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    if doc_record["user_id"] != user_id:
+        raise HTTPException(status_code=403, detail="Access denied: Document does not belong to you.")
+    if doc_record["conversation_id"] != conversation_id:
+        raise HTTPException(status_code=403, detail="Access denied: Conversation ID mismatch.")
+
+    deleted = delete_document(
+        document_id=document_id,
+        user_id=user_id,
+        conversation_id=conversation_id,
+    )
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Document not found or already deleted.")
+
+    # Evict any cached answers that were generated against this document
+    invalidate_document(document_id)
+
+    return {"status": "deleted", "document_id": document_id}
+
+from core.regulatory_watcher import check_and_sync_financial_rules, monthly_watchdog_background_loop
+import asyncio
+
+@app.on_event("startup")
+async def startup_event():
+    # Start the monthly regulatory watchdog in the background
+    asyncio.create_task(monthly_watchdog_background_loop())
+    # Pre-warm FlashRank ranker and FastEmbed in background to eliminate query cold-starts
+    def _warmup():
+        try:
+            from retrieval.reranker import get_ranker
+            get_ranker()
+        except Exception:
+            pass
+    asyncio.get_event_loop().run_in_executor(None, _warmup)
+
+@app.post("/api/admin/sync-regulatory-updates")
+async def trigger_regulatory_sync(user_data: dict = Depends(get_current_user)):
+    """Admin/Manual trigger to execute the monthly regulatory knowledge sync immediately."""
+    result = check_and_sync_financial_rules()
+    return result
 
 import os
 from fastapi.staticfiles import StaticFiles

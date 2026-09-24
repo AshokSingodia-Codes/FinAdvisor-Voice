@@ -78,12 +78,22 @@ extractor_chain = extractor_prompt | get_structured_chat(TickerExtraction)
 
 from graph.state import AgentState
 
+from tools.mf_lookup import search_mutual_funds, format_mf_summary
+
 def fetch_live_data(state: AgentState):
     print("---NODE: LIVE MARKET DATA---")
     question = state.get("current_question", state.get("original_question", ""))
     history = state.get("chat_history", [])
     formatted_history = "\n".join([f"{m.get('role')}: {m.get('content')[:150]}" for m in history[-3:]]) if history else "None"
     
+    # 1. Fast-path: Check for Mutual Fund Schemes (0ms latency, 100% offline precision)
+    mf_matches = search_mutual_funds(question)
+    if mf_matches:
+        print(f"  [Market Data: MF Match] Found {len(mf_matches)} mutual fund schemes")
+        mf_contexts = [format_mf_summary(m) for m in mf_matches[:2]]
+        return {"retrieved_context": mf_contexts}
+
+    # 2. Stock / Equity Ticker Search
     try:
         extraction = extractor_chain.invoke({
             "question": question,
@@ -93,7 +103,7 @@ def fetch_live_data(state: AgentState):
         
         if ticker_symbol == "NONE" or ticker_symbol == "":
             return {
-                "retrieved_context": ["I couldn't identify a specific company ticker to fetch live data for. Please ask the user to provide a valid ticker symbol."]
+                "retrieved_context": ["I couldn't identify a specific company ticker or mutual fund to fetch live data for. Please ask the user to provide a valid ticker symbol or fund name."]
             }
             
         current_time = time.time()
@@ -170,7 +180,8 @@ def fetch_live_data(state: AgentState):
         }
     except Exception as e:
         error_msg = str(e)
-        print(f"Error fetching live data for {ticker_symbol}: {error_msg}")
+        sym = locals().get('ticker_symbol', question)
+        print(f"Error fetching live data for {sym}: {error_msg}")
         
         if "Expecting value" in error_msg or "429" in error_msg or "unable to fetch" in error_msg.lower():
             clean_msg = "Live market data isn't currently available, so I don't want to give you an outdated or potentially incorrect price."

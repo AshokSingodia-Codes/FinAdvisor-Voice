@@ -1,0 +1,36 @@
+{
+  "timestamp": "2026-09-24 18:50:10",
+  "total_queries_evaluated": 34,
+  "top_k": 5,
+  "configurations": {
+    "vector_only": {
+      "avg_precision_at_k": 0.4059,
+      "avg_recall_at_k": 0.6627,
+      "avg_mrr": 0.7118,
+      "avg_latency_sec": 0.9048
+    },
+    "keyword_only": {
+      "avg_precision_at_k": 0.4529,
+      "avg_recall_at_k": 0.5971,
+      "avg_mrr": 0.6642,
+      "avg_latency_sec": 2.1628
+    },
+    "hybrid_rrf": {
+      "avg_precision_at_k": 0.4294,
+      "avg_recall_at_k": 0.6363,
+      "avg_mrr": 0.6912,
+      "avg_latency_sec": 2.1629
+    },
+    "hybrid_rrf_flashrank": {
+      "avg_precision_at_k": 0.4471,
+      "avg_recall_at_k": 0.6147,
+      "avg_mrr": 0.5941,
+      "avg_latency_sec": 3.8849
+    }
+  },
+  "empirical_lift": {
+    "precision_lift_vs_vector_pct": 10.15,
+    "recall_lift_vs_vector_pct": -7.24,
+    "precision_lift_from_flashrank_pct": 4.12
+  }
+}

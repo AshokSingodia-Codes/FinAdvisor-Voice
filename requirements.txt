@@ -23,3 +23,9 @@ pytest-mock
 pytest-asyncio
 sqlalchemy>=2.0.0
 psycopg2-binary>=2.9.9
+# Personal document upload dependencies
+pdfplumber>=0.11.0        # PDF text extraction (primary)
+PyPDF2>=3.0.0             # PDF text extraction (fallback)
+cryptography>=42.0.0      # Fernet symmetric encryption for document content
+cachetools>=5.3.0         # TTL-based LLM response cache
+langchain-huggingface>=0.0.3  # HuggingFace embeddings for personal chunk ingestion

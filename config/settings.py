@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     # Database Settings (Neon PostgreSQL / Local SQLite Fallback)
     DATABASE_URL: Optional[str] = Field(None, description="PostgreSQL Connection URI (Neon pooled connection with sslmode=require)")
 
+    # Document Encryption (Fernet AES-128-CBC + HMAC-SHA256)
+    # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # If unset, a per-process ephemeral key is used (dev only — NOT suitable for production).
+    ENCRYPTION_KEY: Optional[str] = Field(None, description="Fernet encryption key for personal document content")
+
     # Brevo (Sendinblue) HTTPS Email API
     BREVO_API_KEY: Optional[str] = Field(None, description="Brevo (Sendinblue) API Key")
     BREVO_SENDER_EMAIL: Optional[str] = Field(None, description="Brevo Verified Sender Email")

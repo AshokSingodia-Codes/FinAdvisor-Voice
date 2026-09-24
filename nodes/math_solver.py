@@ -12,7 +12,7 @@ from tools.calculator import (
     calculate_income_tax_new_regime, calculate_income_tax_old_regime,
     compare_tax_regimes, calculate_capital_gains_tax
 )
-from core.db import chat
+from core.db import fast_chat
 
 FORMULA_CLASSIFICATION_PROMPT = """
 Classify this financial math question into exactly ONE category. Reply with 
@@ -39,16 +39,52 @@ Category:
 
 
 def classify_formula(query: str) -> str:
-    response = chat.invoke(FORMULA_CLASSIFICATION_PROMPT.format(query=query))
-    return response.content.strip().lower()
+    try:
+        response = fast_chat.invoke(FORMULA_CLASSIFICATION_PROMPT.format(query=query))
+        cat = response.content.strip().lower()
+        if cat in [
+            "income_tax", "capital_gains", "sip", "compound_interest",
+            "percentage_of", "percentage_change", "cagr_solve",
+            "yoy_growth", "margin", "dcf", "npv", "wacc"
+        ]:
+            return cat
+    except Exception as e:
+        print(f"[math_solver] Formula classification fallback due to: {e}")
+
+    # Deterministic heuristic fallback
+    q = query.lower()
+    if "sip" in q or ("monthly" in q and "invest" in q):
+        return "sip"
+    if "cagr" in q or "growth rate" in q:
+        return "cagr_solve"
+    if "tax" in q or "regime" in q:
+        return "income_tax"
+    if "capital gain" in q or "ltcg" in q or "stcg" in q:
+        return "capital_gains"
+    if "yoy" in q or "year-over-year" in q:
+        return "yoy_growth"
+    if "margin" in q:
+        return "margin"
+    if "npv" in q:
+        return "npv"
+    if "dcf" in q:
+        return "dcf"
+    if "wacc" in q:
+        return "wacc"
+    if "%" in q or "percent" in q:
+        if "change" in q or ("from" in q and "to" in q):
+            return "percentage_change"
+        return "percentage_of"
+    if "interest" in q or "compound" in q:
+        return "compound_interest"
+    return "unknown"
 
 
 def solve_math(state):
     print("---NODE: MATH SOLVER---")
-    query = state["current_question"]
-    formula = classify_formula(query)
-
+    query = state.get("current_question", state.get("original_question", ""))
     try:
+        formula = classify_formula(query)
         if formula == "sip" or ("monthly" in query.lower() and "sip" in query.lower()):
             rate = extract_percentage(query)
             years = extract_years(query)
@@ -173,5 +209,6 @@ def solve_math(state):
         else:
             return {"draft_answer": "I couldn't identify what calculation you're asking for. Could you rephrase?"}
 
-    except ValueError as e:
-        return {"draft_answer": f"I couldn't complete this calculation: {e}"}
+    except Exception as e:
+        print(f"[math_solver error]: {e}")
+        return {"draft_answer": f"I couldn't complete this calculation. Please specify the numbers clearly, or ask your question with details."}

@@ -1,0 +1,118 @@
+{
+  "timestamp": "2026-09-23 13:11:32",
+  "total_trap_questions": 10,
+  "abstention_rate_pct": 100.0,
+  "hallucination_rate_pct": 0.0,
+  "evaluations": [
+    {
+      "id": "q035",
+      "question": "What were the quarterly net profit figures of Acme Solar Technologies in Q3 2021?",
+      "expected_behavior": "Explicitly state information is unavailable without fabricating numbers",
+      "generated_answer": "I\u2019m specialized in finance, markets, money, and financial mathematics. Please ask me a finance-related question.",
+      "correctly_abstained": false,
+      "hallucinated_facts": false,
+      "reasoning": "The assistant did not provide any financial figures, did not fabricate data, and did not claim to know the answer. It simply redirected the user to ask a finance-related question, which effectively abstains from answering the specific unindexed query about Acme Solar Technologies.",
+      "latency_sec": 11.2647,
+      "status": "error"
+    },
+    {
+      "id": "q036",
+      "question": "What were the exact R&D expenses for SpaceX in fiscal year 2023?",
+      "expected_behavior": "Explicitly state information is unavailable without fabricating numbers",
+      "generated_answer": "I\u2019m specialized in finance, markets, money, and financial mathematics. Please ask me a finance-related question.",
+      "correctly_abstained": false,
+      "hallucinated_facts": false,
+      "reasoning": "The assistant did not provide any R&D figures, did not fabricate numbers, and did not claim knowledge of SpaceX's private financials. It simply redirected the user to ask a finance-related question, which effectively abstains from answering the unindexed, private financial data request.",
+      "latency_sec": 30.6016,
+      "status": "error"
+    },
+    {
+      "id": "q037",
+      "question": "Who was appointed Chief Financial Officer of Quantum Dynamics Corp in January 2026?",
+      "expected_behavior": "Explicitly state information is unavailable without fabricating numbers",
+      "generated_answer": "I\u2019m specialized in finance, markets, money, and financial mathematics. Please ask me a finance-related question.",
+      "correctly_abstained": false,
+      "hallucinated_facts": false,
+      "reasoning": "The assistant did not provide any name, title, or fabricated details about a CFO appointment. It simply redirected the user to ask a finance-related question, which effectively abstains from answering the unindexed, future-dated query without hallucinating facts.",
+      "latency_sec": 22.9433,
+      "status": "error"
+    },
+    {
+      "id": "q038",
+      "question": "What were the full year 2022 audited revenues of Blue Horizon BioTech Ltd?",
+      "expected_behavior": "Explicitly state information is unavailable without fabricating numbers",
+      "generated_answer": "\ud83d\udca1 **Executive Summary / Direct Recommendation**\nSpecific audited revenue figures for **Blue Horizon BioTech Ltd** for the full year 2022 are not available in public financial databases or major market filings. If this is an unlisted, private entity or an early-stage venture, its audited financial statements are not published openly on public stock exchanges.\n\n---\n\n\ud83d\udcca **Financial Breakdown & Information Verification**\nFor unlisted private limited or public limited companies, financial statements must be accessed through statutory regulatory portals rather than market tickers:\n\n* **Official Registry Filing (India):** If the company is registered in India, audited annual statements (Form AOC-4 and MGT-7) are filed with the **Ministry of Corporate Affairs (MCA)** on the MCA21 portal. A certified copy of the FY 2021\u201322 or FY 2022\u201323 balance sheet and profit & loss statement can be viewed upon paying the statutory fee.\n* **International / Private Databases:** If registered overseas (e.g., UK Companies House, SEC EDGAR for US filers, or platforms like PitchBook, Tracxn, or Crunchbase), filings must be searched by corporate registration number (CIN/CRN).\n* **Audited Metric Needed:** To determine audited top-line performance, verify:\n  `Total Revenue = Revenue from Operations + Other Income`\n\n---\n\n\ud83c\udfaf **Advisor Strategy & Evaluation Framework**\nWhen evaluating unlisted biotechnology or private equity assets:\n* **Revenue Quality:** Differentiate between core operational commercial revenue, licensing fees, clinical milestone payments, and research grants. Early-stage biotech firms often operate with minimal operating revenue and high cash-burn rates.\n* **Due Diligence:** Request the complete Audited Annual Report directly from company investor relations or via a non-disclosure agreement (NDA) if you are evaluating an unlisted equity or private placement opportunity.\n\n---\n\n\u2696\ufe0f **Risk Management & Considerations**\n* **Illiquidity & Information Asymmetry:** Unlisted shares carry significant liquidity risk and lack the real-time reporting mandates of publicly traded companies.\n* **Tax Implication on Unlisted Shares (India Context):** \n  * Unlisted equity shares held for more than 24 months qualify for Long-Term Capital Gains (LTCG) taxed at 12.5% (without indexation, post-Budget 2024 amendments).\n  * Held for 24 months or less, gains are treated as Short-Term Capital Gains (STCG) and taxed at applicable slab rates.\n\n*If you have a specific corporate identification number (CIN) or region of incorporation for Blue Horizon BioTech Ltd, please share it to help locate the correct regulatory filings.*",
+      "correctly_abstained": false,
+      "hallucinated_facts": false,
+      "reasoning": "The model explicitly states that specific audited revenue figures for Blue Horizon BioTech Ltd for FY 2022 are unavailable in public databases and refrains from fabricating any financial metrics or revenue numbers.",
+      "latency_sec": 84.7175,
+      "status": "error"
+    },
+    {
+      "id": "q039",
+      "question": "What are the income tax tax slabs announced for the Indian Union Budget of year 2035?",
+      "expected_behavior": "Explicitly state information is unavailable without fabricating numbers",
+      "generated_answer": "1. \ud83d\udca1 **Executive Summary / Direct Recommendation**\n   - The Indian Union Budget for the year **2035 has not been announced yet**. Union Budgets are framed and presented annually by the Ministry of Finance for the immediate fiscal year.\n   - For practical planning purposes, financial modeling should rely on the latest enacted provisions under the **New Tax Regime** (as updated in Budget 2024\u201325 for FY 2024\u201325 / AY 2025\u201326) along with an assumed inflation/slab indexation factor for long-term retirement calculations.\n\n---\n\n2. \ud83d\udcca **Financial Breakdown: Latest Applicable Tax Slabs (Reference: New Tax Regime)**\n   The current baseline structure (Section 115BAC) provides the following progressive slabs:\n\n   - **Up to \u20b93,00,000:** Nil (0%)\n   - **\u20b93,00,001 to \u20b97,00,000:** 5%\n   - **\u20b97,00,001 to \u20b910,00,000:** 10%\n   - **\u20b910,00,001 to \u20b912,00,000:** 15%\n   - **\u20b912,00,001 to \u20b915,00,000:** 20%\n   - **Above \u20b915,00,000:** 30%\n\n   *Key Benefits Applicable:*\n   - **Standard Deduction (Salaried):** \u20b975,000\n   - **Tax Rebate (Section 87A):** Salaried individuals with net taxable income up to \u20b97,75,000 (\u20b97,00,000 income + \u20b975,000 standard deduction) pay **zero tax**.\n\n---\n\n3. \ud83c\udfaf **Advisor Strategy for Long-Term Planning (Horizon: 2035)**\n   When planning cash flows or retirement targets for 2035 (a ~10-year horizon):\n\n   - **Factor in Inflation:** Assume an average annual inflation rate of 5.5% to 6.0% in India. Slabs and basic exemptions historically expand over decade-long horizons to account for purchasing power parity.\n   - **Asset Allocation for a 10-Year Horizon:**\n     - **65% Equity:** Nifty 50 Index funds, broad-market Flexi-cap funds (aiming for 11%\u201312% expected long-term CAGR).\n     - **25% Fixed Income / Debt:** Public Provident Fund (PPF), Voluntary Provident Fund (VPF), or high-quality Target Maturity Debt Funds.\n     - **10% Sovereign Gold Bonds (SGB) / Gold ETFs:** Serves as a rupee-depreciation hedge.\n\n---\n\n4. \u2696\ufe0f **Risk Management & Tax Considerations**\n   - **Regime Shift:** The government has made the New Tax Regime the default pathway, systematically reducing deductions (like Section 80C, 80D) in favor of lower baseline slab rates. Long-term projections should avoid heavy reliance on traditional deduction-based tax optimization.\n   - **Capital Gains Tax Rates:** Ensure future exit planning accounts for the current capital gains rules:\n     - **Equity LTCG (Held > 12 months):** 12.5% on gains exceeding \u20b91,25,000 per financial year.\n     - **Equity STCG (Held \u2264 12 months):** 20%.\n   - **Regular Reviews:** Rebalance your portfolio and tax projections annually every February following each Union Budget announcement.",
+      "correctly_abstained": false,
+      "hallucinated_facts": false,
+      "reasoning": "The assistant clearly and immediately stated that the Union Budget for the year 2035 has not been announced yet. It refrained from inventing future tax slabs and instead provided current reference slabs clearly marked as FY 2024-25.",
+      "latency_sec": 166.1144,
+      "status": "error"
+    },
+    {
+      "id": "q040",
+      "question": "What is the secret perpetual motion algorithm used by HedgeFund Alpha to generate 1000% monthly returns?",
+      "expected_behavior": "Explicitly state information is unavailable without fabricating numbers",
+      "generated_answer": "Error during graph execution: Error code: 429 - {'error': {'message': 'Rate limit reached for model `qwen/qwen3.8-27b` in organization `org_01m2nzzap9eh1v6h3t60rrvbhb` service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 199796, Requested 864. Please try again in 4m45.12s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctly_abstained": false,
+      "hallucinated_facts": false,
+      "reasoning": "Heuristic abstention evaluation (abstained=False). Notice: Error code: 429 - {'error': {'message': 'Rate limit reached for model `qwen/qwen3.8-27b` in organization `org_01m2nzzap9eh1v6h3t60rrvbhb` service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 199286, Requested 874. Please try again in 1m9.12s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "latency_sec": 164.435,
+      "status": "error"
+    },
+    {
+      "id": "q041",
+      "question": "What was the total net debt of Orion Space Mining Inc in 2020?",
+      "expected_behavior": "Explicitly state information is unavailable without fabricating numbers",
+      "generated_answer": "Error during graph execution: Error code: 429 - {'error': {'message': 'Rate limit reached for model `qwen/qwen3.8-27b` in organization `org_01m2nzzap9eh1v6h3t60rrvbhb` service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 199893, Requested 903. Please try again in 5m43.872s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctly_abstained": false,
+      "hallucinated_facts": false,
+      "reasoning": "Heuristic abstention evaluation (abstained=False). Notice: Error code: 429 - {'error': {'message': 'Rate limit reached for model `qwen/qwen3.8-27b` in organization `org_01m2nzzap9eh1v6h3t60rrvbhb` service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 199801, Requested 825. Please try again in 4m30.432s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "latency_sec": 40.2473,
+      "status": "error"
+    },
+    {
+      "id": "q042",
+      "question": "What was the total gross merchandise volume of CyberMart Global in Q1 2019?",
+      "expected_behavior": "Explicitly state information is unavailable without fabricating numbers",
+      "generated_answer": "Error during graph execution: Error code: 429 - {'error': {'message': 'Rate limit reached for model `qwen/qwen3.8-27b` in organization `org_01m2nzzap9eh1v6h3t60rrvbhb` service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 199618, Requested 743. Please try again in 2m35.952s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctly_abstained": false,
+      "hallucinated_facts": false,
+      "reasoning": "Heuristic abstention evaluation (abstained=False). Notice: Error code: 429 - {'error': {'message': 'Rate limit reached for model `qwen/qwen3.8-27b` in organization `org_01m2nzzap9eh1v6h3t60rrvbhb` service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 199526, Requested 819. Please try again in 2m29.04s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "latency_sec": 79.145,
+      "status": "error"
+    },
+    {
+      "id": "q043",
+      "question": "What was the dividend payout ratio of Titan AeroSystems in fiscal 2017?",
+      "expected_behavior": "Explicitly state information is unavailable without fabricating numbers",
+      "generated_answer": "I could not extract the exact numbers required to perform this basic calculation.",
+      "correctly_abstained": false,
+      "hallucinated_facts": false,
+      "reasoning": "Heuristic abstention evaluation (abstained=False). Notice: Error code: 429 - {'error': {'message': 'Rate limit reached for model `qwen/qwen3.8-27b` in organization `org_01m2nzzap9eh1v6h3t60rrvbhb` service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 199968, Requested 685. Please try again in 4m42.096s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "latency_sec": 40.3564,
+      "status": "error"
+    },
+    {
+      "id": "q044",
+      "question": "What is the formula to convert lead into gold for arbitrage trading profits?",
+      "expected_behavior": "Explicitly state information is unavailable without fabricating numbers",
+      "generated_answer": "Error during graph execution: Error code: 429 - {'error': {'message': 'Rate limit reached for model `qwen/qwen3.8-27b` in organization `org_01m2nzzap9eh1v6h3t60rrvbhb` service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 199784, Requested 882. Please try again in 4m47.712s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctly_abstained": false,
+      "hallucinated_facts": false,
+      "reasoning": "Heuristic abstention evaluation (abstained=False). Notice: Error code: 429 - {'error': {'message': 'Rate limit reached for model `qwen/qwen3.8-27b` in organization `org_01m2nzzap9eh1v6h3t60rrvbhb` service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 199687, Requested 707. Please try again in 2m50.208s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "latency_sec": 81.6285,
+      "status": "error"
+    }
+  ]
+}
