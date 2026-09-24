@@ -45,18 +45,31 @@ if settings.GROQ_API_KEY:
         temperature=0,
         model_name="openai/gpt-oss-20b",
         max_tokens=400,
-        max_retries=2,
+        max_retries=0,
         api_key=settings.GROQ_API_KEY,
-        timeout=6,
+        timeout=4,
     )
     fast_fallbacks.append(ChatGroq(
         temperature=0,
         model_name="qwen/qwen3.8-27b",
         max_tokens=400,
-        max_retries=2,
+        max_retries=0,
         api_key=settings.GROQ_API_KEY,
-        timeout=6,
+        timeout=4,
     ))
+
+if settings.GOOGLE_API_KEY:
+    gemini_fast = ChatGoogleGenerativeAI(
+        model="gemini-3.5-flash",
+        google_api_key=settings.GOOGLE_API_KEY,
+        temperature=0,
+        max_output_tokens=400,
+        timeout=8,
+    )
+    if not fast_primary:
+        fast_primary = gemini_fast
+    else:
+        fast_fallbacks.append(gemini_fast)
 
 if settings.OPENROUTER_API_KEY:
     or_fast = ChatOpenAI(
@@ -73,16 +86,6 @@ if settings.OPENROUTER_API_KEY:
     else:
         fast_fallbacks.append(or_fast)
 
-    fast_fallbacks.append(ChatOpenAI(
-        model="deepseek/deepseek-chat",
-        openai_api_key=settings.OPENROUTER_API_KEY,
-        openai_api_base="https://openrouter.ai/api/v1",
-        max_tokens=400,
-        temperature=0,
-        max_retries=0,
-        timeout=6,
-    ))
-
 if not fast_primary:
     fast_primary = ChatGroq(temperature=0, model_name="dummy", api_key="dummy")
 
@@ -92,8 +95,14 @@ fast_chat = fast_primary.with_fallbacks(fast_fallbacks) if fast_fallbacks else f
 def get_structured_fast_chat(schema, **kwargs):
     primary_structured = fast_primary.with_structured_output(schema, **kwargs)
     if fast_fallbacks:
-        fallback_structured = [f.with_structured_output(schema, **kwargs) for f in fast_fallbacks]
-        return primary_structured.with_fallbacks(fallback_structured)
+        fallback_structured = []
+        for f in fast_fallbacks:
+            try:
+                fallback_structured.append(f.with_structured_output(schema, **kwargs))
+            except Exception:
+                pass
+        if fallback_structured:
+            return primary_structured.with_fallbacks(fallback_structured)
     return primary_structured
 
 
@@ -106,26 +115,31 @@ if settings.GROQ_API_KEY:
         temperature=0,
         model_name="openai/gpt-oss-120b",
         max_tokens=1000,
-        max_retries=2,
+        max_retries=0,
         api_key=settings.GROQ_API_KEY,
-        timeout=8,
+        timeout=5,
     )
     synthesis_fallbacks.append(ChatGroq(
         temperature=0,
         model_name="openai/gpt-oss-20b",
         max_tokens=1000,
-        max_retries=2,
+        max_retries=0,
         api_key=settings.GROQ_API_KEY,
-        timeout=8,
+        timeout=5,
     ))
-    synthesis_fallbacks.append(ChatGroq(
+
+if settings.GOOGLE_API_KEY:
+    gemini_synth = ChatGoogleGenerativeAI(
+        model="gemini-3.5-flash",
+        google_api_key=settings.GOOGLE_API_KEY,
         temperature=0,
-        model_name="qwen/qwen3.8-27b",
-        max_tokens=1000,
-        max_retries=2,
-        api_key=settings.GROQ_API_KEY,
-        timeout=8,
-    ))
+        max_output_tokens=1000,
+        timeout=10,
+    )
+    if not synthesis_primary:
+        synthesis_primary = gemini_synth
+    else:
+        synthesis_fallbacks.append(gemini_synth)
 
 if settings.OPENROUTER_API_KEY:
     or_synth = ChatOpenAI(
@@ -135,22 +149,12 @@ if settings.OPENROUTER_API_KEY:
         max_tokens=1000,
         temperature=0,
         max_retries=0,
-        timeout=12,
+        timeout=10,
     )
     if not synthesis_primary:
         synthesis_primary = or_synth
     else:
         synthesis_fallbacks.append(or_synth)
-
-    synthesis_fallbacks.append(ChatOpenAI(
-        model="deepseek/deepseek-chat",
-        openai_api_key=settings.OPENROUTER_API_KEY,
-        openai_api_base="https://openrouter.ai/api/v1",
-        max_tokens=1000,
-        temperature=0,
-        max_retries=0,
-        timeout=10,
-    ))
 
 if not synthesis_primary:
     synthesis_primary = fast_primary
@@ -160,8 +164,14 @@ synthesis_chat = synthesis_primary.with_fallbacks(synthesis_fallbacks) if synthe
 def get_structured_synthesis_chat(schema, **kwargs):
     primary_structured = synthesis_primary.with_structured_output(schema, **kwargs)
     if synthesis_fallbacks:
-        fallback_structured = [f.with_structured_output(schema, **kwargs) for f in synthesis_fallbacks]
-        return primary_structured.with_fallbacks(fallback_structured)
+        fallback_structured = []
+        for f in synthesis_fallbacks:
+            try:
+                fallback_structured.append(f.with_structured_output(schema, **kwargs))
+            except Exception:
+                pass
+        if fallback_structured:
+            return primary_structured.with_fallbacks(fallback_structured)
     return primary_structured
 
 # Backwards compatibility aliases
