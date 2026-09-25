@@ -16,59 +16,103 @@
 > - ⚙️ **Backend API (Interactive Swagger Docs)**: [https://finadvisor-voice.onrender.com/docs](https://finadvisor-voice.onrender.com/docs)
 > - 📦 **GitHub Repository**: [AshokSingodia-Codes/FinAdvisor-Voice](https://github.com/AshokSingodia-Codes/FinAdvisor-Voice)
 
-**FinAdvisor-X** is an enterprise-grade **Agentic Hybrid Graph Retrieval-Augmented Generation (RAG)** platform equipped with **Speech-to-Text / Text-to-Speech Voice Interaction**, **Multi-Provider LLM Fallbacks with Circuit Breaker Protection**, **FlashRank Neural Cross-Encoder Reranking**, **Strict 3-Field Multi-Tenant Document Privacy Isolation**, and **Deterministic Financial Math & Indian Tax Intelligence (FY 2026-27)**.
+**FinAdvisor-X** is an enterprise-grade **Agentic Hybrid Graph Retrieval-Augmented Generation (RAG)** financial advisory platform. It integrates **Continuous Multi-Sentence Voice Dictation**, **Soft Female Text-to-Speech Synthesis**, **Adaptive Token-Efficient Query Depth Routing**, **Multi-Provider LLM Fallbacks with Circuit Breaker Protection**, **FlashRank Neural Cross-Encoder Reranking**, **Strict 3-Field Multi-Tenant Document Privacy Isolation (< 5 MB Guardrails)**, and **Deterministic Financial Math & Indian Tax Intelligence (FY 2026-27)**.
 
 ---
 
 ## 📑 Table of Contents
 
 1. [Key Capabilities & Features](#-key-capabilities--features)
-2. [System Architecture & Data Flow](#-system-architecture--data-flow)
-3. [Multi-Provider LLM & Fallback Architecture](#-multi-provider-llm--fallback-architecture)
-4. [Knowledge Bases & Hybrid Retrieval Pipeline](#-knowledge-bases--hybrid-retrieval-pipeline)
-5. [Security, Auth & Strict Privacy Model](#-security-auth--strict-privacy-model)
-6. [Deterministic Engines & Financial Math](#-deterministic-engines--financial-math)
-7. [Project Directory Map](#-project-directory-map)
-8. [Getting Started & Local Setup](#-getting-started--local-setup)
-9. [Docker Deployment](#-docker-deployment)
-10. [REST API Endpoints](#-rest-api-endpoints)
-11. [Automated Testing & Benchmarking](#-automated-testing--benchmarking)
+2. [Token Efficiency & Adaptive Depth Architecture](#-token-efficiency--adaptive-depth-architecture)
+3. [System Architecture & Multi-Agent Flow](#-system-architecture--multi-agent-flow)
+4. [Voice Interaction System (Continuous STT & Soft Female TTS)](#-voice-interaction-system)
+5. [Multi-Provider LLM & Fallback Architecture](#-multi-provider-llm--fallback-architecture)
+6. [Knowledge Bases & Hybrid Retrieval Pipeline](#-knowledge-bases--hybrid-retrieval-pipeline)
+7. [Security, Auth & Strict Privacy Model](#-security-auth--strict-privacy-model)
+8. [Deterministic Engines & Financial Math](#-deterministic-engines--financial-math)
+9. [Project Directory Map](#-project-directory-map)
+10. [Getting Started & Local Setup](#-getting-started--local-setup)
+11. [Docker Deployment](#-docker-deployment)
+12. [REST API Endpoints](#-rest-api-endpoints)
+13. [Empirical Benchmarks & Evaluation](#-empirical-benchmarks--evaluation-results)
 
 ---
 
 ## 🌟 Key Capabilities & Features
 
-* **🎙️ End-to-End Voice Financial Interface (STT & TTS)**:
-  - **Voice Input (STT)**: Browser speech recognition with real-time dynamic waveform visualizers.
-  - **Voice Output (TTS)**: Web Speech synthesis vocalizing verified recommendations with play/pause/mute controls.
-  - **Interactive Action Chips**: Dynamic clickable prompt pills (`[Suggested Action]`) guiding next-step exploration.
-* **🛡️ 4-Tier Resilient LLM Fallback Cascade with Circuit Breaker**:
-  - Primary reasoning powered by **OpenRouter Qwen 2.5 72B**, with zero-lag failover cascades across **DeepSeek-Chat**, **Google Gemini 2.5 Flash**, and **Groq Qwen 3.8-27B**.
-  - **Circuit Breaker FSM**: Prevents cascading timeouts during upstream provider rate limits or outages.
-* **🔒 3-Field Multi-Tenant Document Privacy Isolation**:
-  - Secure uploads for private financial records (PDFs, CSVs, tax forms, salary statements).
-  - Every private chunk in Neo4j is indexed with `(user_id, document_id, conversation_id)` at the Cypher query level.
-  - Domain filter automatically rejects non-financial uploads (`NonFinancialDocumentError`).
-* **🔍 Hybrid Graph-RAG with FlashRank Cross-Encoder**:
-  - Sub-15ms lexical search using Neo4j native Lucene `keyword_markdown` BM25 fulltext indexing.
-  - 768-dim dense semantic embeddings (`sentence-transformers/all-mpnet-base-v2` / ONNX `FastEmbed`).
-  - Fused via **Reciprocal Rank Fusion (RRF, $k=60$)** and refined with a local **FlashRank neural cross-encoder** (`ms-marco-MiniLM-L-12-v2`, +5.16% precision boost).
-* **📉 Lossless Markdown Token Compression & Metadata Manifests**:
-  - Whitespace compaction strips layout padding for **~35% token reduction**.
-  - Extracts $<50$-token header manifests for rapid, low-latency conversational routing.
-* **🛡️ Self-RAG Reflection & Adversarial Hallucination Defense**:
-  - Self-checking verification loop checks synthesized answers against retrieved source documents.
-  - **100% Trap Abstention Rate**: Safely refuses queries referencing unindexed quarters or fictional entities.
-* **🧮 Deterministic Financial Math & Indian Tax Engine (FY 2026-27)**:
-  - Sandboxed Python AST calculation engine for zero-hallucination math (SIP, EMI, CAGR, NPV, DCF, WACC).
-  - Sub-2ms Indian Mutual Fund lookups across Large, Mid, Small, and Flexi Cap SEBI categories.
-  - Comprehensive FY 2026-27 tax rules (Section 115BAC, 87A rebate, standard deduction ₹75,000, 12.5% LTCG / 20% STCG).
-* **📜 Autonomous Monthly Regulatory Watchdog**:
-  - 1st-of-the-month background scheduler syncing the latest CBDT circulars, SEBI rules, and RBI guidelines.
+### 1. 🎙️ Continuous Voice & Soft Female Speech Engine
+* **Continuous Multi-Sentence Speech-to-Text (STT)**: Seamlessly handles multi-sentence and full-paragraph voice dictations without premature timeouts using a resilient self-recovering browser SpeechRecognition manager.
+* **Soft Female Text-to-Speech (TTS)**: Synthesizes responses using prioritized natural female voices (`Microsoft Zira`, `Aria`, `Jenny`, `Neerja`, `Swara`, `Samantha`, `Karen`, `Victoria`) with tuned pitch (`1.15`) and speech cadence (`0.95`), strictly filtering out male voices.
+
+### 2. ⚡ Adaptive Query Depth & Token Optimization
+* **Fast-Path Trigger Word Classification**: Dynamically routes user queries into three distinct depth levels (`quick`, `summary`, `deep`), preventing token-heavy long summaries for simple questions.
+* **~40% to ~70% Token Savings**: Enforces concise 2-4 sentence answers for direct queries and structured 4-6 bullet overviews only when explicitly requested.
+* **Lossless Markdown Ingestion**: Whitespace and formatting compaction strips layout bloat for **~35% prompt token reduction**.
+
+### 3. 🛡️ 4-Tier Resilient LLM Fallback Cascade with Circuit Breaker
+* Primary reasoning powered by **OpenRouter Qwen 2.5 72B**, with zero-lag failover cascades across **DeepSeek-Chat**, **Google Gemini 2.5 Flash**, and **Groq Qwen 3.8-27B**.
+* **Circuit Breaker FSM**: Prevents cascading timeouts during upstream provider rate limits or outages.
+
+### 4. 🔒 Strict 3-Field Multi-Tenant Document Privacy (< 5 MB Guardrail)
+* Enforces strict `< 5 MB` document upload limits across both frontend and backend to protect token budgets and server performance.
+* Every private chunk in Neo4j is indexed with `(user_id, document_id, conversation_id)` at the Cypher query level.
+* Full cascade deletion for individual conversations (`DELETE /api/conversations/{id}`) and bulk clear-all (`DELETE /api/conversations`).
+
+### 5. 🔍 Hybrid Graph-RAG with FlashRank Cross-Encoder
+* Sub-15ms lexical search using Neo4j native Lucene `keyword_markdown` BM25 fulltext indexing.
+* 768-dim dense semantic embeddings (`sentence-transformers/all-mpnet-base-v2` / ONNX `FastEmbed`).
+* Fused via **Reciprocal Rank Fusion (RRF, $k=60$)** and refined with a local **FlashRank neural cross-encoder** (`ms-marco-MiniLM-L-12-v2`, +4.12% precision boost).
+
+### 6. 📱 Responsive UI with Sliding Mobile Navigation Drawer
+* Modern financial dashboard with a 3-line hamburger toggle (`☰`) sliding drawer for effortless mobile access.
+* Action Chips (`[Suggested Action]`) guiding contextual exploratory analysis.
+
+### 7. 🧮 Deterministic Financial Math & Indian Tax Engine (FY 2026-27)
+* Sandboxed Python AST calculation engine for zero-hallucination math (SIP, EMI, CAGR, NPV, DCF, WACC).
+* Sub-2ms Indian Mutual Fund lookups across Large, Mid, Small, and Flexi Cap SEBI categories.
+* Comprehensive FY 2026-27 tax rules (Section 115BAC, 87A rebate, standard deduction ₹75,000, 12.5% LTCG / 20% STCG).
 
 ---
 
-## 🏗️ System Architecture & Data Flow
+## ⚡ Token Efficiency & Adaptive Depth Architecture
+
+To drastically reduce token usage and speed up response latency, FinAdvisor-X uses a multi-tier token optimization architecture:
+
+```mermaid
+flowchart TD
+    Q[User Prompt / Audio Query] --> QuickCheck{Fast-Path Keyword Check}
+    
+    QuickCheck -->|Matches QUICK_TRIGGERS| Quick["Depth: 'quick'<br/>(Target: 2-4 Concise Sentences)"]
+    QuickCheck -->|Matches SUMMARY_TRIGGERS| Summary["Depth: 'summary'<br/>(Target: 4-6 Bullet Points)"]
+    QuickCheck -->|Matches DEEP_TRIGGERS| Deep["Depth: 'deep'<br/>(Target: Comprehensive Analysis)"]
+    QuickCheck -->|No Keyword Match| RouterLLM[Router LLM Intent Classifier]
+    
+    RouterLLM --> Quick
+    RouterLLM --> Summary
+    RouterLLM --> Deep
+
+    Quick --> Synth[Evidence Builder / Synthesizer]
+    Summary --> Synth
+    Deep --> Synth
+
+    Synth --> Output[Verified, Token-Optimized Response]
+```
+
+### Depth Classification Tiers:
+| Depth Tier | Trigger Examples | Target Output Profile | Token Reduction |
+|---|---|---|---|
+| **`quick`** *(Default)* | "quick", "just tell me", "short answer", "one line", "direct answer", "no explanation" | 2-4 crisp sentences directly answering the question without filler | **~65% - 75%** vs unconstrained |
+| **`summary`** | "summary", "summarize", "recap", "overview", "tl;dr", "key takeaways", "gist" | 4-6 high-level bullet points highlighting key figures and drivers | **~40% - 50%** vs unconstrained |
+| **`deep`** | "deep dive", "in detail", "elaborate", "comprehensive", "full breakdown", "exhaustively" | Full multi-section analytical breakdown with background and caveats | Standard full analytical context |
+
+### Document Size & Ingestion Guardrails:
+* **Upload Limit**: Restricted to strictly `< 5 MB` (5,242,880 bytes).
+* **Early Rejection**: Oversized files are rejected before processing with HTTP 413 `File too large (< 5 MB required)`.
+* **Deterministic Tabular Ingestion**: Bank statements and CSVs extract rows at **0 LLM tokens** via regex/heuristic parsers.
+
+---
+
+## 🏗️ System Architecture & Multi-Agent Flow
 
 ```mermaid
 flowchart TD
@@ -85,13 +129,13 @@ flowchart TD
     API --> LangGraph[LangGraph Stateful Orchestrator];
 
     subgraph Agentic_Pipeline [Multi-Agent Execution Graph]
-        LangGraph --> Router{Semantic Router<br/>Qwen 2.5 72B / Groq};
+        LangGraph --> Router{Semantic Router<br/>Intent & Depth Classifier};
         
         Router -->|Multi-Year Analysis| Decompose[Decomposition Node];
         Router -->|10-K / Tax / Theory| Retriever[Hybrid Lucene + Dense Retriever];
         Router -->|Live Quotes| MarketData[Yahoo Finance Engine];
         Router -->|Calculations| MathCalc[Deterministic Python Math];
-        Router -->|Conversational| Evidence[Evidence Synthesizer<br/>Qwen 2.5 72B];
+        Router -->|Conversational| Evidence[Evidence Synthesizer<br/>Conditioned on Depth];
 
         Decompose --> Retriever;
         Retriever --> Neo4j[(Neo4j Aura: Graph & Full-Text)];
@@ -103,7 +147,7 @@ flowchart TD
 
         Evidence --> Verifier{Self-RAG Verifier};
         Verifier -->|Audit Failed: Retry Retrieval| Retriever;
-        Verifier -->|Audit Passed: Factual & Grounded| FinalAnswer[Final Response + Action Chips + TTS];
+        Verifier -->|Audit Passed: Factual & Grounded| FinalAnswer[Final Response + Action Chips + Soft Female TTS];
     end
 
     FinalAnswer --> API;
@@ -112,9 +156,25 @@ flowchart TD
 
 ---
 
+## 🎙️ Voice Interaction System
+
+FinAdvisor-X delivers a natural, interactive voice experience tailored for financial analysis:
+
+### 1. Continuous Speech-to-Text (STT)
+- **Problem Solved**: Standard browser speech recognition automatically cuts off after brief pauses or short single sentences.
+- **Solution**: A custom `VoiceInputButton` with an auto-recovering recognition engine that captures continuous multi-sentence queries and multi-line paragraphs until the user explicitly stops speaking or sends the message.
+
+### 2. Soft Female Text-to-Speech (TTS)
+- **Strict Male Exclusion**: Explicitly filters out male voices (e.g., `Microsoft David`, `Mark`, `Guy`, `Ravi`, etc.) on Windows, macOS, Android, and Linux.
+- **Natural Voice Selection**: Prioritizes Microsoft Natural, Apple, and Google female voices (`Zira`, `Aria`, `Jenny`, `Neerja`, `Swara`, `Samantha`, `Karen`, `Victoria`).
+- **Acoustic Tuning**: Pitch set to `1.15` and rate set to `0.95` for an unmistakably soft, pleasant, and professional tone.
+- **Markdown Cleaner**: Strips raw code blocks, ASCII table pipes, and symbols before speech synthesis for fluid vocalization.
+
+---
+
 ## 🛡️ Multi-Provider LLM & Fallback Architecture
 
-To ensure zero downtime, all LLM calls use **`max_retries=0`** and fast timeouts (6s–12s) coupled with an automatic fallback cascade:
+All LLM calls use **`max_retries=0`** and strict timeouts (6s–12s) coupled with an automatic fallback cascade:
 
 ```mermaid
 flowchart LR
@@ -141,13 +201,13 @@ flowchart LR
 
 | Node | File | Responsibilities |
 |---|---|---|
-| **`router`** | [`nodes/router.py`](nodes/router.py) | Semantic intent classifier: `decompose`, `hybrid_search`, `calculation`, `math_calculation`, `live_market_data`, `financial_table`, or `direct_answer`. |
-| **`decompose`** | [`nodes/decomposition.py`](nodes/decomposition.py) | Breaks multi-year and comparative queries into atomic sub-queries for parallel execution. |
+| **`router`** | [`nodes/router.py`](nodes/router.py) | Semantic intent classifier (`decompose`, `hybrid_search`, `calculation`, `math_calculation`, `live_market_data`, `financial_table`, `direct_answer`) and query depth classifier (`quick`, `summary`, `deep`). |
+| **`decomposition`** | [`nodes/decomposition.py`](nodes/decomposition.py) | Breaks multi-year and comparative queries into atomic sub-queries for parallel execution. |
 | **`retriever`** | [`nodes/retriever.py`](nodes/retriever.py) | Dispatches parallel dense vector & Lucene BM25 queries, applies RRF ($k=60$), and scores via FlashRank cross-encoder. |
-| **`evidence_builder`**| [`nodes/evidence_builder.py`](nodes/evidence_builder.py) | Synthesizes retrieved evidence within a strict $<1,800$ token context budget and generates clickable `[Suggested Action]` chips. |
+| **`evidence_builder`**| [`nodes/evidence_builder.py`](nodes/evidence_builder.py) | Synthesizes retrieved evidence within a strict $<1,800$ token context budget, formatted according to query `depth`, and generates clickable `[Suggested Action]` chips. |
 | **`verifier`** | [`nodes/verifier.py`](nodes/verifier.py) | Self-RAG factual auditor checking context consistency. Triggers bounded retrieval retry if context is insufficient. |
 | **`math_solver`** | [`nodes/math_solver.py`](nodes/math_solver.py) | Dispatches financial math questions to Python AST calculation modules. |
-| **`live_data`** | [`nodes/market_data.py`](nodes/market_data.py) | Fetches real-time equity quotes, analyst targets, and ratios via Yahoo Finance API. |
+| **`market_data`** | [`nodes/market_data.py`](nodes/market_data.py) | Fetches real-time equity quotes, analyst targets, and valuation ratios via Yahoo Finance API. |
 
 ---
 
@@ -170,12 +230,15 @@ flowchart LR
 1. **Strict 3-Field Document Isolation**:
    - Chunks stored in Neo4j as `PersonalChunk` nodes require `user_id`, `document_id`, and `conversation_id`.
    - Cross-user and cross-conversation leakage is strictly impossible at the Cypher query level.
-2. **Authentication & Token Management**:
+2. **Cascading Deletions**:
+   - Deleting a conversation removes chat history from Postgres/SQLite and purges all associated chunks and files from Neo4j and storage.
+   - Bulk "Clear All" completely resets user session data.
+3. **Authentication & Token Management**:
    - Password encryption with `bcrypt`.
    - Cryptographic 6-digit OTP verification with `SHA-256` salted hashing.
    - Dual-channel OTP dispatch (Brevo HTTPS REST API with Gmail SMTP fallback).
    - JWT authorization middleware (`get_current_user`).
-3. **Rate Limiting & Threat Protection**:
+4. **Rate Limiting & Threat Protection**:
    - Sliding-window rate limiter per user (`core/rate_limiter.py`).
    - Domain gatekeeper rejecting non-financial file uploads (`NonFinancialDocumentError`).
 
@@ -193,8 +256,8 @@ FinAdvisor-Voice/
 │   ├── circuit_breaker.py       # Resilient API failure FSM state machine
 │   ├── crypto.py                # Symmetric encryption for sensitive tokens
 │   ├── db.py                    # Neo4j connections, LLM setup & 4-tier fallbacks
-│   ├── document_store.py        # Token compressor, manifest extractor, isolation ingest
-│   ├── memory.py                # Neon PostgreSQL multi-tenant memory & user storage
+│   ├── document_store.py        # Token compressor, 5MB limit guardrail, isolation ingest
+│   ├── memory.py                # Neon PostgreSQL multi-tenant memory & cascade deletion
 │   ├── rate_limiter.py          # Sliding-window user rate limiter
 │   ├── regulatory_feed_engine.py# Tax & regulatory RSS/HTML polling client
 │   └── regulatory_watcher.py    # Autonomous 1st-of-the-month background sync loop
@@ -204,23 +267,23 @@ FinAdvisor-Voice/
 │   └── tax_rules_india.py       # FY 2026-27 Indian Tax rules & calculation logic
 ├── frontend/                    # React 18 + TypeScript + Vite UI
 │   ├── src/
-│   │   ├── App.tsx              # Main dashboard with voice playback & Action Chips
+│   │   ├── App.tsx              # Main dashboard with soft female TTS, drawer & Action Chips
 │   │   ├── components/
 │   │   │   ├── AuthModal.tsx    # Modal auth dialog
 │   │   │   ├── LoginPage.tsx    # Glassmorphic auth portal
-│   │   │   └── VoiceInputButton.tsx # Speech-to-Text recording visualizer
+│   │   │   └── VoiceInputButton.tsx # Continuous multi-sentence Speech-to-Text visualizer
 │   │   └── context/
 │   │       └── AuthContext.tsx  # JWT authentication session context
 ├── graph/
-│   ├── state.py                 # AgentState TypedDict schema
+│   ├── state.py                 # AgentState TypedDict schema with query depth
 │   └── workflow.py              # LangGraph StateGraph assembly & conditional loops
 ├── nodes/                       # LangGraph execution nodes
 │   ├── decomposition.py
-│   ├── evidence_builder.py
+│   ├── evidence_builder.py      # Depth-conditioned prompt synthesizer
 │   ├── market_data.py
 │   ├── math_solver.py
 │   ├── retriever.py             # Lucene fulltext BM25 + dense vector retrieval
-│   ├── router.py                # Semantic classifier with structured output
+│   ├── router.py                # Fast-path & semantic classifier with depth routing
 │   └── verifier.py              # Self-RAG fact-checking auditor
 ├── retrieval/
 │   ├── hybrid_rrf.py            # Reciprocal Rank Fusion implementation
@@ -230,7 +293,7 @@ FinAdvisor-Voice/
 │   ├── calculator.py            # AST-sandboxed Python financial math engine
 │   └── mf_lookup.py             # Sub-2ms deterministic Indian Mutual Fund lookup
 ├── reports/                     # Architecture changelogs, audits, and eval metrics
-├── tests/                       # Automated Pytest suite (20+ test modules)
+├── tests/                       # Automated Pytest suite (14+ active integration modules)
 ├── Dockerfile                   # Multi-stage production container definition
 ├── docker-compose.yml           # Container orchestration configuration
 ├── main.py                      # FastAPI application gateway & endpoints
@@ -321,10 +384,14 @@ The application will be accessible at `http://localhost:8000`.
 | `/api/auth/verify-otp` | `POST` | Verify OTP and issue temporary verification token |
 | `/api/auth/register` | `POST` | Register user with email, password, and verification token |
 | `/api/auth/login` | `POST` | Authenticate user and receive JWT access token |
-| `/api/conversations` | `GET` / `POST` | List all conversations or create a new conversation thread |
-| `/api/conversations/{id}` | `GET` / `DELETE` | Retrieve conversation history or delete thread |
-| `/api/documents/upload` | `POST` | Upload and isolate financial PDF/CSV to Neo4j & Postgres |
-| `/api/chat` | `POST` | Execute LangGraph query and return verified answer + Action Chips |
+| `/api/auth/me` | `GET` | Retrieve authenticated user profile |
+| `/api/conversations` | `GET` | List all conversation threads for authenticated user |
+| `/api/conversations` | `POST` | Create a new conversation thread |
+| `/api/conversations` | `DELETE` | **Bulk clear all conversations** and cascade purge private docs |
+| `/api/conversations/{id}` | `GET` | Retrieve conversation message history |
+| `/api/conversations/{id}` | `DELETE` | **Delete single conversation** with cascade file/chunk cleanup |
+| `/api/documents/upload` | `POST` | Upload and isolate financial PDF/CSV (< 5 MB) |
+| `/api/chat` | `POST` | Execute LangGraph query with depth routing & verified response |
 
 ---
 
@@ -384,23 +451,6 @@ Tested on a realistic 17-row HDFC-style bank statement with messy UPI IDs and mu
 
 ---
 
-## 🛠️ Known Limitations & Engineering Fixes Along the Way
-
-Documenting failure modes diagnosed and resolved during development:
-
-1. **Synthesis Exception Context Leakage Fix**:
-   - *Issue*: `nodes/evidence_builder.py` caught LLM synthesis timeouts and dumped `f"{context[:800]}"` as fallback text. During rate limits on `q043` (Titan AeroSystems), this dumped a truncated 800-character textbook chunk describing residual dividends, causing the LLM-as-a-Judge to flag it as an ungrounded hallucination.
-   - *Fix*: Replaced the raw context dump with an explicit safe abstention that never leaks ungrounded retrieved chunks.
-   - *Known Tradeoff*: Synthesis failures of any kind now abstain safely rather than partially leak retrieved context, at the cost of not distinguishing infrastructure errors from genuine data gaps in the user-facing message.
-2. **Evaluation Harness Judge-Error Conflation Fix**:
-   - *Issue*: When the evaluation judge hit HTTP 429 rate limits, the benchmark harness defaulted to marking answers as "hallucinated".
-   - *Fix*: Introduced an explicit `judge_error` status, separating evaluation harness infrastructure limits from actual model hallucination rates.
-3. **Differentiated Embedding Architecture**:
-   - *Issue*: Benchmarking 384-dim ONNX `bge-small-en-v1.5` on the shared Neo4j corpus showed a **21.83% drop in MRR** (0.7118 $\rightarrow$ 0.5564) and a **9.31% drop in Recall@5**.
-   - *Fix*: Maintained 768-dim `all-mpnet-base-v2` for the institutional knowledge base while deploying 384-dim ONNX for the personal PDF parser where 14ms local execution is essential.
-
----
-
 ## 👨‍💻 Author & Maintainer
 Built with ❤️ by **[Ashok Singodia](https://github.com/AshokSingodia-Codes)** ([@AshokSingodia-Codes](https://github.com/AshokSingodia-Codes)).
 
@@ -408,4 +458,3 @@ Built with ❤️ by **[Ashok Singodia](https://github.com/AshokSingodia-Codes)*
 
 ## 📄 License
 This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
-

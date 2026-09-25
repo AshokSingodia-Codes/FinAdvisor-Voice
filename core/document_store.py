@@ -67,7 +67,7 @@ class NonFinancialDocumentError(ValueError):
 # Constants
 # ---------------------------------------------------------------------------
 
-MAX_FILE_BYTES = 10 * 1024 * 1024  # 10 MB hard limit
+MAX_FILE_BYTES = 5 * 1024 * 1024  # 5 MB hard limit
 PERSONAL_CHUNK_LABEL = "PersonalChunk"
 CHUNK_SIZE_CHARS = 1200
 CHUNK_OVERLAP_CHARS = 200
@@ -585,14 +585,14 @@ def ingest_document(
     Returns the document record dict with final status.
 
     Raises:
-        ValueError — if the file exceeds 10 MB or MIME type is unsupported.
+        ValueError — if the file exceeds 5 MB or MIME type is unsupported.
         NonFinancialDocumentError — if the document is not related to finance.
         RuntimeError — if text extraction fails.
     """
-    # 1. Size guard (10 MB hard limit)
+    # 1. Size guard (5 MB hard limit)
     if len(content) > MAX_FILE_BYTES:
         raise ValueError(
-            f"File size {len(content):,} bytes exceeds the 10 MB limit "
+            f"File size {len(content):,} bytes exceeds the 5 MB limit "
             f"({MAX_FILE_BYTES:,} bytes)."
         )
 
@@ -793,3 +793,39 @@ def delete_document(document_id: str, user_id: str, conversation_id: str) -> boo
     )
     delete_document_record(document_id)
     return True
+
+
+def delete_documents_by_conversation(conversation_id: str, user_id: str):
+    """
+    Delete all personal documents and their Neo4j chunks associated with a conversation.
+    """
+    if not user_id or not conversation_id:
+        return
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            text("SELECT id FROM user_documents WHERE user_id = :uid AND conversation_id = :cid"),
+            {"uid": user_id, "cid": conversation_id}
+        ).mappings().fetchall()
+        for row in rows:
+            try:
+                delete_document(str(row["id"]), user_id, conversation_id)
+            except Exception as e:
+                print(f"[delete_documents_by_conversation error] doc={row['id']}: {e}")
+
+
+def delete_all_documents_for_user(user_id: str):
+    """
+    Delete all personal documents and their Neo4j chunks for a given user.
+    """
+    if not user_id:
+        return
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            text("SELECT id, conversation_id FROM user_documents WHERE user_id = :uid"),
+            {"uid": user_id}
+        ).mappings().fetchall()
+        for row in rows:
+            try:
+                delete_document(str(row["id"]), user_id, str(row["conversation_id"]))
+            except Exception as e:
+                print(f"[delete_all_documents_for_user error] doc={row['id']}: {e}")

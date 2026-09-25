@@ -533,6 +533,26 @@ def delete_conversation(conversation_id: str, user_id: str) -> bool:
         return res.rowcount > 0
 
 
+def delete_all_conversations(user_id: str) -> bool:
+    if not user_id:
+        return False
+    with get_db_connection() as conn:
+        conn.execute(
+            text("DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = :user_id)"),
+            {"user_id": user_id}
+        )
+        conn.execute(
+            text("DELETE FROM conversation_memory WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = :user_id)"),
+            {"user_id": user_id}
+        )
+        res = conn.execute(
+            text("DELETE FROM conversations WHERE user_id = :user_id"),
+            {"user_id": user_id}
+        )
+        conn.commit()
+        return res.rowcount >= 0
+
+
 # --- Message Storage (User Scoped) ---
 
 def add_message(conversation_id: str, role: str, content: str, user_id: str):

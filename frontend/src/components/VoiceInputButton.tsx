@@ -7,87 +7,141 @@ interface VoiceInputButtonProps {
   disabled?: boolean;
 }
 
-declare global {
-  interface Window {
-    SpeechRecognition: any;
-    webkitSpeechRecognition: any;
-  }
-}
-
 export function VoiceInputButton({ onInterimResult, onFinalResult, disabled }: VoiceInputButtonProps) {
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const recognitionRef = useRef<any>(null);
+  const isListeningRef = useRef<boolean>(false);
+  const restartTimerRef = useRef<any>(null);
+  const callbacksRef = useRef({ onInterimResult, onFinalResult });
 
   useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    callbacksRef.current = { onInterimResult, onFinalResult };
+  });
+
+  const createAndStartRecognition = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       setIsSupported(false);
-      return;
+      return null;
+    }
+
+    // Clean up any existing instance
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onend = null;
+        recognitionRef.current.abort();
+      } catch (e) {
+        // ignore
+      }
     }
 
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = navigator.language || 'en-US';
+    recognition.maxAlternatives = 1;
 
     recognition.onresult = (event: any) => {
       let interim = '';
       let final = '';
 
       for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          final += event.results[i][0].transcript;
-        } else {
-          interim += event.results[i][0].transcript;
+        const item = event.results[i];
+        if (item && item[0]) {
+          const text = item[0].transcript || '';
+          if (item.isFinal) {
+            final += text + ' ';
+          } else {
+            interim += text;
+          }
         }
       }
 
-      if (final) {
-        onFinalResult(final);
+      if (final.trim()) {
+        callbacksRef.current.onFinalResult(final.trim());
       }
-      onInterimResult(interim);
+      callbacksRef.current.onInterimResult(interim);
     };
 
     recognition.onerror = (event: any) => {
-      console.error('Speech recognition error', event.error);
-      setIsListening(false);
-      onInterimResult(''); // clear interim on error
-      if (event.error === 'not-allowed') {
+      console.warn('SpeechRecognition notice:', event.error);
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        isListeningRef.current = false;
+        setIsListening(false);
+        onInterimResult('');
         setErrorMsg('Microphone access denied');
-        setTimeout(() => setErrorMsg(null), 3000);
+        setTimeout(() => setErrorMsg(null), 4000);
       }
+      // 'no-speech' or silence transitions will naturally trigger onend and auto-restart seamlessly
     };
 
     recognition.onend = () => {
-      setIsListening(false);
-      onInterimResult('');
+      if (isListeningRef.current) {
+        // Multi-sentence / paragraph dictation: auto-restart new session seamlessly across silence pauses
+        clearTimeout(restartTimerRef.current);
+        restartTimerRef.current = setTimeout(() => {
+          if (isListeningRef.current) {
+            createAndStartRecognition();
+          }
+        }, 60);
+      } else {
+        setIsListening(false);
+        onInterimResult('');
+      }
     };
 
-    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+      recognitionRef.current = recognition;
+      return recognition;
+    } catch (err) {
+      console.warn('Recognition start caught error:', err);
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setIsSupported(false);
+    }
 
     return () => {
+      isListeningRef.current = false;
+      clearTimeout(restartTimerRef.current);
       if (recognitionRef.current) {
-        recognitionRef.current.stop();
+        try {
+          recognitionRef.current.abort();
+        } catch (e) {
+          // ignore
+        }
       }
     };
-  }, [onInterimResult, onFinalResult]);
+  }, []);
 
   const toggleListening = () => {
-    if (isListening) {
-      recognitionRef.current?.stop();
+    clearTimeout(restartTimerRef.current);
+    if (isListeningRef.current) {
+      isListeningRef.current = false;
       setIsListening(false);
       onInterimResult('');
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          // ignore
+        }
+      }
     } else {
       setErrorMsg(null);
-      try {
-        recognitionRef.current?.start();
-        setIsListening(true);
-      } catch (err) {
-        console.error('Failed to start recognition', err);
-      }
+      isListeningRef.current = true;
+      setIsListening(true);
+      createAndStartRecognition();
     }
   };
 
@@ -123,10 +177,10 @@ export function VoiceInputButton({ onInterimResult, onFinalResult, disabled }: V
         type="button"
         onClick={toggleListening}
         disabled={disabled}
-        title={isListening ? "Stop listening" : "Start voice input"}
+        title={isListening ? "Stop listening" : "Start continuous voice input"}
         className={`relative z-10 p-2 rounded-lg transition-all shadow-xs cursor-pointer flex items-center justify-center ${isListening
-            ? 'bg-red-500/90 text-white hover:bg-red-600 shadow-[0_0_12px_rgba(239,68,68,0.5)]'
-            : 'bg-slate-100 text-[#0f274a] hover:bg-blue-50 hover:text-blue-700 border border-slate-200 disabled:opacity-40 disabled:hover:bg-slate-100 disabled:hover:text-[#0f274a]'
+          ? 'bg-red-500/90 text-white hover:bg-red-600 shadow-[0_0_12px_rgba(239,68,68,0.5)]'
+          : 'bg-slate-100 text-[#0f274a] hover:bg-blue-50 hover:text-blue-700 border border-slate-200 disabled:opacity-40 disabled:hover:bg-slate-100 disabled:hover:text-[#0f274a]'
           }`}
       >
         {isListening ? <Square size={14} className="fill-current" /> : <Mic size={16} />}

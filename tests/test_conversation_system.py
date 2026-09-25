@@ -50,6 +50,20 @@ def test_conversation_crud_endpoints(auth_headers):
     res = client.get(f"/api/conversations/{conv_id}", headers=auth_headers)
     assert res.status_code == 404
 
+    # 6. Test Bulk Delete (Clear All)
+    res1 = client.post("/api/conversations", json={"title": "Chat 1"}, headers=auth_headers)
+    res2 = client.post("/api/conversations", json={"title": "Chat 2"}, headers=auth_headers)
+    assert res1.status_code == 200 and res2.status_code == 200
+
+    del_all_res = client.delete("/api/conversations", headers=auth_headers)
+    assert del_all_res.status_code == 200
+    assert del_all_res.json()["status"] == "all_deleted"
+
+    # Verify list is empty
+    list_res = client.get("/api/conversations", headers=auth_headers)
+    assert list_res.status_code == 200
+    assert len(list_res.json()) == 0
+
 def test_multi_turn_financial_memory_and_isolation(auth_headers):
     """
     Validates the exact multi-turn memory flow and conversation isolation:

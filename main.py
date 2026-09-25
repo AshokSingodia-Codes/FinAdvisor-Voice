@@ -24,6 +24,7 @@ from core.memory import (
     get_conversation_raw,
     rename_conversation,
     delete_conversation,
+    delete_all_conversations,
     add_message,
     get_conversation_context,
     extract_and_update_memory,
@@ -52,6 +53,8 @@ from core.cache import get_cached_response, set_cached_response, invalidate_docu
 from core.document_store import (
     ingest_document,
     delete_document,
+    delete_documents_by_conversation,
+    delete_all_documents_for_user,
     get_document_record,
     get_active_document_for_conversation,
     MAX_FILE_BYTES,
@@ -347,6 +350,20 @@ def update_conversation_title(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.delete("/api/conversations")
+def remove_all_conversations(
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    try:
+        user_id = current_user["id"]
+        delete_all_documents_for_user(user_id)
+        delete_all_conversations(user_id)
+        return {"status": "all_deleted"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.delete("/api/conversations/{conversation_id}")
 def remove_conversation(
     conversation_id: str,
@@ -359,6 +376,7 @@ def remove_conversation(
         if raw["user_id"] != current_user["id"]:
             raise HTTPException(status_code=403, detail="Access denied: You do not have permission to delete this conversation.")
             
+        delete_documents_by_conversation(conversation_id, user_id=current_user["id"])
         success = delete_conversation(conversation_id, user_id=current_user["id"])
         if not success:
             raise HTTPException(status_code=404, detail="Conversation not found")
@@ -513,7 +531,7 @@ async def upload_document(
     same triple that every retrieval query filters on.  A document uploaded in
     Conversation A is invisible to Conversation B even for the same user.
 
-    Limits: 10 MB, PDF / plain-text / markdown / CSV / Image (PNG, JPG, WEBP).
+    Limits: 5 MB, PDF / plain-text / markdown / CSV / Image (PNG, JPG, WEBP).
     """
     user_id = current_user["id"]
 
@@ -527,11 +545,11 @@ async def upload_document(
     # Read file content
     content = await file.read()
 
-    # Size check (10 MB)
+    # Size check (5 MB)
     if len(content) > MAX_FILE_BYTES:
         raise HTTPException(
             status_code=413,
-            detail=f"File too large. Maximum allowed size is 10 MB ({MAX_FILE_BYTES:,} bytes). "
+            detail=f"File too large. Maximum allowed size is 5 MB ({MAX_FILE_BYTES:,} bytes). "
                    f"Your file is {len(content):,} bytes."
         )
 

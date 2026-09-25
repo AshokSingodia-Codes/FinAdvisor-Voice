@@ -3,6 +3,59 @@ from pydantic import BaseModel, Field
 from graph.state import AgentState
 from core.db import fast_chat, get_structured_fast_chat
 
+# trigger word/phrase sets used as fast-path pre-classification
+# before falling back to LLM classification for ambiguous queries
+
+QUICK_TRIGGERS = {
+    "quick", "quickly", "just tell me", "just the number", "in one line",
+    "one liner", "briefly", "short answer", "just answer", "no explanation",
+    "straight answer", "cut to the chase", "just the fact", "simple answer",
+    "yes or no", "direct answer", "just say", "in a word", "one word answer",
+}
+
+SUMMARY_TRIGGERS = {
+    "summary", "summarize", "summarise", "recap", "brief", "overview",
+    "tl;dr", "tldr", "in a nutshell", "in short", "gist", "synopsis",
+    "rundown", "wrap up", "wrap-up", "cliffnotes", "cliff notes",
+    "key takeaways", "key points", "highlights", "bullet points",
+    "bullet summary", "quick take", "main points", "top points",
+    "condense", "boil it down", "give me the highlights",
+}
+
+DEEP_TRIGGERS = {
+    "deep dive", "deepdive", "in detail", "in-depth", "indepth", "elaborate",
+    "comprehensive", "detailed breakdown", "explain fully", "explain in detail",
+    "step by step", "step-by-step analysis", "thorough explanation",
+    "break down completely", "exhaustively", "full breakdown", "walk me through",
+    "explain thoroughly", "give me everything", "all the details",
+    "complete analysis", "full analysis", "detailed analysis",
+    "with formulas", "show your work", "show the math", "explain the reasoning",
+}
+
+ESCALATE_TRIGGERS = {
+    "go deeper", "explain more", "elaborate on that", "more detail",
+    "tell me more", "expand on that", "dig deeper", "more info",
+    "can you elaborate", "explain that more", "give me more detail",
+    "what else", "go on", "continue", "more on this",
+}
+
+DEESCALATE_TRIGGERS = {
+    "just the summary", "too long", "shorter please", "keep it short",
+    "tldr this", "simplify", "in simple terms", "make it brief",
+    "less detail", "cut it down", "shorten this",
+}
+
+def classify_depth(question: str) -> str:
+    """Classify user question depth into 'quick' | 'summary' | 'deep'."""
+    lower_q = (question or "").lower()
+    if any(trigger in lower_q for trigger in DEESCALATE_TRIGGERS) or any(trigger in lower_q for trigger in QUICK_TRIGGERS):
+        return "quick"
+    if any(trigger in lower_q for trigger in ESCALATE_TRIGGERS) or any(trigger in lower_q for trigger in DEEP_TRIGGERS):
+        return "deep"
+    if any(trigger in lower_q for trigger in SUMMARY_TRIGGERS):
+        return "summary"
+    return "quick"
+
 class Route(BaseModel):
     decision: str = Field(description="The routing decision. Must be one of: 'decompose', 'hybrid_search', 'financial_table', 'calculation', 'math_calculation', 'direct_answer', 'live_market_data'")
 
@@ -45,29 +98,31 @@ def route_question(state: AgentState):
     document_id = state.get("document_id")
     lower = question.strip().lower()
 
+    depth = classify_depth(question)
+
     # --- Fast-Path 1: Instant Personal Document Route (<1ms) ---
     if document_id:
         has_digits = any(char.isdigit() for char in lower)
         is_explicit_math = has_digits and any(term in lower for term in ["add", "subtract", "multiply", "divide", "plus", "minus", "sum", "total", "cagr", "sip", "wacc", "npv", "dcf", "emi"])
         if not is_explicit_math:
             print("  [Router: FAST-PATH PERSONAL DOC] -> 'hybrid_search'")
-            return {"routing_decision": "hybrid_search", "current_question": question}
+            return {"routing_decision": "hybrid_search", "current_question": question, "depth": depth}
 
     # --- Fast-Path 2: Instant Greetings / Casual Chit-Chat (<1ms) ---
     if lower in ("hi", "hello", "hey", "good morning", "good evening", "how are you", "who are you", "help"):
         print("  [Router: FAST-PATH CHIT-CHAT] -> 'direct_answer'")
-        return {"routing_decision": "direct_answer", "current_question": question}
+        return {"routing_decision": "direct_answer", "current_question": question, "depth": depth}
 
     # --- Fast-Path 3: Instant Live Market Tickers (<1ms) ---
     if any(term in lower for term in ["reliance", "tcs", "hdfc", "nifty", "sensex", "infosys", "itc", "live price", "ticker"]):
         print("  [Router: FAST-PATH LIVE MARKET] -> 'live_market_data'")
-        return {"routing_decision": "live_market_data", "current_question": question}
+        return {"routing_decision": "live_market_data", "current_question": question, "depth": depth}
 
     # --- Fast-Path 4: Instant Arithmetic (<1ms) ---
     has_digits = any(char.isdigit() for char in lower)
     if has_digits and any(op in lower for op in ["+", "-", "*", "/", "add ", "subtract ", "multiply ", "plus ", "minus "]):
         print("  [Router: FAST-PATH ARITHMETIC] -> 'math_calculation'")
-        return {"routing_decision": "math_calculation", "current_question": question}
+        return {"routing_decision": "math_calculation", "current_question": question, "depth": depth}
 
     try:
         route = router_chain.invoke({
@@ -107,6 +162,6 @@ def route_question(state: AgentState):
             print(f"  [Router: DOCUMENT MODE] overriding '{decision}' → 'hybrid_search'")
             decision = "hybrid_search"
 
-    print(f"Decision: {decision}")
-    return {"routing_decision": decision, "current_question": question}
+    print(f"Decision: {decision}, Depth: {depth}")
+    return {"routing_decision": decision, "current_question": question, "depth": depth}
 

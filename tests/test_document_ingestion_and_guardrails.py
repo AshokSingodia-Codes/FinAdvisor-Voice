@@ -47,3 +47,17 @@ def test_validate_financial_domain_accepts_financial_text():
 def test_validate_financial_domain_rejects_non_financial_text():
     non_fin_text = "The quick brown fox jumps over the lazy sleeping dog in the enchanted forest during the autumn afternoon."
     assert validate_financial_domain(non_fin_text, "story.txt") is False
+
+def test_document_size_limit_5mb():
+    from core.document_store import MAX_FILE_BYTES, ingest_document
+    assert MAX_FILE_BYTES == 5 * 1024 * 1024  # Exactly 5 MB
+
+    oversized_content = b"a" * (MAX_FILE_BYTES + 1)
+    with pytest.raises(ValueError, match="exceeds the 5 MB limit"):
+        ingest_document(
+            user_id="user_123",
+            conversation_id="conv_123",
+            filename="large_statement.pdf",
+            mime_type="application/pdf",
+            content=oversized_content,
+        )

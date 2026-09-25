@@ -10,6 +10,7 @@ import {
   Edit3,
   Check,
   X,
+  Menu,
   Sparkles,
   Bot,
   User as UserIcon,
@@ -100,6 +101,7 @@ function App() {
   const [input, setInput] = useState('');
   const [interimVoice, setInterimVoice] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Document upload state
   const [activeDoc, setActiveDoc] = useState<ActiveDocument | null>(null);
@@ -131,6 +133,71 @@ function App() {
     }, 2000);
   };
 
+  // Soft female voice selection helper
+  const getSoftFemaleVoice = (): SpeechSynthesisVoice | null => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return null;
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices || voices.length === 0) return null;
+
+    // Strict male keyword filter to never select male voices (e.g. David, Mark, Ravi, Guy, George, etc.)
+    const maleKeywords = [
+      'david', 'mark', 'george', 'ravi', 'guy', 'ryan', 'stefan', 'richard',
+      'male', ' man', ' boy', 'daniel', 'oliver', 'thomas', 'james', 'alex',
+      'fred', 'junior', 'ralph', 'albert', 'bruce', 'steve', 'tom', 'paul',
+      'sean', 'cosmo', 'reed', 'eric', 'andrew', 'christopher', 'brian'
+    ];
+
+    const isMaleVoice = (v: SpeechSynthesisVoice) => {
+      const name = v.name.toLowerCase();
+      return maleKeywords.some(kw => name.includes(kw));
+    };
+
+    // Prioritized female voice keywords across Windows, macOS, Android, iOS, Chrome, Edge:
+    const prioritizedFemaleKeywords = [
+      'zira',       // Windows standard female (Microsoft Zira)
+      'aria',       // Edge Natural female (Microsoft Aria)
+      'jenny',      // Edge Natural female (Microsoft Jenny)
+      'neerja',     // Edge/Windows Indian English female (Microsoft Neerja)
+      'swara',      // Edge/Windows Hindi/English female (Microsoft Swara)
+      'heera',      // Windows Indian English female (Microsoft Heera)
+      'samantha',   // macOS / iOS standard female
+      'karen',      // macOS Australian female
+      'serena',     // macOS British female
+      'victoria',   // macOS / iOS female
+      'hazel',      // Windows UK female (Microsoft Hazel)
+      'susan',      // Windows UK female (Microsoft Susan)
+      'veena',      // iOS/macOS Indian English female
+      'catherine',  // Windows Australian female
+      'eva',        // Cortana / Windows female
+      'ava',        // Apple natural female
+      'emma',       // Google/Edge UK female
+      'olivia',     // Google female
+      'mia',        // Edge female
+      'chloe',      // Edge female
+      'female',     // Generic female tag
+      'woman',      // Generic woman tag
+    ];
+
+    // 1. Search for prioritized female voice
+    for (const kw of prioritizedFemaleKeywords) {
+      const match = voices.find(v => !isMaleVoice(v) && v.name.toLowerCase().includes(kw));
+      if (match) return match;
+    }
+
+    // 2. Fallback: filter out all male voices and pick an English non-male voice
+    const nonMaleVoices = voices.filter(v => !isMaleVoice(v));
+    const englishNonMale = nonMaleVoices.find(v => 
+      v.lang.startsWith('en') || v.lang.startsWith('hi')
+    );
+    if (englishNonMale) return englishNonMale;
+
+    // 3. Any non-male voice available
+    if (nonMaleVoices.length > 0) return nonMaleVoices[0];
+
+    // 4. Extreme fallback
+    return voices[0] || null;
+  };
+
   const handleToggleTTS = (content: string, index: number) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
 
@@ -149,8 +216,18 @@ function App() {
       .trim();
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
+    
+    // Set soft female voice
+    const femaleVoice = getSoftFemaleVoice();
+    if (femaleVoice) {
+      utterance.voice = femaleVoice;
+    }
+
+    // Soft, pleasant, clear female tone settings
+    utterance.rate = 0.95; // gentle, natural, relaxed tempo
+    utterance.pitch = 1.15; // soft, sweet, warm female pitch
+    utterance.volume = 1.0;
+
     utterance.onend = () => setSpeakingIndex(null);
     utterance.onerror = () => setSpeakingIndex(null);
 
@@ -160,9 +237,16 @@ function App() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Stop speech synthesis when conversation changes
+  // Stop speech synthesis and preload voices on mount / change
   useEffect(() => {
     if (typeof window !== 'undefined' && window.speechSynthesis) {
+      // Ensure voices list is loaded immediately and on event
+      window.speechSynthesis.getVoices();
+      if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = () => {
+          window.speechSynthesis.getVoices();
+        };
+      }
       window.speechSynthesis.cancel();
     }
     setSpeakingIndex(null);
@@ -256,15 +340,18 @@ function App() {
     setActiveTitle('New Chat');
     setMessages([]);
     setActiveDoc(null); // detach document when starting a new chat
+    setIsSidebarOpen(false);
   };
 
   const handleSelectConversation = async (convId: string) => {
+    setIsSidebarOpen(false);
     if (convId === activeConvId) return;
     await loadConversation(convId);
   };
 
   const handleDeleteConversation = async (e: React.MouseEvent, convId: string) => {
     e.stopPropagation();
+    if (!window.confirm('Are you sure you want to delete this conversation?')) return;
     try {
       const res = await authFetch(`${API_BASE}/api/conversations/${convId}`, { method: 'DELETE' });
       if (res.ok) {
@@ -277,9 +364,28 @@ function App() {
             handleNewChat();
           }
         }
+      } else {
+        alert('Failed to delete conversation.');
       }
     } catch (err) {
       console.error('Failed to delete conversation:', err);
+      alert('Error deleting conversation.');
+    }
+  };
+
+  const handleClearAllConversations = async () => {
+    if (!window.confirm('Are you sure you want to delete ALL conversations? This cannot be undone.')) return;
+    try {
+      const res = await authFetch(`${API_BASE}/api/conversations`, { method: 'DELETE' });
+      if (res.ok) {
+        setConversations([]);
+        handleNewChat();
+      } else {
+        alert('Failed to clear conversations.');
+      }
+    } catch (err) {
+      console.error('Failed to clear conversations:', err);
+      alert('Error clearing conversations.');
     }
   };
 
@@ -321,10 +427,12 @@ function App() {
       return;
     }
 
-    const userMsg = (textToSend ?? input).trim();
+    const currentPending = (input + (interimVoice ? (input ? ' ' : '') + interimVoice : '')).trim();
+    const userMsg = (textToSend ?? currentPending).trim();
     if (!userMsg || loading) return;
 
     setInput('');
+    setInterimVoice('');
     const newMessages: ChatMessage[] = [...messages, { role: 'user', content: userMsg }];
     setMessages(newMessages);
     setLoading(true);
@@ -391,7 +499,7 @@ function App() {
       });
 
       if (res.status === 413) {
-        alert('File too large. Maximum size is 10 MB.');
+        alert('File too large. Maximum size is 5 MB.');
         return;
       }
       if (res.status === 415) {
@@ -467,8 +575,21 @@ function App() {
         initialTab={authModalInitialTab}
       />
 
+      {/* Mobile Drawer Backdrop */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 md:hidden transition-opacity duration-300"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-72 bg-[#f8fafc] border-r border-slate-200/90 flex flex-col shrink-0">
+      <aside className={`
+        fixed md:static inset-y-0 left-0 z-50
+        w-72 bg-[#f8fafc] border-r border-slate-200/90 flex flex-col shrink-0
+        transform transition-transform duration-300 ease-in-out
+        ${isSidebarOpen ? 'translate-x-0 shadow-2xl md:shadow-none' : '-translate-x-full md:translate-x-0'}
+      `}>
         {/* Brand Header */}
         <div className="p-4 border-b border-slate-200/80 flex items-center justify-between bg-white">
           <div className="flex items-center gap-3">
@@ -480,6 +601,13 @@ function App() {
               <span className="block text-[10px] text-blue-800 font-bold tracking-wider uppercase">AI Financial Analyst</span>
             </div>
           </div>
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            className="md:hidden p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+            title="Close sidebar"
+          >
+            <X size={18} />
+          </button>
         </div>
 
         {/* New Chat Button */}
@@ -506,11 +634,22 @@ function App() {
               <Clock size={12} />
               Recent Chats
             </span>
-            {isAuthenticated && (
-              <span className="text-[10px] bg-blue-100/70 text-blue-900 border border-blue-200 px-1.5 py-0.5 rounded-full font-mono font-semibold">
-                {conversations.length}
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {isAuthenticated && conversations.length > 0 && (
+                <button
+                  onClick={handleClearAllConversations}
+                  className="text-[10px] text-slate-400 hover:text-red-600 hover:underline transition-colors cursor-pointer font-medium"
+                  title="Clear all chats"
+                >
+                  Clear All
+                </button>
+              )}
+              {isAuthenticated && (
+                <span className="text-[10px] bg-blue-100/70 text-blue-900 border border-blue-200 px-1.5 py-0.5 rounded-full font-mono font-semibold">
+                  {conversations.length}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -665,20 +804,28 @@ function App() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 relative bg-white">
         {/* Top Navbar */}
-        <header className="h-14 border-b border-slate-200/90 flex items-center justify-between px-6 bg-white sticky top-0 z-10">
-          <div className="flex items-center gap-3">
-            <div className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
-              <span>{activeTitle}</span>
+        <header className="h-14 border-b border-slate-200/90 flex items-center justify-between px-4 sm:px-6 bg-white sticky top-0 z-10">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <button
+              onClick={() => setIsSidebarOpen(prev => !prev)}
+              className="md:hidden p-2 -ml-1 text-slate-600 hover:text-[#0f274a] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer shrink-0"
+              title="Toggle Menu"
+            >
+              <Menu size={20} />
+            </button>
+            <div className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2 truncate">
+              <span className="truncate">{activeTitle}</span>
             </div>
           </div>
           <div className="flex items-center gap-2.5">
-            <div className="flex items-center gap-1.5 text-xs text-slate-700 bg-slate-100 border border-slate-200 px-3 py-1 rounded-full font-medium">
+            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-700 bg-slate-100 border border-slate-200 px-3 py-1 rounded-full font-medium">
               <Shield size={13} className="text-blue-800" />
               <span>Isolated Memory</span>
             </div>
             <div className="flex items-center gap-1.5 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full font-semibold">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Indian Market & RAG Active</span>
+              <span className="hidden sm:inline">Indian Market & RAG Active</span>
+              <span className="sm:hidden">RAG Active</span>
             </div>
             {!isAuthenticated && (
               <button
@@ -696,8 +843,8 @@ function App() {
         <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 scroll-smooth bg-white">
           {messages.length === 0 ? (
             <div className="min-h-full flex flex-col items-center justify-center text-center max-w-2xl mx-auto px-4 py-8">
-              <div className="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center mb-6 shadow-sm">
-                <Sparkles size={30} className="text-blue-800" />
+              <div className="w-16 h-16 rounded-2xl bg-[#0f274a] text-white flex items-center justify-center mb-6 shadow-md border border-blue-900/20">
+                <TrendingUp size={30} className="text-blue-200" />
               </div>
               <h1 className="text-3xl font-bold mb-3 tracking-tight text-slate-900">
                 How can I assist your financial journey?
@@ -964,33 +1111,39 @@ function App() {
             </div>
           )}
 
-          <div className="max-w-4xl mx-auto relative flex items-center bg-white border border-slate-300 rounded-xl focus-within:border-[#0f274a] focus-within:ring-2 focus-within:ring-[#0f274a]/15 shadow-xs transition-all overflow-visible">
-            <input
-              type="text"
+          <div className="max-w-4xl mx-auto relative flex items-end bg-white border border-slate-300 rounded-xl focus-within:border-[#0f274a] focus-within:ring-2 focus-within:ring-[#0f274a]/15 shadow-xs transition-all overflow-visible p-1.5">
+            <textarea
+              rows={1}
               value={interimVoice ? input + (input && !input.endsWith(' ') ? ' ' : '') + interimVoice : input}
               onChange={(e) => {
                 setInput(e.target.value);
                 setInterimVoice('');
               }}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
               disabled={loading}
               placeholder={isAuthenticated ? "Ask for financial advice, stock updates, budgeting, or return calculations..." : "Please sign in to start asking questions..."}
-              className="flex-1 bg-transparent pl-5 pr-2 py-3 text-slate-900 text-sm focus:outline-none placeholder:text-slate-400 disabled:opacity-50"
+              className="flex-1 bg-transparent pl-3 pr-2 py-2 text-slate-900 text-sm focus:outline-none placeholder:text-slate-400 disabled:opacity-50 resize-none min-h-[38px] max-h-36 overflow-y-auto leading-relaxed"
             />
 
             {interimVoice && (
-              <span className="absolute left-5 -top-6 text-[10px] text-blue-900 font-semibold bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md shadow-xs">
-                Listening...
+              <span className="absolute left-5 -top-6 text-[10px] text-blue-900 font-semibold bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                Listening continuously...
               </span>
             )}
 
-            <div className="flex items-center gap-1.5 pr-2 shrink-0 relative">
+            <div className="flex items-center gap-1.5 pr-1 pb-1 shrink-0 relative">
               {/* Upload document button */}
               {isAuthenticated && (
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={loading || uploadLoading}
-                  title={uploadLoading ? "Uploading..." : activeDoc ? `Active: ${activeDoc.filename} — click to replace` : "Attach a financial document (PDF / TXT / MD, max 10 MB)"}
+                  title={uploadLoading ? "Uploading..." : activeDoc ? `Active: ${activeDoc.filename} — click to replace` : "Attach a financial document (PDF / TXT / MD, max 5 MB)"}
                   className={`p-2 rounded-lg transition-all shadow-xs cursor-pointer z-10 relative ${activeDoc
                       ? 'bg-blue-100 text-blue-900 hover:bg-blue-200'
                       : 'bg-slate-100 text-[#0f274a] hover:bg-blue-50 hover:text-blue-800 border border-slate-200'
