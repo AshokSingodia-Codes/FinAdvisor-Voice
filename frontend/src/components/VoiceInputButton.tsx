@@ -18,7 +18,7 @@ export function VoiceInputButton({ onInterimResult, onFinalResult, disabled }: V
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  
+
   const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
@@ -111,7 +111,7 @@ export function VoiceInputButton({ onInterimResult, onFinalResult, disabled }: V
           {errorMsg}
         </div>
       )}
-      
+
       {isListening && (
         <>
           <span className="absolute w-[140%] h-[140%] rounded-full bg-red-500/20 animate-ping"></span>
@@ -124,11 +124,10 @@ export function VoiceInputButton({ onInterimResult, onFinalResult, disabled }: V
         onClick={toggleListening}
         disabled={disabled}
         title={isListening ? "Stop listening" : "Start voice input"}
-        className={`relative z-10 p-2 rounded-lg transition-all shadow-sm cursor-pointer flex items-center justify-center ${
-          isListening 
-            ? 'bg-red-500/90 text-white hover:bg-red-600 shadow-[0_0_10px_rgba(239,68,68,0.5)]' 
-            : 'bg-borderDim hover:bg-accentPrimary/20 text-textMain hover:text-accentPrimary disabled:opacity-40 disabled:hover:bg-borderDim disabled:hover:text-textMain'
-        }`}
+        className={`relative z-10 p-2 rounded-lg transition-all shadow-xs cursor-pointer flex items-center justify-center ${isListening
+            ? 'bg-red-500/90 text-white hover:bg-red-600 shadow-[0_0_12px_rgba(239,68,68,0.5)]'
+            : 'bg-slate-100 text-[#0f274a] hover:bg-blue-50 hover:text-blue-700 border border-slate-200 disabled:opacity-40 disabled:hover:bg-slate-100 disabled:hover:text-[#0f274a]'
+          }`}
       >
         {isListening ? <Square size={14} className="fill-current" /> : <Mic size={16} />}
       </button>

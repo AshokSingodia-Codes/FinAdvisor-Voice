@@ -1,15 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
-import { 
-  Send, 
-  TrendingUp, 
-  DollarSign, 
-  Activity, 
-  Plus, 
-  MessageSquare, 
-  Trash2, 
-  Edit3, 
-  Check, 
-  X, 
+import {
+  Send,
+  TrendingUp,
+  DollarSign,
+  Activity,
+  Plus,
+  MessageSquare,
+  Trash2,
+  Edit3,
+  Check,
+  X,
   Sparkles,
   Bot,
   User as UserIcon,
@@ -67,7 +67,7 @@ function formatRelativeTime(dateStr: string): string {
     if (isNaN(d.getTime())) return '';
     const now = new Date();
     const diffSec = Math.floor((now.getTime() - d.getTime()) / 1000);
-    
+
     if (diffSec < 60) return 'Just now';
     if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
     if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
@@ -79,16 +79,16 @@ function formatRelativeTime(dateStr: string): string {
 }
 
 function App() {
-  const { 
-    user, 
-    isAuthenticated, 
+  const {
+    user,
+    isAuthenticated,
     isLoading,
-    authFetch, 
-    logout, 
-    isAuthModalOpen, 
-    authModalInitialTab, 
-    openAuthModal, 
-    closeAuthModal 
+    authFetch,
+    logout,
+    isAuthModalOpen,
+    authModalInitialTab,
+    openAuthModal,
+    closeAuthModal
   } = useAuth();
 
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
@@ -110,7 +110,7 @@ function App() {
   const [rateLimitSeconds, setRateLimitSeconds] = useState<number | null>(null);
   const [editingConvId, setEditingConvId] = useState<string | null>(null);
   const [editTitleInput, setEditTitleInput] = useState('');
-  
+
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
 
@@ -357,11 +357,11 @@ function App() {
       const data = await response.json();
 
       setMessages([...newMessages, { role: 'assistant', content: data.answer }]);
-      
+
       if (data.title) {
         setActiveTitle(data.title);
       }
-      
+
       // Refresh sidebar conversations to show updated title and order
       await fetchConversations();
     } catch (error) {
@@ -459,7 +459,7 @@ function App() {
   }
 
   return (
-    <div className="flex h-screen bg-bgMain text-textMain overflow-hidden font-sans select-none">
+    <div className="flex h-screen bg-white text-slate-900 overflow-hidden font-sans select-none">
       {/* Auth Modal Component */}
       <AuthModal
         isOpen={isAuthModalOpen}
@@ -468,16 +468,16 @@ function App() {
       />
 
       {/* Sidebar */}
-      <aside className="w-72 bg-bgCard border-r border-borderDim flex flex-col shrink-0">
+      <aside className="w-72 bg-[#f8fafc] border-r border-slate-200/90 flex flex-col shrink-0">
         {/* Brand Header */}
-        <div className="p-4 border-b border-borderDim flex items-center justify-between">
+        <div className="p-4 border-b border-slate-200/80 flex items-center justify-between bg-white">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accentPrimary to-accentHover flex items-center justify-center text-xl font-bold shadow-md text-bgMain">
-              <TrendingUp size={20} className="text-[#0d0f14]" />
+            <div className="w-9 h-9 rounded-xl bg-[#0f274a] flex items-center justify-center text-xl font-bold shadow-sm text-white">
+              <TrendingUp size={20} className="text-white" />
             </div>
             <div>
-              <span className="font-bold text-base text-textMain tracking-tight">FinAdvisor-X</span>
-              <span className="block text-[10px] text-accentPrimary font-semibold tracking-wider uppercase">AI Financial Analyst</span>
+              <span className="font-bold text-base text-slate-900 tracking-tight">FinAdvisor-X</span>
+              <span className="block text-[10px] text-blue-800 font-bold tracking-wider uppercase">AI Financial Analyst</span>
             </div>
           </div>
         </div>
@@ -492,7 +492,7 @@ function App() {
                 handleNewChat();
               }
             }}
-            className="w-full flex items-center justify-center gap-2.5 bg-gradient-to-r from-accentPrimary/15 to-accentHover/15 border border-accentPrimary/40 hover:border-accentPrimary hover:bg-accentPrimary/25 text-accentPrimary hover:text-white transition-all duration-200 rounded-xl py-2.5 px-4 text-sm font-semibold shadow-sm cursor-pointer active:scale-[0.98]"
+            className="w-full flex items-center justify-center gap-2 bg-[#0f274a] hover:bg-[#163a6f] text-white transition-all duration-200 rounded-xl py-2.5 px-4 text-sm font-semibold shadow-sm cursor-pointer active:scale-[0.98]"
           >
             <Plus size={16} className="stroke-[2.5]" />
             <span>New Chat</span>
@@ -502,12 +502,12 @@ function App() {
         {/* Recent Chats Section Header */}
         <div className="px-3 pt-2 pb-1">
           <div className="flex items-center justify-between px-2 mb-2">
-            <span className="text-[11px] font-bold text-textDim tracking-wider uppercase flex items-center gap-1.5">
+            <span className="text-[11px] font-bold text-slate-500 tracking-wider uppercase flex items-center gap-1.5">
               <Clock size={12} />
               Recent Chats
             </span>
             {isAuthenticated && (
-              <span className="text-[10px] bg-borderDim/80 text-textDim px-1.5 py-0.5 rounded-full font-mono font-medium">
+              <span className="text-[10px] bg-blue-100/70 text-blue-900 border border-blue-200 px-1.5 py-0.5 rounded-full font-mono font-semibold">
                 {conversations.length}
               </span>
             )}
@@ -517,19 +517,19 @@ function App() {
         {/* Chats List */}
         <div className="flex-1 overflow-y-auto px-2 space-y-1">
           {!isAuthenticated ? (
-            <div className="text-center py-8 px-4 text-textDim text-xs leading-relaxed">
+            <div className="text-center py-8 px-4 text-slate-500 text-xs leading-relaxed">
               <p className="mb-3">Sign in to save and sync your chat history securely.</p>
               <button
                 onClick={() => openAuthModal('signin')}
-                className="inline-flex items-center gap-1.5 text-xs text-accentPrimary font-semibold hover:underline cursor-pointer"
+                className="inline-flex items-center gap-1.5 text-xs text-blue-800 font-semibold hover:underline cursor-pointer"
               >
                 <LogIn size={13} />
                 <span>Sign In Now</span>
               </button>
             </div>
           ) : conversations.length === 0 ? (
-            <div className="text-center py-8 px-4 text-textDim text-xs leading-relaxed">
-              No conversations yet.<br />Click <span className="text-accentPrimary font-medium">+ New Chat</span> to start!
+            <div className="text-center py-8 px-4 text-slate-400 text-xs leading-relaxed">
+              No conversations yet.<br />Click <span className="text-blue-800 font-medium">+ New Chat</span> to start!
             </div>
           ) : (
             conversations.map((conv) => {
@@ -540,15 +540,14 @@ function App() {
                 <div
                   key={conv.id}
                   onClick={() => handleSelectConversation(conv.id)}
-                  className={`group relative flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-150 border ${
-                    isActive
-                      ? 'bg-borderDim/90 border-accentPrimary/40 text-textMain shadow-sm'
-                      : 'bg-transparent border-transparent hover:bg-borderDim/40 hover:border-borderDim text-textDim hover:text-textMain'
-                  }`}
+                  className={`group relative flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-150 border ${isActive
+                      ? 'bg-blue-50/90 border-blue-200 text-blue-950 font-semibold shadow-xs'
+                      : 'bg-transparent border-transparent hover:bg-slate-200/50 hover:border-slate-200 text-slate-600 hover:text-slate-900'
+                    }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-2">
-                    <MessageSquare size={15} className={`shrink-0 ${isActive ? 'text-accentPrimary' : 'text-textDim'}`} />
-                    
+                    <MessageSquare size={15} className={`shrink-0 ${isActive ? 'text-blue-800' : 'text-slate-400'}`} />
+
                     {isEditing ? (
                       <div className="flex items-center gap-1 flex-1" onClick={(e) => e.stopPropagation()}>
                         <input
@@ -560,11 +559,11 @@ function App() {
                             if (e.key === 'Escape') setEditingConvId(null);
                           }}
                           autoFocus
-                          className="w-full bg-bgMain border border-accentPrimary rounded px-2 py-0.5 text-xs text-textMain focus:outline-none"
+                          className="w-full bg-white border border-blue-500 rounded px-2 py-0.5 text-xs text-slate-900 focus:outline-none"
                         />
                         <button
                           onClick={(e) => handleSaveRename(e, conv.id)}
-                          className="p-1 text-accentPrimary hover:text-white rounded"
+                          className="p-1 text-blue-800 hover:text-blue-900 rounded"
                           title="Save"
                         >
                           <Check size={13} />
@@ -574,7 +573,7 @@ function App() {
                             e.stopPropagation();
                             setEditingConvId(null);
                           }}
-                          className="p-1 text-textDim hover:text-textMain rounded"
+                          className="p-1 text-slate-400 hover:text-slate-600 rounded"
                           title="Cancel"
                         >
                           <X size={13} />
@@ -585,7 +584,7 @@ function App() {
                         <div className="text-xs font-medium truncate leading-tight">
                           {conv.title || 'New Chat'}
                         </div>
-                        <div className="text-[10px] text-textDim/70 truncate mt-0.5">
+                        <div className="text-[10px] text-slate-400 truncate mt-0.5">
                           {formatRelativeTime(conv.updated_at)}
                         </div>
                       </div>
@@ -596,14 +595,14 @@ function App() {
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => startRename(e, conv)}
-                        className="p-1 text-textDim hover:text-accentPrimary rounded hover:bg-bgMain/60 transition-colors"
+                        className="p-1 text-slate-400 hover:text-blue-800 rounded hover:bg-slate-200 transition-colors"
                         title="Rename Chat"
                       >
                         <Edit3 size={13} />
                       </button>
                       <button
                         onClick={(e) => handleDeleteConversation(e, conv.id)}
-                        className="p-1 text-textDim hover:text-red-400 rounded hover:bg-bgMain/60 transition-colors"
+                        className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors"
                         title="Delete Chat"
                       >
                         <Trash2 size={13} />
@@ -617,19 +616,19 @@ function App() {
         </div>
 
         {/* User Footer Card */}
-        <div className="p-3 border-t border-borderDim">
+        <div className="p-3 border-t border-slate-200/90 bg-white">
           {isAuthenticated && user ? (
-            <div className="flex items-center justify-between p-2 rounded-xl bg-borderDim/30 border border-borderDim/50">
+            <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200">
               <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 via-purple-500 to-accentPrimary flex items-center justify-center font-bold text-white text-xs shadow-inner shrink-0">
+                <div className="w-8 h-8 rounded-full bg-[#0f274a] flex items-center justify-center font-bold text-white text-xs shadow-xs shrink-0">
                   <UserIcon size={14} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-semibold truncate text-textMain" title={user.email}>
+                  <div className="text-xs font-semibold truncate text-slate-900" title={user.email}>
                     {user.email}
                   </div>
-                  <div className="text-[10px] text-accentPrimary flex items-center gap-1 font-medium">
-                    <span className="w-1.5 h-1.5 rounded-full bg-accentPrimary animate-pulse"></span>
+                  <div className="text-[10px] text-blue-800 flex items-center gap-1 font-semibold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                     Authenticated (JWT)
                   </div>
                 </div>
@@ -637,7 +636,7 @@ function App() {
               <button
                 onClick={logout}
                 title="Sign Out"
-                className="p-1.5 text-textDim hover:text-red-400 hover:bg-borderDim rounded-lg transition-colors cursor-pointer shrink-0"
+                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer shrink-0"
               >
                 <LogOut size={16} />
               </button>
@@ -646,14 +645,14 @@ function App() {
             <div className="space-y-2">
               <button
                 onClick={() => openAuthModal('signin')}
-                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-accentPrimary to-accentHover text-bgMain font-bold py-2 px-3 rounded-xl text-xs shadow-md hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 bg-[#0f274a] hover:bg-[#163a6f] text-white font-bold py-2 px-3 rounded-xl text-xs shadow-sm active:scale-[0.98] transition-all cursor-pointer"
               >
                 <LogIn size={14} />
                 <span>Sign In</span>
               </button>
               <button
                 onClick={() => openAuthModal('register')}
-                className="w-full flex items-center justify-center gap-2 bg-borderDim hover:bg-borderDim/80 text-textMain font-medium py-1.5 px-3 rounded-xl text-xs border border-borderDim hover:border-accentPrimary/40 transition-all cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-1.5 px-3 rounded-xl text-xs border border-slate-200 transition-all cursor-pointer"
               >
                 <UserPlus size={13} />
                 <span>Create New Account</span>
@@ -664,27 +663,27 @@ function App() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 relative">
+      <main className="flex-1 flex flex-col min-w-0 relative bg-white">
         {/* Top Navbar */}
-        <header className="h-14 border-b border-borderDim flex items-center justify-between px-6 bg-bgCard/60 backdrop-blur-md sticky top-0 z-10">
+        <header className="h-14 border-b border-slate-200/90 flex items-center justify-between px-6 bg-white sticky top-0 z-10">
           <div className="flex items-center gap-3">
-            <div className="text-sm font-bold text-textMain tracking-tight flex items-center gap-2">
+            <div className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
               <span>{activeTitle}</span>
             </div>
           </div>
           <div className="flex items-center gap-2.5">
-            <div className="flex items-center gap-1.5 text-xs text-textDim bg-borderDim/60 border border-borderDim px-3 py-1 rounded-full font-medium">
-              <Shield size={13} className="text-accentPrimary" />
+            <div className="flex items-center gap-1.5 text-xs text-slate-700 bg-slate-100 border border-slate-200 px-3 py-1 rounded-full font-medium">
+              <Shield size={13} className="text-blue-800" />
               <span>Isolated Memory</span>
             </div>
-            <div className="flex items-center gap-1.5 text-xs text-accentPrimary bg-accentPrimary/10 border border-accentPrimary/30 px-3 py-1 rounded-full font-medium">
-              <span className="w-2 h-2 rounded-full bg-accentPrimary animate-pulse"></span>
+            <div className="flex items-center gap-1.5 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full font-semibold">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
               <span>Indian Market & RAG Active</span>
             </div>
             {!isAuthenticated && (
               <button
                 onClick={() => openAuthModal('signin')}
-                className="ml-2 flex items-center gap-1.5 bg-accentPrimary/20 hover:bg-accentPrimary/30 text-accentPrimary border border-accentPrimary/40 px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer"
+                className="ml-2 flex items-center gap-1.5 bg-[#0f274a] hover:bg-[#163a6f] text-white px-3.5 py-1 rounded-full text-xs font-semibold shadow-xs transition-all cursor-pointer"
               >
                 <LogIn size={13} />
                 <span>Sign In</span>
@@ -694,37 +693,37 @@ function App() {
         </header>
 
         {/* Chat Messages Area */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 scroll-smooth">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 scroll-smooth bg-white">
           {messages.length === 0 ? (
             <div className="min-h-full flex flex-col items-center justify-center text-center max-w-2xl mx-auto px-4 py-8">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-accentPrimary/20 via-borderDim to-bgCard border border-accentPrimary/30 flex items-center justify-center mb-6 shadow-xl">
-                <Sparkles size={32} className="text-accentPrimary" />
+              <div className="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center mb-6 shadow-sm">
+                <Sparkles size={30} className="text-blue-800" />
               </div>
-              <h1 className="text-3xl font-bold mb-3 tracking-tight text-textMain">
+              <h1 className="text-3xl font-bold mb-3 tracking-tight text-slate-900">
                 How can I assist your financial journey?
               </h1>
-              <p className="text-textDim text-sm sm:text-base mb-8 leading-relaxed max-w-lg">
+              <p className="text-slate-600 text-sm sm:text-base mb-8 leading-relaxed max-w-lg">
                 I maintain conversational memory within this chat to help you plan budgets, analyze stocks, model SIP returns, and evaluate tax strategies.
               </p>
-              
+
               {!isAuthenticated && (
-                <div className="mb-8 p-4 rounded-2xl bg-borderDim/30 border border-accentPrimary/30 max-w-md w-full flex flex-col items-center text-center">
-                  <span className="text-xs font-semibold text-accentPrimary uppercase tracking-wider mb-1">
+                <div className="mb-8 p-5 rounded-2xl bg-[#f8fafc] border border-slate-200 shadow-sm max-w-md w-full flex flex-col items-center text-center">
+                  <span className="text-xs font-bold text-blue-900 uppercase tracking-wider mb-1">
                     Authentication Required
                   </span>
-                  <p className="text-xs text-textDim mb-3">
+                  <p className="text-xs text-slate-600 mb-3.5">
                     Sign in or create an account with email OTP verification to start asking questions.
                   </p>
                   <div className="flex gap-2.5">
                     <button
                       onClick={() => openAuthModal('signin')}
-                      className="bg-accentPrimary text-bgMain px-4 py-2 rounded-xl text-xs font-bold hover:brightness-110 shadow-sm cursor-pointer"
+                      className="bg-[#0f274a] hover:bg-[#163a6f] text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm cursor-pointer"
                     >
                       Sign In
                     </button>
                     <button
                       onClick={() => openAuthModal('register')}
-                      className="bg-borderDim text-textMain px-4 py-2 rounded-xl text-xs font-semibold border border-borderDim hover:border-accentPrimary/50 cursor-pointer"
+                      className="bg-white text-slate-800 px-4 py-2 rounded-xl text-xs font-semibold border border-slate-300 hover:bg-slate-100 cursor-pointer"
                     >
                       Create Account
                     </button>
@@ -735,27 +734,27 @@ function App() {
               <div className="grid sm:grid-cols-3 gap-3.5 w-full">
                 <div
                   onClick={() => handleSend("I am an Indian student earning ₹20,000 per month. How should I start managing my money?")}
-                  className="bg-bgCard/80 hover:bg-bgCard p-4 rounded-xl border border-borderDim hover:border-accentPrimary/60 transition-all text-left cursor-pointer group shadow-sm hover:shadow-md"
+                  className="bg-white hover:bg-blue-50/40 p-4 rounded-xl border border-slate-200 hover:border-blue-700 transition-all text-left cursor-pointer group shadow-xs hover:shadow-sm"
                 >
-                  <DollarSign className="text-accentPrimary mb-2.5 group-hover:scale-110 transition-transform" size={22} />
-                  <div className="font-semibold text-xs text-textMain mb-1">Student Budgeting</div>
-                  <div className="text-[11px] text-textDim leading-snug">Income allocation, emergency funds & saving</div>
+                  <DollarSign className="text-blue-800 mb-2.5 group-hover:scale-110 transition-transform" size={22} />
+                  <div className="font-bold text-xs text-slate-900 group-hover:text-blue-900 transition-colors mb-1">Student Budgeting</div>
+                  <div className="text-[11px] text-slate-500 leading-snug">Income allocation, emergency funds & saving</div>
                 </div>
                 <div
                   onClick={() => handleSend("What is the current price and market overview for Reliance Industries?")}
-                  className="bg-bgCard/80 hover:bg-bgCard p-4 rounded-xl border border-borderDim hover:border-accentPrimary/60 transition-all text-left cursor-pointer group shadow-sm hover:shadow-md"
+                  className="bg-white hover:bg-blue-50/40 p-4 rounded-xl border border-slate-200 hover:border-blue-700 transition-all text-left cursor-pointer group shadow-xs hover:shadow-sm"
                 >
-                  <Activity className="text-accentPrimary mb-2.5 group-hover:scale-110 transition-transform" size={22} />
-                  <div className="font-semibold text-xs text-textMain mb-1">Stock Analysis</div>
-                  <div className="text-[11px] text-textDim leading-snug">NSE/BSE live quotes & financial ratios</div>
+                  <Activity className="text-blue-800 mb-2.5 group-hover:scale-110 transition-transform" size={22} />
+                  <div className="font-bold text-xs text-slate-900 group-hover:text-blue-900 transition-colors mb-1">Stock Analysis</div>
+                  <div className="text-[11px] text-slate-500 leading-snug">NSE/BSE live quotes & financial ratios</div>
                 </div>
                 <div
                   onClick={() => handleSend("Calculate the future value of investing ₹5,000 monthly at 12% CAGR for 10 years.")}
-                  className="bg-bgCard/80 hover:bg-bgCard p-4 rounded-xl border border-borderDim hover:border-accentPrimary/60 transition-all text-left cursor-pointer group shadow-sm hover:shadow-md"
+                  className="bg-white hover:bg-blue-50/40 p-4 rounded-xl border border-slate-200 hover:border-blue-700 transition-all text-left cursor-pointer group shadow-xs hover:shadow-sm"
                 >
-                  <TrendingUp className="text-accentPrimary mb-2.5 group-hover:scale-110 transition-transform" size={22} />
-                  <div className="font-semibold text-xs text-textMain mb-1">SIP & Compound Growth</div>
-                  <div className="text-[11px] text-textDim leading-snug">Deterministic financial math calculations</div>
+                  <TrendingUp className="text-blue-800 mb-2.5 group-hover:scale-110 transition-transform" size={22} />
+                  <div className="font-bold text-xs text-slate-900 group-hover:text-blue-900 transition-colors mb-1">SIP & Compound Growth</div>
+                  <div className="text-[11px] text-slate-500 leading-snug">Deterministic financial math calculations</div>
                 </div>
               </div>
             </div>
@@ -764,50 +763,49 @@ function App() {
               {messages.map((msg, i) => (
                 <div key={i} className={`flex gap-3.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   {msg.role === 'assistant' && (
-                    <div className="w-8 h-8 rounded-lg bg-bgCard border border-borderDim flex items-center justify-center shrink-0 text-accentPrimary shadow-sm mt-1">
+                    <div className="w-8 h-8 rounded-lg bg-[#0f274a] text-white flex items-center justify-center shrink-0 shadow-xs mt-1">
                       <Bot size={18} />
                     </div>
                   )}
                   <div
-                    className={`rounded-2xl px-5 py-3.5 text-[14.5px] leading-relaxed shadow-sm select-text ${
-                      msg.role === 'user'
-                        ? 'max-w-[80%] bg-gradient-to-r from-accentPrimary/20 to-borderDim border border-accentPrimary/30 text-textMain rounded-tr-sm'
-                        : 'w-full max-w-full bg-bgCard border border-borderDim text-textMain rounded-tl-sm'
-                    }`}
+                    className={`rounded-2xl px-5 py-4 text-[14.5px] leading-relaxed select-text ${msg.role === 'user'
+                        ? 'max-w-[80%] bg-[#0f274a] text-white rounded-tr-sm shadow-md font-normal'
+                        : 'w-full max-w-full bg-[#f8fafc] border border-slate-200/90 text-slate-900 rounded-tl-sm shadow-xs'
+                      }`}
                   >
                     {msg.role === 'user' ? (
                       <div className="whitespace-pre-wrap">{msg.content}</div>
                     ) : (
-                      <div className="prose prose-invert max-w-none text-textMain leading-relaxed space-y-2.5">
+                      <div className="prose max-w-none text-slate-900 leading-relaxed space-y-2.5">
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
                           components={{
-                            h1: ({ children }) => <h1 className="text-lg font-bold text-textMain mt-3 mb-2 pb-1 border-b border-borderDim">{children}</h1>,
-                            h2: ({ children }) => <h2 className="text-base font-bold text-accentPrimary mt-3 mb-1.5">{children}</h2>,
-                            h3: ({ children }) => <h3 className="text-sm font-semibold text-textMain mt-2 mb-1">{children}</h3>,
-                            p: ({ children }) => <p className="mb-2 leading-relaxed text-textMain">{children}</p>,
-                            ul: ({ children }) => <ul className="list-disc pl-5 mb-2.5 space-y-1 text-textMain">{children}</ul>,
-                            ol: ({ children }) => <ol className="list-decimal pl-5 mb-2.5 space-y-1 text-textMain">{children}</ol>,
-                            li: ({ children }) => <li className="text-textMain">{children}</li>,
-                            hr: () => <hr className="border-borderDim my-3" />,
-                            strong: ({ children }) => <strong className="font-semibold text-accentPrimary">{children}</strong>,
+                            h1: ({ children }) => <h1 className="text-lg font-bold text-slate-900 mt-3 mb-2 pb-1 border-b border-slate-200">{children}</h1>,
+                            h2: ({ children }) => <h2 className="text-base font-bold text-blue-900 mt-3 mb-1.5">{children}</h2>,
+                            h3: ({ children }) => <h3 className="text-sm font-semibold text-blue-800 mt-2 mb-1">{children}</h3>,
+                            p: ({ children }) => <p className="mb-2 leading-relaxed text-slate-800">{children}</p>,
+                            ul: ({ children }) => <ul className="list-disc pl-5 mb-2.5 space-y-1 text-slate-800">{children}</ul>,
+                            ol: ({ children }) => <ol className="list-decimal pl-5 mb-2.5 space-y-1 text-slate-800">{children}</ol>,
+                            li: ({ children }) => <li className="text-slate-800">{children}</li>,
+                            hr: () => <hr className="border-slate-200 my-3" />,
+                            strong: ({ children }) => <strong className="font-bold text-slate-950">{children}</strong>,
                             code: ({ children }) => (
-                              <code className="bg-borderDim text-accentPrimary px-1.5 py-0.5 rounded text-xs font-mono">
+                              <code className="bg-blue-50 text-blue-900 border border-blue-200 px-1.5 py-0.5 rounded text-xs font-mono font-semibold">
                                 {children}
                               </code>
                             ),
                             table: ({ children }) => (
-                              <div className="my-3 overflow-x-auto rounded-lg border border-borderDim shadow-sm">
-                                <table className="min-w-full divide-y divide-borderDim text-left text-xs">
+                              <div className="my-3 overflow-x-auto rounded-xl border border-slate-200 shadow-xs">
+                                <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
                                   {children}
                                 </table>
                               </div>
                             ),
-                            thead: ({ children }) => <thead className="bg-[#181d2c] text-accentPrimary font-semibold">{children}</thead>,
-                            tbody: ({ children }) => <tbody className="divide-y divide-borderDim/50 bg-bgCard">{children}</tbody>,
-                            tr: ({ children }) => <tr className="hover:bg-borderDim/30 transition-colors">{children}</tr>,
-                            th: ({ children }) => <th className="px-3 py-2 text-[11px] uppercase tracking-wider font-bold">{children}</th>,
-                            td: ({ children }) => <td className="px-3 py-2 text-xs text-textMain whitespace-normal">{children}</td>,
+                            thead: ({ children }) => <thead className="bg-slate-100 text-blue-950 font-bold border-b border-slate-200">{children}</thead>,
+                            tbody: ({ children }) => <tbody className="divide-y divide-slate-100 bg-white">{children}</tbody>,
+                            tr: ({ children }) => <tr className="hover:bg-slate-50 transition-colors">{children}</tr>,
+                            th: ({ children }) => <th className="px-3.5 py-2.5 text-[11px] uppercase tracking-wider font-bold text-blue-950">{children}</th>,
+                            td: ({ children }) => <td className="px-3.5 py-2.5 text-xs text-slate-800 whitespace-normal">{children}</td>,
                           }}
                         >
                           {msg.content}
@@ -826,9 +824,9 @@ function App() {
                           }
                           if (suggestions.length === 0) return null;
                           return (
-                            <div className="mt-3 pt-2.5 border-t border-borderDim/40">
-                              <div className="text-[11px] font-semibold text-accentPrimary mb-2 flex items-center gap-1">
-                                <Sparkles size={12} />
+                            <div className="mt-3 pt-2.5 border-t border-slate-200">
+                              <div className="text-[11px] font-bold text-blue-900 mb-2 flex items-center gap-1">
+                                <Sparkles size={12} className="text-blue-700" />
                                 <span>Suggested Next Actions:</span>
                               </div>
                               <div className="flex flex-wrap gap-2">
@@ -837,7 +835,7 @@ function App() {
                                     key={actIdx}
                                     onClick={() => handleSend(actionText)}
                                     disabled={loading}
-                                    className="flex items-center gap-1.5 text-xs bg-accentPrimary/10 hover:bg-accentPrimary/25 text-accentPrimary border border-accentPrimary/30 hover:border-accentPrimary/60 px-3 py-1.5 rounded-xl transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+                                    className="flex items-center gap-1.5 text-xs bg-blue-50 hover:bg-blue-100 text-blue-900 font-semibold border border-blue-200 hover:border-blue-400 px-3 py-1.5 rounded-xl transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
                                   >
                                     <span>{actionText}</span>
                                     <span className="text-[10px] opacity-70">→</span>
@@ -849,37 +847,35 @@ function App() {
                         })()}
 
                         {/* Assistant Message Actions (Copy & Voice TTS) */}
-                        <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-borderDim/50 text-xs text-textDim">
+                        <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-200 text-xs text-slate-500">
                           <div className="flex items-center gap-2">
-                            <span className="text-[11px] text-textDim/80 font-medium flex items-center gap-1">
-                              <Sparkles size={12} className="text-accentPrimary" />
+                            <span className="text-[11px] text-slate-500 font-semibold flex items-center gap-1">
+                              <Sparkles size={12} className="text-blue-700" />
                               FinAdvisor-X Analysis
                             </span>
                           </div>
                           <div className="flex items-center gap-1.5">
                             <button
                               onClick={() => handleToggleTTS(msg.content, i)}
-                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                                speakingIndex === i
-                                  ? 'bg-accentPrimary/20 text-accentPrimary border border-accentPrimary/40 animate-pulse'
-                                  : 'hover:bg-borderDim/60 text-textDim hover:text-textMain'
-                              }`}
+                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${speakingIndex === i
+                                  ? 'bg-blue-100 text-blue-900 border border-blue-300 animate-pulse'
+                                  : 'bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200'
+                                }`}
                               title={speakingIndex === i ? 'Stop Speaking' : 'Read Aloud'}
                             >
-                              {speakingIndex === i ? <VolumeX size={13} className="text-accentPrimary" /> : <Volume2 size={13} />}
+                              {speakingIndex === i ? <VolumeX size={13} className="text-blue-800" /> : <Volume2 size={13} />}
                               <span>{speakingIndex === i ? 'Stop' : 'Listen'}</span>
                             </button>
 
                             <button
                               onClick={() => handleCopyMessage(msg.content, i)}
-                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                                copiedIndex === i
-                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                                  : 'hover:bg-borderDim/60 text-textDim hover:text-textMain'
-                              }`}
+                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${copiedIndex === i
+                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                  : 'bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200'
+                                }`}
                               title="Copy Answer to Clipboard"
                             >
-                              {copiedIndex === i ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                              {copiedIndex === i ? <Check size={13} className="text-emerald-700" /> : <Copy size={13} />}
                               <span>{copiedIndex === i ? 'Copied!' : 'Copy'}</span>
                             </button>
                           </div>
@@ -888,7 +884,7 @@ function App() {
                     )}
                   </div>
                   {msg.role === 'user' && (
-                    <div className="w-8 h-8 rounded-full bg-borderDim border border-accentPrimary/40 flex items-center justify-center shrink-0 text-accentPrimary text-xs font-bold shadow-sm mt-1">
+                    <div className="w-8 h-8 rounded-full bg-[#0f274a] text-white flex items-center justify-center shrink-0 text-xs font-bold shadow-xs mt-1">
                       <UserIcon size={14} />
                     </div>
                   )}
@@ -896,15 +892,15 @@ function App() {
               ))}
               {loading && (
                 <div className="flex gap-3.5 justify-start">
-                  <div className="w-8 h-8 rounded-lg bg-bgCard border border-borderDim flex items-center justify-center shrink-0 text-accentPrimary shadow-sm mt-1 animate-pulse">
+                  <div className="w-8 h-8 rounded-lg bg-[#0f274a] text-white flex items-center justify-center shrink-0 shadow-xs mt-1 animate-pulse">
                     <Bot size={18} />
                   </div>
-                  <div className="max-w-md rounded-2xl px-4 py-3 bg-bgCard border border-borderDim rounded-tl-sm text-textDim text-xs flex items-center gap-3 shadow-sm">
-                    <span className="font-medium text-accentPrimary">Analyzing financial context...</span>
+                  <div className="max-w-md rounded-2xl px-4 py-3 bg-[#f8fafc] border border-slate-200 rounded-tl-sm text-slate-700 text-xs flex items-center gap-3 shadow-xs">
+                    <span className="font-bold text-blue-900">Analyzing financial context...</span>
                     <div className="flex items-center gap-1">
-                      <div className="w-1.5 h-1.5 bg-accentPrimary rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                      <div className="w-1.5 h-1.5 bg-accentPrimary rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                      <div className="w-1.5 h-1.5 bg-accentPrimary rounded-full animate-bounce"></div>
+                      <div className="w-1.5 h-1.5 bg-[#0f274a] rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                      <div className="w-1.5 h-1.5 bg-[#0f274a] rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                      <div className="w-1.5 h-1.5 bg-[#0f274a] rounded-full animate-bounce"></div>
                     </div>
                   </div>
                 </div>
@@ -914,8 +910,8 @@ function App() {
           )}
         </div>
 
-        {/* Input Bar (Solid Non-Overlapping Footer) */}
-        <div className="border-t border-borderDim bg-bgCard/90 backdrop-blur-md pt-3 pb-3 px-4 sm:px-6 z-10">
+        {/* Input Bar */}
+        <div className="border-t border-slate-200/90 bg-white pt-3 pb-3 px-4 sm:px-6 z-10">
 
           {/* Hidden file input */}
           <input
@@ -928,10 +924,10 @@ function App() {
 
           {/* Rate-limit toast */}
           {rateLimitSeconds !== null && rateLimitSeconds > 0 && (
-            <div className="max-w-4xl mx-auto mb-2 flex items-center gap-2 bg-amber-500/10 border border-amber-500/40 text-amber-400 rounded-xl px-4 py-2 text-xs font-medium animate-pulse">
-              <AlertTriangle size={14} className="shrink-0" />
+            <div className="max-w-4xl mx-auto mb-2 flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-2 text-xs font-medium animate-pulse">
+              <AlertTriangle size={14} className="shrink-0 text-amber-700" />
               <span>Rate limit reached. You can send another message in <strong>{rateLimitSeconds}s</strong>.</span>
-              <button onClick={() => setRateLimitSeconds(null)} className="ml-auto text-amber-400/60 hover:text-amber-400 cursor-pointer">
+              <button onClick={() => setRateLimitSeconds(null)} className="ml-auto text-amber-700 hover:text-amber-900 cursor-pointer">
                 <X size={13} />
               </button>
             </div>
@@ -941,34 +937,34 @@ function App() {
           {activeDoc && (
             <div className="max-w-4xl mx-auto mb-2 space-y-1.5">
               {/* Document chip */}
-              <div className="flex items-center gap-2 bg-accentPrimary/10 border border-accentPrimary/30 rounded-xl px-3 py-1.5 text-xs">
-                <FileText size={13} className="text-accentPrimary shrink-0" />
-                <span className="text-accentPrimary font-semibold truncate max-w-[260px]" title={activeDoc.filename}>
+              <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-1.5 text-xs text-blue-950">
+                <FileText size={13} className="text-blue-800 shrink-0" />
+                <span className="text-blue-950 font-semibold truncate max-w-[260px]" title={activeDoc.filename}>
                   {activeDoc.filename}
                 </span>
-                <span className="text-textDim/70 font-mono shrink-0">
+                <span className="text-slate-500 font-mono shrink-0">
                   {activeDoc.chunk_count} chunks · {(activeDoc.file_size_bytes / 1024).toFixed(0)} KB
                 </span>
                 <button
                   onClick={handleDetachDoc}
                   title="Detach & delete document"
-                  className="ml-auto p-0.5 text-textDim hover:text-red-400 transition-colors rounded cursor-pointer shrink-0"
+                  className="ml-auto p-0.5 text-slate-400 hover:text-red-600 transition-colors rounded cursor-pointer shrink-0"
                 >
                   <X size={13} />
                 </button>
               </div>
               {/* Disclaimer */}
-              <div className="flex items-start gap-2 bg-amber-500/5 border border-amber-500/25 rounded-xl px-3 py-1.5 text-[10px] text-amber-300/80 leading-relaxed">
-                <AlertTriangle size={11} className="shrink-0 mt-0.5 text-amber-400/70" />
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 text-[10px] text-amber-900 leading-relaxed">
+                <AlertTriangle size={11} className="shrink-0 mt-0.5 text-amber-700" />
                 <span>
-                  <strong className="font-semibold text-amber-300">Personal document mode active.</strong>{' '}
-                  Responses are based on your uploaded document. This is general guidance — not advice from a licensed financial advisor.
+                  <strong className="font-semibold text-amber-950">Personal document mode active.</strong>{' '}
+                  Responses are based on your uploaded document. This is general guidance — not formal RIA advisory.
                 </span>
               </div>
             </div>
           )}
 
-          <div className="max-w-4xl mx-auto relative flex items-center bg-bgMain border border-borderDim rounded-xl focus-within:border-accentPrimary focus-within:ring-1 focus-within:ring-accentPrimary/50 shadow-inner transition-all overflow-visible">
+          <div className="max-w-4xl mx-auto relative flex items-center bg-white border border-slate-300 rounded-xl focus-within:border-[#0f274a] focus-within:ring-2 focus-within:ring-[#0f274a]/15 shadow-xs transition-all overflow-visible">
             <input
               type="text"
               value={interimVoice ? input + (input && !input.endsWith(' ') ? ' ' : '') + interimVoice : input}
@@ -979,30 +975,29 @@ function App() {
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               disabled={loading}
               placeholder={isAuthenticated ? "Ask for financial advice, stock updates, budgeting, or return calculations..." : "Please sign in to start asking questions..."}
-              className="flex-1 bg-transparent pl-5 pr-2 py-3 text-textMain text-sm focus:outline-none placeholder:text-textDim/60 disabled:opacity-50"
+              className="flex-1 bg-transparent pl-5 pr-2 py-3 text-slate-900 text-sm focus:outline-none placeholder:text-slate-400 disabled:opacity-50"
             />
-            
+
             {interimVoice && (
-              <span className="absolute left-5 -top-6 text-[10px] text-accentPrimary font-medium bg-bgCard border border-borderDim px-2 py-0.5 rounded-md shadow-sm">
+              <span className="absolute left-5 -top-6 text-[10px] text-blue-900 font-semibold bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md shadow-xs">
                 Listening...
               </span>
             )}
-            
-            <div className="flex items-center gap-1 pr-2 shrink-0 relative">
+
+            <div className="flex items-center gap-1.5 pr-2 shrink-0 relative">
               {/* Upload document button */}
               {isAuthenticated && (
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={loading || uploadLoading}
                   title={uploadLoading ? "Uploading..." : activeDoc ? `Active: ${activeDoc.filename} — click to replace` : "Attach a financial document (PDF / TXT / MD, max 10 MB)"}
-                  className={`p-2 rounded-lg transition-all shadow-sm cursor-pointer z-10 relative ${
-                    activeDoc
-                      ? 'bg-accentPrimary/20 text-accentPrimary hover:bg-accentPrimary/30'
-                      : 'bg-borderDim text-textDim hover:text-accentPrimary hover:bg-accentPrimary/10'
-                  } disabled:opacity-40 disabled:cursor-not-allowed`}
+                  className={`p-2 rounded-lg transition-all shadow-xs cursor-pointer z-10 relative ${activeDoc
+                      ? 'bg-blue-100 text-blue-900 hover:bg-blue-200'
+                      : 'bg-slate-100 text-[#0f274a] hover:bg-blue-50 hover:text-blue-800 border border-slate-200'
+                    } disabled:opacity-40 disabled:cursor-not-allowed`}
                 >
                   {uploadLoading ? (
-                    <Upload size={16} className="animate-bounce" />
+                    <Upload size={16} className="animate-bounce text-blue-800" />
                   ) : (
                     <Paperclip size={16} />
                   )}
@@ -1019,13 +1014,13 @@ function App() {
               <button
                 onClick={() => handleSend()}
                 disabled={loading || (!input.trim() && !interimVoice.trim())}
-                className="p-2 rounded-lg bg-borderDim hover:bg-accentPrimary text-textMain hover:text-bgMain disabled:opacity-40 disabled:hover:bg-borderDim disabled:hover:text-textMain transition-all shadow-sm cursor-pointer z-10 relative"
+                className="p-2 rounded-lg bg-[#0f274a] hover:bg-[#163a6f] text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm cursor-pointer z-10 relative"
               >
                 <Send size={16} />
               </button>
             </div>
           </div>
-          <div className="text-center mt-2 text-[11px] text-textDim/60">
+          <div className="text-center mt-2 text-[11px] text-slate-500">
             FinAdvisor-X is an AI financial assistant. Always verify critical decisions with a licensed advisor.
           </div>
         </div>
