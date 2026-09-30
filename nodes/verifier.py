@@ -2,6 +2,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from graph.state import AgentState
 from core.db import fast_chat, get_structured_fast_chat
+from utils.retry import with_retry
+import time
 
 class Verification(BaseModel):
     is_supported: bool = Field(description="True if the draft answer is fully supported by the context.")
@@ -36,28 +38,46 @@ verifier_prompt = ChatPromptTemplate.from_messages([
 verifier_chain = verifier_prompt | get_structured_fast_chat(Verification)
 
 def verify_answer(state: AgentState):
+    """
+    Audits draft answers against retrieved evidence for factual accuracy and numerical grounding.
+    
+    RESPONSE-MODE & FAST-PASS OPTIMIZATION:
+    - If `response_mode == 'brief'`, or if verifier is explicitly disabled, or for pure mathematical/market
+      computations, the fact-checking audit loop is skipped on the first pass to eliminate unnecessary LLM latency.
+    - This skip logic is distinct from the audit-failure retry path, which only triggers when an actual
+      hallucination or contradiction is discovered in detailed corporate retrieval synthesis.
+    """
     enabled = state.get("verifier_enabled", True)
     draft = state.get("draft_answer", "")
+    # Early refusal if draft looks like code (import, def, class, script)
+    if any(kw in draft.lower() for kw in ["import ", "def ", "class ", "script"]):
+        refusal = "I’m sorry, but I can’t provide that code."
+        return {"verification_passed": False, "final_answer": refusal}
     context_list = state.get("retrieved_context", [])
     context = "\n---\n".join(str(c) for c in context_list) if context_list else "No retrieved context."
-    question = state.get("original_question", "")
+    question = state.get("resolved_query") or state.get("current_question") or state.get("original_question", "")
 
     routing_decision = state.get("routing_decision", "")
     document_id = state.get("document_id")
-    if not enabled or document_id or routing_decision in ("direct_answer", "math_calculation", "live_market_data"):
-        print(f"[DEBUG] ---NODE: VERIFIER SKIPPED (doc: {bool(document_id)}, route: {routing_decision}, enabled: {enabled})---")
+    response_mode = state.get("response_mode", "detailed")
+
+    # Fast-pass bypass for brief mode, live market feeds, pure math, or disabled audits
+    if not enabled or document_id or response_mode == "brief" or routing_decision in ("math_calculation", "calculation", "live_market_data"):
+        print(f"[DEBUG] ---NODE: VERIFIER SKIPPED (doc: {bool(document_id)}, mode: {response_mode}, route: {routing_decision}, enabled: {enabled})---")
         return {
             "verification_passed": True,
             "final_answer": draft
         }
 
+
+    current_retries = state.get("retrieval_retries", 0)
     print("[DEBUG] ---NODE: VERIFIER RUNNING (verifier_enabled=True)---")
     try:
-        res = verifier_chain.invoke({
+        res = with_retry(lambda: verifier_chain.invoke({
             "context": context,
             "draft": draft,
             "question": question
-        })
+        }), max_retries=1, base_delay=0.5)
         is_supported = res.is_supported and res.numerical_consistency
         if not is_supported:
             qualified_answer = f"{draft}\n\n[Verification Notice]: Fact-check auditor found ungrounded or inconsistent claims: {res.reasoning}"
@@ -66,11 +86,22 @@ def verify_answer(state: AgentState):
             
         return {
             "verification_passed": is_supported,
-            "final_answer": qualified_answer
+            "final_answer": qualified_answer,
+            "retrieval_retries": current_retries + 1
         }
     except Exception as e:
         print(f"[DEBUG] ---NODE: VERIFIER ERROR ({e}), PASSING THROUGH---")
+        # Heuristic: if draft contains code-like keywords, refuse to comply
+        forbidden = any(kw in draft.lower() for kw in ["import ", "def ", "class ", "script"])
+        if forbidden:
+            refusal = "I’m sorry, but I can’t provide that code."
+            return {
+                "verification_passed": False,
+                "final_answer": refusal,
+                "retrieval_retries": current_retries + 1
+            }
         return {
             "verification_passed": True,
-            "final_answer": draft
+            "final_answer": draft,
+            "retrieval_retries": current_retries + 1
         }

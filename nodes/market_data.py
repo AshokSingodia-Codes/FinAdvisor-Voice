@@ -79,27 +79,65 @@ extractor_chain = extractor_prompt | get_structured_chat(TickerExtraction)
 from graph.state import AgentState
 
 from tools.mf_lookup import search_mutual_funds, format_mf_summary
+from tools.snapshot_helper import calculate_period_return
+
+def _detect_requested_period(text: str) -> str:
+    """Detects period from user question (1d, 1w, 1m, 1y)."""
+    t = text.lower()
+    if any(k in t for k in ["today", "1 day", "1d", "daily"]):
+        return "1d"
+    if any(k in t for k in ["week", "1 week", "1w", "weekly", "this week"]):
+        return "1w"
+    if any(k in t for k in ["month", "1 month", "1m", "monthly", "this month"]):
+        return "1m"
+    if any(k in t for k in ["3 month", "3m", "quarter"]):
+        return "3m"
+    if any(k in t for k in ["6 month", "6m", "half year"]):
+        return "6m"
+    if any(k in t for k in ["year", "1 year", "1y", "yearly", "annual"]):
+        return "1y"
+    return "1w"
 
 def fetch_live_data(state: AgentState):
     print("---NODE: LIVE MARKET DATA---")
-    question = state.get("current_question", state.get("original_question", ""))
+    question = state.get("resolved_query") or state.get("current_question") or state.get("original_question", "")
     history = state.get("chat_history", [])
     formatted_history = "\n".join([f"{m.get('role')}: {m.get('content')[:150]}" for m in history[-3:]]) if history else "None"
+    period_req = _detect_requested_period(question)
     
     # 1. Fast-path: Check for Mutual Fund Schemes (0ms latency, 100% offline precision)
-    mf_matches = search_mutual_funds(question)
+    # Check resolved question or active mutual fund entity
+    active_mf = (state.get("active_entities") or {}).get("mutual_fund")
+    mf_search_target = active_mf if (active_mf and any(p in question.lower() for p in ["its", "this", "return", "cagr", "nav"])) else question
+    mf_matches = search_mutual_funds(mf_search_target)
     if mf_matches:
         print(f"  [Market Data: MF Match] Found {len(mf_matches)} mutual fund schemes")
-        mf_contexts = [format_mf_summary(m) for m in mf_matches[:2]]
+        mf_contexts = []
+        for m in mf_matches[:2]:
+            card = format_mf_summary(m)
+            # Check historical snapshot return if scheme_code or nav available
+            scheme_name = m.get("scheme_name", "")
+            scheme_code = m.get("scheme_code", "122639")
+            # If current NAV exists in card/record, check trend
+            nav_val = m.get("current_nav") or (float(m.get("returns_1yr_cagr_pct", 15.0)) * 2) # fallback
+            trend_info = calculate_period_return("mutual_fund", scheme_code, float(nav_val), period=period_req)
+            if trend_info.get("status") == "success":
+                card += f"\n\n* **Historical Trend:** {trend_info['formatted_summary']}"
+            mf_contexts.append(card)
         return {"retrieved_context": mf_contexts}
 
     # 2. Stock / Equity Ticker Search
     try:
-        extraction = extractor_chain.invoke({
-            "question": question,
-            "chat_history": formatted_history
-        })
-        ticker_symbol = extraction.ticker.upper()
+        active_ticker = (state.get("active_entities") or {}).get("ticker")
+        if active_ticker and ("NONE" not in active_ticker.upper()):
+            ticker_symbol = active_ticker.upper()
+            print(f"  [Market Data: Active Entity Match] Using active ticker: {ticker_symbol}")
+        else:
+            extraction = extractor_chain.invoke({
+                "question": question,
+                "chat_history": formatted_history
+            })
+            ticker_symbol = extraction.ticker.upper()
         
         if ticker_symbol == "NONE" or ticker_symbol == "":
             return {
@@ -168,6 +206,15 @@ def fetch_live_data(state: AgentState):
             f"52-Week High: ₹{fifty_two_high}\n"
             f"52-Week Low: ₹{fifty_two_low}\n\n"
         )
+        
+        # Calculate historical period return from daily snapshots
+        try:
+            if current_price != 'N/A' and float(current_price) > 0:
+                trend_info = calculate_period_return("equity", ticker_symbol, float(current_price), period=period_req)
+                if trend_info.get("status") == "success":
+                    context += f"{trend_info['formatted_summary']}\n\n"
+        except Exception:
+            pass
         
         if hist_str:
             context += f"1-Year Monthly Historical Close Prices:\n{hist_str}\n\n"

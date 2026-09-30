@@ -1,4 +1,5 @@
 import pytest
+import io
 from core.document_store import (
     _format_table_as_markdown,
     _chunk_text,
@@ -48,12 +49,12 @@ def test_validate_financial_domain_rejects_non_financial_text():
     non_fin_text = "The quick brown fox jumps over the lazy sleeping dog in the enchanted forest during the autumn afternoon."
     assert validate_financial_domain(non_fin_text, "story.txt") is False
 
-def test_document_size_limit_5mb():
+def test_document_size_limit_10mb():
     from core.document_store import MAX_FILE_BYTES, ingest_document
-    assert MAX_FILE_BYTES == 5 * 1024 * 1024  # Exactly 5 MB
+    assert MAX_FILE_BYTES == 10 * 1024 * 1024  # Exactly 10 MB
 
     oversized_content = b"a" * (MAX_FILE_BYTES + 1)
-    with pytest.raises(ValueError, match="exceeds the 5 MB limit"):
+    with pytest.raises(ValueError, match="exceeds the 10 MB limit"):
         ingest_document(
             user_id="user_123",
             conversation_id="conv_123",
@@ -61,3 +62,49 @@ def test_document_size_limit_5mb():
             mime_type="application/pdf",
             content=oversized_content,
         )
+
+def test_document_status_failure_path():
+    from fastapi.testclient import TestClient
+    from main import app
+    from core.auth import create_access_token
+    from core.memory import create_user
+    import time
+    
+    client = TestClient(app)
+    import uuid
+    email = f"test_fail_path_{uuid.uuid4()}@test.com"
+    user = create_user(email, "pass")
+    token = create_access_token({"sub": email, "user_id": user["id"]})
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    # Create conversation
+    conv = client.post("/api/conversations", json={"title": "Test"}, headers=headers)
+    conv_id = conv.json()["id"]
+    
+    # Upload a small non-financial document to intentionally cause failure during background processing
+    content = b"This is a totally normal text file about how to bake a cake. Only flour, sugar, eggs, and butter."
+    upload = client.post(
+        "/api/documents/upload",
+        data={"conversation_id": conv_id},
+        files={"file": ("recipe.txt", io.BytesIO(content), "text/plain")},
+        headers=headers
+    )
+    assert upload.status_code == 200
+    doc_id = upload.json()["document_id"]
+    
+    # Poll status until it reaches 'failed'
+    status_val = "processing"
+    error_msg = None
+    for _ in range(15):
+        st = client.get(f"/api/documents/status/{doc_id}", headers=headers)
+        if st.status_code == 200:
+            res = st.json()
+            status_val = res["status"]
+            error_msg = res.get("error_message")
+            if status_val in ["ready", "failed"]:
+                break
+        time.sleep(0.2)
+        
+    assert status_val == "failed"
+    assert error_msg is not None
+    assert "not finance-related" in error_msg

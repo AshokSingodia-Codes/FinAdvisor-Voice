@@ -1,7 +1,17 @@
+import time
+import json
+from typing import Dict, Tuple, Optional, Any
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from graph.state import AgentState
 from core.db import fast_chat, get_structured_fast_chat
+from core.greeting_handler import is_greeting_or_chitchat
+from tools.fast_math import try_evaluate_fast_math
+from core.memory import get_conversation_continuity, save_conversation_continuity
+
+# 10-Minute TTL Cache for identical router queries
+_ROUTER_CACHE: Dict[str, Tuple[str, str, float]] = {}
+_ROUTER_CACHE_TTL = 600  # 10 minutes
 
 # trigger word/phrase sets used as fast-path pre-classification
 # before falling back to LLM classification for ambiguous queries
@@ -57,24 +67,60 @@ def classify_depth(question: str) -> str:
     return "quick"
 
 class Route(BaseModel):
-    decision: str = Field(description="The routing decision. Must be one of: 'decompose', 'hybrid_search', 'financial_table', 'calculation', 'math_calculation', 'direct_answer', 'live_market_data'")
+    decision: str = Field(
+        description="The routing decision. Must be one of: 'decompose', 'hybrid_search', 'financial_table', 'calculation', 'math_calculation', 'direct_answer', 'live_market_data', 'current_events'"
+    )
+    resolved_query: Optional[str] = Field(
+        default=None,
+        description="Rewrite the question into a complete, standalone question resolving any anaphoric pronouns or implicit references (e.g. 'its P/E', 'show its revenue', 'and this one') using active entities. If already self-contained, repeat the question."
+    )
+    is_topic_change: bool = Field(
+        default=False,
+        description="Set to true if the question is genuinely unrelated to the active entities/topic and shifts to a new subject (e.g., asking about compound interest or general math after discussing Reliance). When true, old entities will be reset."
+    )
+    extracted_entities: Dict[str, Optional[str]] = Field(
+        default_factory=dict,
+        description="Entities mentioned or updated: 'company', 'ticker', 'mutual_fund', 'metric'."
+    )
+    conversation_topic: Optional[str] = Field(
+        default=None,
+        description="A short 2-5 word summary of the active conversation thread (e.g., 'Reliance Financials', 'Compound Interest', 'SIP Return')."
+    )
 
 router_prompt = ChatPromptTemplate.from_messages([
-    ("system", """You are an expert financial routing assistant.
-    Analyze the user's question along with the recent conversation history to determine the best execution path.
-    - If the question asks to compare multiple distinct years/entities or has multiple distinct parts, route to 'decompose'.
-    - If the question contains digits AND one of these keywords (add, subtract, sum, total, difference, multiply, divide, plus, minus) for simple arithmetic, route to 'math_calculation'.
-    - If the question asks to COMPUTE or CALCULATE a specific numerical result using a financial formula with given numbers (e.g. 'Calculate WACC given equity of...', 'Compute CAGR if investment grew from 10k to 25k', 'What is the future value of ₹5000/mo SIP at 12%?'), asks about an investment growing/losing over time (compound interest calculation), percentage change with numbers, or what X% of Y is, route to 'calculation'.
-    - If the question asks for the DEFINITION, EXPLANATION, or CONCEPTUAL FORMULA from textbooks/filings (e.g. 'What is the formula for WACC?', 'How is Free Cash Flow defined?', 'Explain DuPont analysis formula'), route to 'hybrid_search'.
-    - If the question specifically asks for data that is likely found in a tabular format (e.g. balance sheet, income statement line items), route to 'financial_table'.
-    - If the question requires looking up general text, narrative risk, financial definitions, or relationships from an Annual Report or finance literature, route to 'hybrid_search'.
-    - If the question or conversation refers to live stock prices, current market data, real-time ticker information, recent news of a stock, or explicitly mentions Indian indices (e.g., NIFTY 50, SENSEX) or Indian stocks (e.g. TCS, Reliance), route to 'live_market_data'.
-    - If the question is a conversational follow-up, advice question, personal financial detail lookup/memory query ("what was my income", "how much do I earn", "my expenses"), general knowledge, portfolio analysis, or greeting, route to 'direct_answer'.
-    - If the user has attached a personal document and the question is about their own financial data (salary, expenses, statement, balance, etc.), route to 'hybrid_search' so their document is searched.
-    """),
-    ("human", """{memory_context}
+    ("system", """You are an expert financial routing and conversational continuity assistant.
+Analyze the user question along with recent conversation history and active entities.
+Perform routing, pronoun/follow-up resolution, entity tracking, and topic shift detection in a SINGLE pass.
 
-Current Question: {question}""")
+ROUTING DECISIONS:
+- 'decompose': comparing multiple distinct entities or multi-part complex queries.
+- 'math_calculation': basic arithmetic (+ - * / % ^).
+- 'calculation': computes a financial formula with given numbers (WACC, CAGR, SIP, NPV, DCF, loan EMI, compounding, capital gains tax).
+- 'hybrid_search': concept definitions, textbook formulas, 10-K disclosures, or personal documents.
+- 'financial_table': tabular data (balance sheet, income statement).
+- 'live_market_data': live stock prices, Indian tickers (Reliance, TCS, NIFTY 50), or market status.
+- 'current_events': questions about today's/this week's news, recent RBI/SEBI announcements, regulatory updates, or any query needing live news that the static corpus cannot answer (trigger words: 'today', 'latest', 'this week', 'recent update', 'new rules', 'what happened').
+- 'direct_answer': greeting, advice, personal memory query, or chit-chat.
+
+CONTINUITY & PRONOUN RESOLUTION RULES:
+1. 'resolved_query':
+   - If the user uses pronouns or implicit references ('what about its P/E', 'show its revenue', 'and this one's return', 'what about TCS instead'), resolve it to a full standalone question using the active entities.
+   - If the question is already complete and self-contained, or is an unrelated topic change, output the original question unchanged.
+2. 'is_topic_change':
+   - Set to TRUE if the question is genuinely unrelated to the active entities/topic (e.g., asking about compound interest or mutual funds after discussing a specific company like Reliance).
+   - Set to FALSE if the user is asking a follow-up or staying on the same subject.
+3. 'extracted_entities':
+   - Extract any explicit company name ('company'), ticker ('ticker'), mutual fund scheme ('mutual_fund'), or metric ('metric') mentioned in the question.
+4. 'conversation_topic':
+   - Provide a short 2-5 word description of the active topic thread.
+"""),
+    ("human", """Active Entities: {active_entities}
+Current Topic: {conversation_topic}
+
+Recent Conversation:
+{memory_context}
+
+User Question: {question}""")
 ])
 
 router_chain = router_prompt | get_structured_fast_chat(Route)
@@ -86,19 +132,35 @@ def format_history_for_router(history, max_turns=4):
     for msg in history[-max_turns:]:
         role = "User" if msg.get("role") == "user" else "Assistant"
         content = msg.get("content", "").strip()
-        if len(content) > 300:
-            content = content[:300] + "..."
+        if len(content) > 250:
+            content = content[:250] + "..."
         formatted.append(f"{role}: {content}")
     return "\n".join(formatted)
 
 def route_question(state: AgentState):
     print("---NODE: ROUTER---")
     question = state.get("original_question", "")
-    memory_context = state.get("memory_context", "")
+    # Preserve the raw memory_context; if it's explicitly an empty string we should keep it that way.
+    memory_context = state.get("memory_context")  # May be None or ""
+    if memory_context is None:
+        # No explicit memory_context supplied – fall back to formatted chat history.
+        memory_context = format_history_for_router(state.get("chat_history", []))
     document_id = state.get("document_id")
+    conv_id = state.get("conversation_id", "")
+    user_id = state.get("user_id", "")
     lower = question.strip().lower()
 
     depth = classify_depth(question)
+
+    # Load active conversation continuity from state or persistent store
+    active_entities = state.get("active_entities")
+    conversation_topic = state.get("conversation_topic")
+    if active_entities is None or conversation_topic is None:
+        continuity = get_conversation_continuity(conv_id, user_id=user_id) if conv_id else {}
+        if active_entities is None:
+            active_entities = continuity.get("active_entities") or {}
+        if conversation_topic is None:
+            conversation_topic = continuity.get("conversation_topic") or ""
 
     # --- Fast-Path 1: Instant Personal Document Route (<1ms) ---
     if document_id:
@@ -106,34 +168,169 @@ def route_question(state: AgentState):
         is_explicit_math = has_digits and any(term in lower for term in ["add", "subtract", "multiply", "divide", "plus", "minus", "sum", "total", "cagr", "sip", "wacc", "npv", "dcf", "emi"])
         if not is_explicit_math:
             print("  [Router: FAST-PATH PERSONAL DOC] -> 'hybrid_search'")
-            return {"routing_decision": "hybrid_search", "current_question": question, "depth": depth}
+            return {
+                "routing_decision": "hybrid_search",
+                "current_question": question,
+                "resolved_query": question,
+                "active_entities": active_entities,
+                "conversation_topic": conversation_topic,
+                "depth": depth
+            }
 
     # --- Fast-Path 2: Instant Greetings / Casual Chit-Chat (<1ms) ---
-    if lower in ("hi", "hello", "hey", "good morning", "good evening", "how are you", "who are you", "help"):
-        print("  [Router: FAST-PATH CHIT-CHAT] -> 'direct_answer'")
-        return {"routing_decision": "direct_answer", "current_question": question, "depth": depth}
+    is_greeting, _ = is_greeting_or_chitchat(question)
+    if is_greeting:
+        print("  [Router: FAST-PATH GREETING/CHIT-CHAT] -> 'direct_answer'")
+        return {
+            "routing_decision": "direct_answer",
+            "current_question": question,
+            "resolved_query": question,
+            "active_entities": active_entities,
+            "conversation_topic": conversation_topic,
+            "depth": "quick"
+        }
 
-    # --- Fast-Path 3: Instant Live Market Tickers (<1ms) ---
-    if any(term in lower for term in ["reliance", "tcs", "hdfc", "nifty", "sensex", "infosys", "itc", "live price", "ticker"]):
-        print("  [Router: FAST-PATH LIVE MARKET] -> 'live_market_data'")
-        return {"routing_decision": "live_market_data", "current_question": question, "depth": depth}
+    # --- Fast-Path 3: Instant Fast-Math Engine (Categories A-E, G, J, L, M) (<1ms) ---
+    is_pure, _, _ = try_evaluate_fast_math(question)
+    if is_pure:
+        print("  [Router: FAST-PATH DETERMINISTIC MATH] -> 'math_calculation'")
+        return {
+            "routing_decision": "math_calculation",
+            "current_question": question,
+            "resolved_query": question,
+            "active_entities": active_entities,
+            "conversation_topic": conversation_topic,
+            "depth": "quick"
+        }
 
-    # --- Fast-Path 4: Instant Arithmetic (<1ms) ---
+    # --- Fast-Path 4: Instant Live Market Tickers (<1ms) ---
+    # Detect known tickers and track them as active entities deterministically
+    known_tickers = {
+        "reliance": ("Reliance Industries", "RELIANCE.NS"),
+        "tcs": ("Tata Consultancy Services", "TCS.NS"),
+        "hdfc": ("HDFC Bank", "HDFCBANK.NS"),
+        "infosys": ("Infosys", "INFY.NS"),
+        "nifty": ("NIFTY 50", "^NSEI"),
+        "sensex": ("BSE SENSEX", "^BSESN"),
+        "itc": ("ITC Limited", "ITC.NS"),
+    }
+    for kw, (cname, ticker) in known_tickers.items():
+        if kw in lower and ("price" in lower or "stock" in lower or "quote" in lower or "share" in lower or "ticker" in lower or lower.strip() in [kw, f"{kw} share", f"{kw} stock"]):
+            print(f"  [Router: FAST-PATH LIVE MARKET for {cname}] -> 'live_market_data'")
+            updated_entities = dict(active_entities or {})
+            updated_entities["company"] = cname
+            updated_entities["ticker"] = ticker
+            topic = f"{cname} Market Data"
+            if conv_id:
+                save_conversation_continuity(conv_id, updated_entities, topic, user_id=user_id)
+            return {
+                "routing_decision": "live_market_data",
+                "current_question": question,
+                "resolved_query": question,
+                "active_entities": updated_entities,
+                "conversation_topic": topic,
+                "depth": depth
+            }
+
+    # --- Fast-Path 4b: Current Events / Live News (recency signal + finance context) (<1ms) ---
+    _RECENCY = {"today", "tonight", "this week", "this month", "latest", "recent",
+                "new rules", "what happened", "current", "breaking", "just announced",
+                "update", "news"}
+    _NEWS_FINANCE = {"rbi", "sebi", "repo", "inflation", "budget", "tax", "market",
+                     "nifty", "sensex", "economy", "finance", "policy", "regulation",
+                     "stock", "bank", "interest", "rate", "rupee", "crude", "ipo"}
+    has_recency  = any(r in lower for r in _RECENCY)
+    has_fin_ctx  = any(f in lower for f in _NEWS_FINANCE)
+    if has_recency and has_fin_ctx:
+        print("  [Router: FAST-PATH CURRENT EVENTS] -> 'current_events'")
+        return {
+            "routing_decision": "current_events",
+            "current_question": question,
+            "resolved_query": question,
+            "active_entities": active_entities,
+            "conversation_topic": conversation_topic,
+            "depth": depth
+        }
+
+    # --- Fast-Path 5: Instant Arithmetic Keywords with Digits (<1ms) ---
     has_digits = any(char.isdigit() for char in lower)
     if has_digits and any(op in lower for op in ["+", "-", "*", "/", "add ", "subtract ", "multiply ", "plus ", "minus "]):
-        print("  [Router: FAST-PATH ARITHMETIC] -> 'math_calculation'")
-        return {"routing_decision": "math_calculation", "current_question": question, "depth": depth}
+        print("  [Router: FAST-PATH ARITHMETIC KEYWORDS] -> 'math_calculation'")
+        return {
+            "routing_decision": "math_calculation",
+            "current_question": question,
+            "resolved_query": question,
+            "active_entities": active_entities,
+            "conversation_topic": conversation_topic,
+            "depth": depth
+        }
+
+    # --- Check 10-Minute Router TTL Cache for exact match repeated queries (only if self-contained) ---
+    cache_key = f"{lower}__doc_{bool(document_id)}__ent_{bool(active_entities)}"
+    now = time.time()
+    if cache_key in _ROUTER_CACHE and not any(pronoun in lower for pronoun in ["its", "this", "they", "them", "that", "these"]):
+        cached_decision, cached_depth, expiry = _ROUTER_CACHE[cache_key]
+        if now < expiry:
+            print(f"  [Router: 10-MIN TTL CACHE HIT] -> '{cached_decision}'")
+            return {
+                "routing_decision": cached_decision,
+                "current_question": question,
+                "resolved_query": question,
+                "active_entities": active_entities,
+                "conversation_topic": conversation_topic,
+                "depth": cached_depth
+            }
 
     try:
-        route = router_chain.invoke({
-            "question": question,
-            "memory_context": memory_context
-        })
+        # Build arguments for router chain dynamically based on available state keys
+        invoke_args = {"question": question, "memory_context": memory_context}
+        if "active_entities" in state:
+            invoke_args["active_entities"] = state["active_entities"]
+        if "conversation_topic" in state:
+            invoke_args["conversation_topic"] = state["conversation_topic"]
+        route = router_chain.invoke(invoke_args)
         decision = route.decision
+        is_topic_change = bool(getattr(route, "is_topic_change", False))
+        resolved_q = getattr(route, "resolved_query", None) or question
+
+        if is_topic_change:
+            # ADVERSARIAL TOPIC SHIFT: Completely reset previous entities to prevent context poisoning
+            print("  [Router] Detected topic shift — resetting active entities!")
+            updated_entities = {}
+            if getattr(route, "extracted_entities", None):
+                for k, v in route.extracted_entities.items():
+                    if v:
+                        updated_entities[k] = v
+            updated_topic = getattr(route, "conversation_topic", "") or "General Finance"
+        else:
+            updated_entities = dict(active_entities or {})
+            if getattr(route, "extracted_entities", None):
+                for k, v in route.extracted_entities.items():
+                    if v:
+                        updated_entities[k] = v
+            updated_topic = getattr(route, "conversation_topic", "") or conversation_topic or ""
+
     except Exception as e:
         print(f"Router fallback due to: {e}")
         is_calculation_query = any(term in lower for term in ["calculate", "compute", "how much is", "what is the return on"])
         
+        # Check topic shift heuristic in fallback
+        is_unrelated_concept = any(term in lower for term in ["compound interest", "wacc", "npv", "cagr", "sip", "emi", "section 80c", "tax slab"])
+        if is_unrelated_concept and active_entities.get("company"):
+            print("  [Router Fallback] Heuristic topic shift detected — resetting active entities.")
+            updated_entities = {}
+            updated_topic = "Financial Concepts"
+            resolved_q = question
+        elif active_entities.get("company") and any(pronoun in lower for pronoun in ["its ", "it's ", "their ", "this company"]):
+            company = active_entities["company"]
+            resolved_q = question.replace("its ", f"{company}'s ").replace("it's ", f"{company}'s ").replace("this company", company)
+            updated_entities = dict(active_entities)
+            updated_topic = conversation_topic
+        else:
+            resolved_q = question
+            updated_entities = dict(active_entities or {})
+            updated_topic = conversation_topic or ""
+
         if any(term in lower for term in ["reliance", "tcs", "hdfc", "nifty", "sensex", "stock", "price"]):
             decision = "live_market_data"
         elif has_digits and any(term in lower for term in ["add", "subtract", "multiply", "divide", "plus", "minus"]):
@@ -147,21 +344,37 @@ def route_question(state: AgentState):
         else:
             decision = "direct_answer"
 
+    # Persist updated continuity state scoped to this conversation & user
+    if conv_id:
+        save_conversation_continuity(conv_id, updated_entities, updated_topic, user_id=user_id)
+
     # -------------------------------------------------------------------------
     # DOCUMENT MODE OVERRIDE
     # When a personal document is attached, every question about the document
     # must pass through the retriever (exclusive personal-doc path).
     # Only queries with explicit digits AND math keywords are sent to math solver.
     # -------------------------------------------------------------------------
-    document_id = state.get("document_id")
     if document_id:
-        lower = question.lower()
-        has_digits = any(char.isdigit() for char in lower)
-        is_explicit_math = has_digits and any(term in lower for term in ["add", "subtract", "multiply", "divide", "plus", "minus", "sum", "total", "cagr", "sip", "wacc", "npv", "dcf", "emi"])
+        lower_q = resolved_q.lower()
+        has_digits = any(char.isdigit() for char in lower_q)
+        is_explicit_math = has_digits and any(term in lower_q for term in ["add", "subtract", "multiply", "divide", "plus", "minus", "sum", "total", "cagr", "sip", "wacc", "npv", "dcf", "emi"])
         if not is_explicit_math:
             print(f"  [Router: DOCUMENT MODE] overriding '{decision}' → 'hybrid_search'")
             decision = "hybrid_search"
 
-    print(f"Decision: {decision}, Depth: {depth}")
-    return {"routing_decision": decision, "current_question": question, "depth": depth}
+    # Save into 10-min router cache if self-contained
+    if not any(pronoun in lower for pronoun in ["its", "this", "they", "them", "that", "these"]):
+        _ROUTER_CACHE[cache_key] = (decision, depth, now + _ROUTER_CACHE_TTL)
+
+    print(f"Decision: {decision}, Depth: {depth}, Topic: {updated_topic}, Entities: {updated_entities}")
+    return {
+        "routing_decision": decision,
+        "current_question": resolved_q,
+        "resolved_query": resolved_q,
+        "active_entities": updated_entities,
+        "conversation_topic": updated_topic,
+        "depth": depth
+    }
+
+
 

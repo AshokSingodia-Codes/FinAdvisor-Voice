@@ -55,7 +55,9 @@ def run_trap_evaluation(gold_set_path: str = None) -> Dict[str, Any]:
                     "original_question": q,
                     "current_question": q,
                     "user_id": "eval_test_user",
-                    "memory_context": "None"
+                    "memory_context": "None",
+                    "active_entities": {},
+                    "conversation_topic": ""
                 }
                 output = app_graph.invoke(state_input)
                 generated_answer = output.get("final_answer") or output.get("draft_answer") or ""

@@ -64,7 +64,9 @@ def run_faithfulness_evaluation(gold_set_path: str = None, sample_size: int = 5)
                     "current_question": q,
                     "user_id": "eval_test_user",
                     "memory_context": "None",
-                    "verifier_enabled": False
+                    "verifier_enabled": False,
+                    "active_entities": {},
+                    "conversation_topic": ""
                 }
                 print(f"[{i:02d}/{len(eval_subset):02d}] Invoking Graph [Verifier OFF] (attempt {attempt+1})...", flush=True)
                 output_off = app_graph.invoke(state_off)
@@ -97,7 +99,9 @@ def run_faithfulness_evaluation(gold_set_path: str = None, sample_size: int = 5)
                     "current_question": q,
                     "user_id": "eval_test_user",
                     "memory_context": "None",
-                    "verifier_enabled": True
+                    "verifier_enabled": True,
+                    "active_entities": {},
+                    "conversation_topic": ""
                 }
                 print(f"[{i:02d}/{len(eval_subset):02d}] Invoking Graph [Verifier ON] (attempt {attempt+1})...")
                 output_on = app_graph.invoke(state_on)

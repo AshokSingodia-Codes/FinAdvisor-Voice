@@ -7,14 +7,16 @@ import ast
 import operator
 
 
-# ---------- SAFE EXPRESSION EVALUATOR (for basic +,-,*,/,%) ----------
+# ---------- SAFE EXPRESSION EVALUATOR (for basic +,-,*,/,//,%,**) ----------
 
 _ALLOWED_OPS = {
     ast.Add: operator.add,
     ast.Sub: operator.sub,
     ast.Mult: operator.mul,
     ast.Div: operator.truediv,
+    ast.FloorDiv: operator.floordiv,
     ast.Mod: operator.mod,
+    ast.Pow: operator.pow,
     ast.USub: operator.neg,
     ast.UAdd: operator.pos,
 }
@@ -24,10 +26,19 @@ def safe_calculate(expression: str) -> float:
     def _eval(node):
         if isinstance(node, ast.Constant):
             if isinstance(node.value, (int, float)):
-                return node.value
+                return float(node.value)
             raise ValueError(f"Unsupported constant: {node.value}")
+        if hasattr(ast, "Num") and isinstance(node, getattr(ast, "Num")):
+            return float(node.n)
         if isinstance(node, ast.BinOp) and type(node.op) in _ALLOWED_OPS:
-            return _ALLOWED_OPS[type(node.op)](_eval(node.left), _eval(node.right))
+            op_type = type(node.op)
+            left_val = _eval(node.left)
+            right_val = _eval(node.right)
+            if op_type in (ast.Div, ast.FloorDiv, ast.Mod) and right_val == 0:
+                raise ZeroDivisionError("Division by zero")
+            if op_type == ast.Pow and (abs(right_val) > 1000 or (abs(left_val) > 1000 and right_val > 50)):
+                raise ValueError("Exponentiation result too large to compute safely")
+            return _ALLOWED_OPS[op_type](left_val, right_val)
         if isinstance(node, ast.UnaryOp) and type(node.op) in _ALLOWED_OPS:
             return _ALLOWED_OPS[type(node.op)](_eval(node.operand))
         if isinstance(node, ast.Tuple):
@@ -35,10 +46,14 @@ def safe_calculate(expression: str) -> float:
         raise ValueError(f"Unsupported expression element: {ast.dump(node)}")
 
     try:
-        tree = ast.parse(expression, mode="eval")
+        expr = expression.strip().replace("^", "**")
+        tree = ast.parse(expr, mode="eval")
         return _eval(tree.body)
-    except (SyntaxError, ValueError) as e:
+    except ZeroDivisionError:
+        raise
+    except (SyntaxError, ValueError, OverflowError) as e:
         raise ValueError(f"Could not safely evaluate '{expression}': {e}")
+
 
 
 # ---------- EXTRACTION (deterministic, no LLM) ----------

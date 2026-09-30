@@ -1,17 +1,11 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Send,
   TrendingUp,
   DollarSign,
   Activity,
   Plus,
-  MessageSquare,
-  Trash2,
-  Edit3,
-  Check,
-  X,
   Menu,
-  Sparkles,
   Bot,
   User as UserIcon,
   Shield,
@@ -23,60 +17,23 @@ import {
   FileText,
   AlertTriangle,
   Upload,
-  Copy,
-  Volume2,
-  VolumeX
+  X
 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { useAuth } from './context/AuthContext';
 import { AuthModal } from './components/AuthModal';
 import { LoginPage } from './components/LoginPage';
 import { VoiceInputButton } from './components/VoiceInputButton';
+import { ChatMessageItem } from './components/ChatMessageItem';
+import type { ChatMessage } from './components/ChatMessageItem';
+import { ConversationSidebarItem } from './components/ConversationSidebarItem';
+import type { ConversationItem } from './components/ConversationSidebarItem';
 import { API_BASE } from './config';
-
-interface ChatMessage {
-  id?: number;
-  role: 'user' | 'assistant';
-  content: string;
-  steps?: string[];
-  isError?: boolean;
-}
-
-interface ConversationItem {
-  id: string;
-  title: string;
-  created_at: string;
-  updated_at: string;
-  message_count: number;
-  last_message?: string;
-}
 
 interface ActiveDocument {
   id: string;
   filename: string;
   chunk_count: number;
   file_size_bytes: number;
-}
-
-function formatRelativeTime(dateStr: string): string {
-  if (!dateStr) return '';
-  try {
-    const cleanStr = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T');
-    const normalized = cleanStr.endsWith('Z') ? cleanStr : cleanStr + 'Z';
-    const d = new Date(normalized);
-    if (isNaN(d.getTime())) return '';
-    const now = new Date();
-    const diffSec = Math.floor((now.getTime() - d.getTime()) / 1000);
-
-    if (diffSec < 60) return 'Just now';
-    if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
-    if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
-    if (diffSec < 172800) return 'Yesterday';
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  } catch {
-    return '';
-  }
 }
 
 function App() {
@@ -116,7 +73,7 @@ function App() {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
 
-  const handleCopyMessage = (content: string, index: number) => {
+  const handleCopyMessage = useCallback((content: string, index: number) => {
     if (!navigator.clipboard) {
       const textArea = document.createElement("textarea");
       textArea.value = content;
@@ -131,15 +88,14 @@ function App() {
     setTimeout(() => {
       setCopiedIndex((prev) => (prev === index ? null : prev));
     }, 2000);
-  };
+  }, []);
 
   // Soft female voice selection helper
-  const getSoftFemaleVoice = (): SpeechSynthesisVoice | null => {
+  const getSoftFemaleVoice = useCallback((): SpeechSynthesisVoice | null => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return null;
     const voices = window.speechSynthesis.getVoices();
     if (!voices || voices.length === 0) return null;
 
-    // Strict male keyword filter to never select male voices (e.g. David, Mark, Ravi, Guy, George, etc.)
     const maleKeywords = [
       'david', 'mark', 'george', 'ravi', 'guy', 'ryan', 'stefan', 'richard',
       'male', ' man', ' boy', 'daniel', 'oliver', 'thomas', 'james', 'alex',
@@ -152,53 +108,28 @@ function App() {
       return maleKeywords.some(kw => name.includes(kw));
     };
 
-    // Prioritized female voice keywords across Windows, macOS, Android, iOS, Chrome, Edge:
     const prioritizedFemaleKeywords = [
-      'zira',       // Windows standard female (Microsoft Zira)
-      'aria',       // Edge Natural female (Microsoft Aria)
-      'jenny',      // Edge Natural female (Microsoft Jenny)
-      'neerja',     // Edge/Windows Indian English female (Microsoft Neerja)
-      'swara',      // Edge/Windows Hindi/English female (Microsoft Swara)
-      'heera',      // Windows Indian English female (Microsoft Heera)
-      'samantha',   // macOS / iOS standard female
-      'karen',      // macOS Australian female
-      'serena',     // macOS British female
-      'victoria',   // macOS / iOS female
-      'hazel',      // Windows UK female (Microsoft Hazel)
-      'susan',      // Windows UK female (Microsoft Susan)
-      'veena',      // iOS/macOS Indian English female
-      'catherine',  // Windows Australian female
-      'eva',        // Cortana / Windows female
-      'ava',        // Apple natural female
-      'emma',       // Google/Edge UK female
-      'olivia',     // Google female
-      'mia',        // Edge female
-      'chloe',      // Edge female
-      'female',     // Generic female tag
-      'woman',      // Generic woman tag
+      'zira', 'aria', 'jenny', 'neerja', 'swara', 'heera', 'samantha', 'karen',
+      'serena', 'victoria', 'hazel', 'susan', 'veena', 'catherine', 'eva', 'ava',
+      'emma', 'olivia', 'mia', 'chloe', 'female', 'woman'
     ];
 
-    // 1. Search for prioritized female voice
     for (const kw of prioritizedFemaleKeywords) {
       const match = voices.find(v => !isMaleVoice(v) && v.name.toLowerCase().includes(kw));
       if (match) return match;
     }
 
-    // 2. Fallback: filter out all male voices and pick an English non-male voice
     const nonMaleVoices = voices.filter(v => !isMaleVoice(v));
     const englishNonMale = nonMaleVoices.find(v => 
       v.lang.startsWith('en') || v.lang.startsWith('hi')
     );
     if (englishNonMale) return englishNonMale;
 
-    // 3. Any non-male voice available
     if (nonMaleVoices.length > 0) return nonMaleVoices[0];
-
-    // 4. Extreme fallback
     return voices[0] || null;
-  };
+  }, []);
 
-  const handleToggleTTS = (content: string, index: number) => {
+  const handleToggleTTS = useCallback((content: string, index: number) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
 
     if (speakingIndex === index) {
@@ -208,7 +139,6 @@ function App() {
     }
 
     window.speechSynthesis.cancel();
-    // Strip markdown, code blocks, and table bars for natural voice reading
     const cleanText = content
       .replace(/```[\s\S]*?```/g, 'Code block omitted.')
       .replace(/\|.*?\|/g, ' ')
@@ -216,16 +146,13 @@ function App() {
       .trim();
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    
-    // Set soft female voice
     const femaleVoice = getSoftFemaleVoice();
     if (femaleVoice) {
       utterance.voice = femaleVoice;
     }
 
-    // Soft, pleasant, clear female tone settings
-    utterance.rate = 0.95; // gentle, natural, relaxed tempo
-    utterance.pitch = 1.15; // soft, sweet, warm female pitch
+    utterance.rate = 0.95;
+    utterance.pitch = 1.15;
     utterance.volume = 1.0;
 
     utterance.onend = () => setSpeakingIndex(null);
@@ -233,7 +160,7 @@ function App() {
 
     setSpeakingIndex(index);
     window.speechSynthesis.speak(utterance);
-  };
+  }, [speakingIndex, getSoftFemaleVoice]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -251,6 +178,11 @@ function App() {
     }
     setSpeakingIndex(null);
   }, [activeConvId]);
+
+  // Reset rate-limit state when user changes
+  useEffect(() => {
+    setRateLimitSeconds(null);
+  }, [user?.id]);
 
   // Count down the rate-limit toast automatically
   useEffect(() => {
@@ -343,27 +275,29 @@ function App() {
     setIsSidebarOpen(false);
   };
 
-  const handleSelectConversation = async (convId: string) => {
+  const handleSelectConversation = useCallback(async (convId: string) => {
     setIsSidebarOpen(false);
     if (convId === activeConvId) return;
     await loadConversation(convId);
-  };
+  }, [activeConvId]);
 
-  const handleDeleteConversation = async (e: React.MouseEvent, convId: string) => {
+  const handleDeleteConversation = useCallback(async (e: React.MouseEvent, convId: string) => {
     e.stopPropagation();
     if (!window.confirm('Are you sure you want to delete this conversation?')) return;
     try {
       const res = await authFetch(`${API_BASE}/api/conversations/${convId}`, { method: 'DELETE' });
       if (res.ok) {
-        const updated = conversations.filter(c => c.id !== convId);
-        setConversations(updated);
-        if (activeConvId === convId) {
-          if (updated.length > 0) {
-            await loadConversation(updated[0].id);
-          } else {
-            handleNewChat();
+        setConversations(prev => {
+          const updated = prev.filter(c => c.id !== convId);
+          if (activeConvId === convId) {
+            if (updated.length > 0) {
+              loadConversation(updated[0].id);
+            } else {
+              handleNewChat();
+            }
           }
-        }
+          return updated;
+        });
       } else {
         alert('Failed to delete conversation.');
       }
@@ -371,9 +305,9 @@ function App() {
       console.error('Failed to delete conversation:', err);
       alert('Error deleting conversation.');
     }
-  };
+  }, [activeConvId, authFetch]);
 
-  const handleClearAllConversations = async () => {
+  const handleClearAllConversations = useCallback(async () => {
     if (!window.confirm('Are you sure you want to delete ALL conversations? This cannot be undone.')) return;
     try {
       const res = await authFetch(`${API_BASE}/api/conversations`, { method: 'DELETE' });
@@ -387,15 +321,20 @@ function App() {
       console.error('Failed to clear conversations:', err);
       alert('Error clearing conversations.');
     }
-  };
+  }, [authFetch]);
 
-  const startRename = (e: React.MouseEvent, conv: ConversationItem) => {
+  const startRename = useCallback((e: React.MouseEvent, conv: ConversationItem) => {
     e.stopPropagation();
     setEditingConvId(conv.id);
     setEditTitleInput(conv.title);
-  };
+  }, []);
 
-  const handleSaveRename = async (e: React.MouseEvent | React.KeyboardEvent, convId: string) => {
+  const handleCancelRename = useCallback((e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setEditingConvId(null);
+  }, []);
+
+  const handleSaveRename = useCallback(async (e: React.MouseEvent | React.KeyboardEvent, convId: string) => {
     e.stopPropagation();
     const trimmed = editTitleInput.trim();
     if (!trimmed) {
@@ -419,7 +358,7 @@ function App() {
     } finally {
       setEditingConvId(null);
     }
-  };
+  }, [editTitleInput, activeConvId, authFetch]);
 
   const handleSend = async (textToSend?: string) => {
     if (!isAuthenticated) {
@@ -671,86 +610,21 @@ function App() {
               No conversations yet.<br />Click <span className="text-blue-800 font-medium">+ New Chat</span> to start!
             </div>
           ) : (
-            conversations.map((conv) => {
-              const isActive = conv.id === activeConvId;
-              const isEditing = editingConvId === conv.id;
-
-              return (
-                <div
-                  key={conv.id}
-                  onClick={() => handleSelectConversation(conv.id)}
-                  className={`group relative flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-150 border ${isActive
-                      ? 'bg-blue-50/90 border-blue-200 text-blue-950 font-semibold shadow-xs'
-                      : 'bg-transparent border-transparent hover:bg-slate-200/50 hover:border-slate-200 text-slate-600 hover:text-slate-900'
-                    }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-2">
-                    <MessageSquare size={15} className={`shrink-0 ${isActive ? 'text-blue-800' : 'text-slate-400'}`} />
-
-                    {isEditing ? (
-                      <div className="flex items-center gap-1 flex-1" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="text"
-                          value={editTitleInput}
-                          onChange={(e) => setEditTitleInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleSaveRename(e, conv.id);
-                            if (e.key === 'Escape') setEditingConvId(null);
-                          }}
-                          autoFocus
-                          className="w-full bg-white border border-blue-500 rounded px-2 py-0.5 text-xs text-slate-900 focus:outline-none"
-                        />
-                        <button
-                          onClick={(e) => handleSaveRename(e, conv.id)}
-                          className="p-1 text-blue-800 hover:text-blue-900 rounded"
-                          title="Save"
-                        >
-                          <Check size={13} />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingConvId(null);
-                          }}
-                          className="p-1 text-slate-400 hover:text-slate-600 rounded"
-                          title="Cancel"
-                        >
-                          <X size={13} />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="min-w-0 flex-1">
-                        <div className="text-xs font-medium truncate leading-tight">
-                          {conv.title || 'New Chat'}
-                        </div>
-                        <div className="text-[10px] text-slate-400 truncate mt-0.5">
-                          {formatRelativeTime(conv.updated_at)}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {!isEditing && (
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={(e) => startRename(e, conv)}
-                        className="p-1 text-slate-400 hover:text-blue-800 rounded hover:bg-slate-200 transition-colors"
-                        title="Rename Chat"
-                      >
-                        <Edit3 size={13} />
-                      </button>
-                      <button
-                        onClick={(e) => handleDeleteConversation(e, conv.id)}
-                        className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors"
-                        title="Delete Chat"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })
+            conversations.map((conv) => (
+              <ConversationSidebarItem
+                key={conv.id}
+                conv={conv}
+                isActive={conv.id === activeConvId}
+                isEditing={editingConvId === conv.id}
+                editTitleInput={editTitleInput}
+                onSelect={handleSelectConversation}
+                onStartRename={startRename}
+                onSaveRename={handleSaveRename}
+                onCancelRename={handleCancelRename}
+                onEditInputChange={setEditTitleInput}
+                onDelete={handleDeleteConversation}
+              />
+            ))
           )}
         </div>
 
@@ -908,134 +782,17 @@ function App() {
           ) : (
             <div className="max-w-4xl mx-auto space-y-6 pb-6">
               {messages.map((msg, i) => (
-                <div key={i} className={`flex gap-3.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  {msg.role === 'assistant' && (
-                    <div className="w-8 h-8 rounded-lg bg-[#0f274a] text-white flex items-center justify-center shrink-0 shadow-xs mt-1">
-                      <Bot size={18} />
-                    </div>
-                  )}
-                  <div
-                    className={`rounded-2xl px-5 py-4 text-[14.5px] leading-relaxed select-text ${msg.role === 'user'
-                        ? 'max-w-[80%] bg-[#0f274a] text-white rounded-tr-sm shadow-md font-normal'
-                        : 'w-full max-w-full bg-[#f8fafc] border border-slate-200/90 text-slate-900 rounded-tl-sm shadow-xs'
-                      }`}
-                  >
-                    {msg.role === 'user' ? (
-                      <div className="whitespace-pre-wrap">{msg.content}</div>
-                    ) : (
-                      <div className="prose max-w-none text-slate-900 leading-relaxed space-y-2.5">
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            h1: ({ children }) => <h1 className="text-lg font-bold text-slate-900 mt-3 mb-2 pb-1 border-b border-slate-200">{children}</h1>,
-                            h2: ({ children }) => <h2 className="text-base font-bold text-blue-900 mt-3 mb-1.5">{children}</h2>,
-                            h3: ({ children }) => <h3 className="text-sm font-semibold text-blue-800 mt-2 mb-1">{children}</h3>,
-                            p: ({ children }) => <p className="mb-2 leading-relaxed text-slate-800">{children}</p>,
-                            ul: ({ children }) => <ul className="list-disc pl-5 mb-2.5 space-y-1 text-slate-800">{children}</ul>,
-                            ol: ({ children }) => <ol className="list-decimal pl-5 mb-2.5 space-y-1 text-slate-800">{children}</ol>,
-                            li: ({ children }) => <li className="text-slate-800">{children}</li>,
-                            hr: () => <hr className="border-slate-200 my-3" />,
-                            strong: ({ children }) => <strong className="font-bold text-slate-950">{children}</strong>,
-                            code: ({ children }) => (
-                              <code className="bg-blue-50 text-blue-900 border border-blue-200 px-1.5 py-0.5 rounded text-xs font-mono font-semibold">
-                                {children}
-                              </code>
-                            ),
-                            table: ({ children }) => (
-                              <div className="my-3 overflow-x-auto rounded-xl border border-slate-200 shadow-xs">
-                                <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
-                                  {children}
-                                </table>
-                              </div>
-                            ),
-                            thead: ({ children }) => <thead className="bg-slate-100 text-blue-950 font-bold border-b border-slate-200">{children}</thead>,
-                            tbody: ({ children }) => <tbody className="divide-y divide-slate-100 bg-white">{children}</tbody>,
-                            tr: ({ children }) => <tr className="hover:bg-slate-50 transition-colors">{children}</tr>,
-                            th: ({ children }) => <th className="px-3.5 py-2.5 text-[11px] uppercase tracking-wider font-bold text-blue-950">{children}</th>,
-                            td: ({ children }) => <td className="px-3.5 py-2.5 text-xs text-slate-800 whitespace-normal">{children}</td>,
-                          }}
-                        >
-                          {msg.content}
-                        </ReactMarkdown>
-
-                        {/* Interactive Next-Step Action Chips */}
-                        {(() => {
-                          const suggestions: string[] = [];
-                          const regex = /\[([A-Za-z0-9\s₹$,%.\-/?!]{4,50})\]/g;
-                          let match;
-                          while ((match = regex.exec(msg.content)) !== null) {
-                            const act = match[1].trim();
-                            if (act && !suggestions.includes(act) && !act.toLowerCase().startsWith('action')) {
-                              suggestions.push(act);
-                            }
-                          }
-                          if (suggestions.length === 0) return null;
-                          return (
-                            <div className="mt-3 pt-2.5 border-t border-slate-200">
-                              <div className="text-[11px] font-bold text-blue-900 mb-2 flex items-center gap-1">
-                                <Sparkles size={12} className="text-blue-700" />
-                                <span>Suggested Next Actions:</span>
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                {suggestions.slice(0, 3).map((actionText, actIdx) => (
-                                  <button
-                                    key={actIdx}
-                                    onClick={() => handleSend(actionText)}
-                                    disabled={loading}
-                                    className="flex items-center gap-1.5 text-xs bg-blue-50 hover:bg-blue-100 text-blue-900 font-semibold border border-blue-200 hover:border-blue-400 px-3 py-1.5 rounded-xl transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
-                                  >
-                                    <span>{actionText}</span>
-                                    <span className="text-[10px] opacity-70">→</span>
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })()}
-
-                        {/* Assistant Message Actions (Copy & Voice TTS) */}
-                        <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-200 text-xs text-slate-500">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] text-slate-500 font-semibold flex items-center gap-1">
-                              <Sparkles size={12} className="text-blue-700" />
-                              FinAdvisor-X Analysis
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => handleToggleTTS(msg.content, i)}
-                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${speakingIndex === i
-                                  ? 'bg-blue-100 text-blue-900 border border-blue-300 animate-pulse'
-                                  : 'bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200'
-                                }`}
-                              title={speakingIndex === i ? 'Stop Speaking' : 'Read Aloud'}
-                            >
-                              {speakingIndex === i ? <VolumeX size={13} className="text-blue-800" /> : <Volume2 size={13} />}
-                              <span>{speakingIndex === i ? 'Stop' : 'Listen'}</span>
-                            </button>
-
-                            <button
-                              onClick={() => handleCopyMessage(msg.content, i)}
-                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${copiedIndex === i
-                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                                  : 'bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200'
-                                }`}
-                              title="Copy Answer to Clipboard"
-                            >
-                              {copiedIndex === i ? <Check size={13} className="text-emerald-700" /> : <Copy size={13} />}
-                              <span>{copiedIndex === i ? 'Copied!' : 'Copy'}</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  {msg.role === 'user' && (
-                    <div className="w-8 h-8 rounded-full bg-[#0f274a] text-white flex items-center justify-center shrink-0 text-xs font-bold shadow-xs mt-1">
-                      <UserIcon size={14} />
-                    </div>
-                  )}
-                </div>
+                <ChatMessageItem
+                  key={i}
+                  msg={msg}
+                  index={i}
+                  isSpeaking={speakingIndex === i}
+                  isCopied={copiedIndex === i}
+                  onToggleTTS={handleToggleTTS}
+                  onCopy={handleCopyMessage}
+                  onSendAction={handleSend}
+                  loading={loading}
+                />
               ))}
               {loading && (
                 <div className="flex gap-3.5 justify-start">

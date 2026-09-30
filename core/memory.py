@@ -14,8 +14,10 @@ from sqlalchemy import (
     String,
     Text,
     Integer,
+    Float,
     ForeignKey,
-    Index
+    Index,
+    UniqueConstraint
 )
 from sqlalchemy.pool import StaticPool
 from config.settings import settings
@@ -171,7 +173,38 @@ conversation_memory_table = Table(
     Column('conversation_id', String(64), ForeignKey('conversations.id', ondelete='CASCADE'), primary_key=True),
     Column('summary', Text, default=''),
     Column('facts', Text, default='{}'),
+    Column('active_entities', Text, default='{}'),
+    Column('conversation_topic', String(255), default=''),
     Column('updated_at', String(64), default=_get_utc_now)
+)
+
+daily_snapshots_table = Table(
+    'daily_snapshots',
+    metadata,
+    Column('id', Integer, primary_key=True, autoincrement=True),
+    Column('asset_type', String(32), nullable=False),  # 'equity' | 'mutual_fund'
+    Column('symbol_or_scheme_code', String(64), nullable=False),
+    Column('name', String(255), nullable=True),
+    Column('value', Float, nullable=False),  # price or NAV
+    Column('snapshot_date', String(16), nullable=False),  # YYYY-MM-DD
+    Column('source', String(64), default='live_sync'),
+    Column('created_at', String(64), default=_get_utc_now),
+    UniqueConstraint('asset_type', 'symbol_or_scheme_code', 'snapshot_date', name='uq_asset_symbol_date'),
+    Index('idx_daily_snapshots_lookup', 'asset_type', 'symbol_or_scheme_code', 'snapshot_date')
+)
+
+mf_nav_snapshots_table = Table(
+    'mf_nav_snapshots',
+    metadata,
+    Column('id', Integer, primary_key=True, autoincrement=True),
+    Column('scheme_code', String(64), nullable=False),
+    Column('scheme_name', String(255), nullable=True),
+    Column('nav', Float, nullable=False),
+    Column('snapshot_date', String(16), nullable=False),  # YYYY-MM-DD
+    Column('source', String(64), default='NAVAll.txt'),
+    Column('created_at', String(64), default=_get_utc_now),
+    UniqueConstraint('scheme_code', 'snapshot_date', name='uq_mf_nav_scheme_date'),
+    Index('idx_mf_nav_snapshots_lookup', 'scheme_code', 'snapshot_date')
 )
 
 
@@ -188,10 +221,32 @@ def init_db(target_engine=None):
     eng = target_engine or engine
     metadata.create_all(bind=eng)
     
-    # Purge any legacy NULL user_id conversations
     with get_db_connection(custom_engine=eng) as conn:
-        conn.execute(text("DELETE FROM conversations WHERE user_id IS NULL OR user_id = ''"))
-        conn.commit()
+        # Purge any legacy NULL user_id conversations
+        try:
+            conn.execute(text("DELETE FROM conversations WHERE user_id IS NULL OR user_id = ''"))
+            conn.commit()
+        except Exception:
+            pass
+
+        # Idempotently add active_entities & conversation_topic if missing in existing databases
+        try:
+            conn.execute(text("ALTER TABLE conversation_memory ADD COLUMN active_entities TEXT DEFAULT '{}'"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE conversation_memory ADD COLUMN conversation_topic VARCHAR(255) DEFAULT ''"))
+            conn.commit()
+        except Exception:
+            pass
+
+        try:
+            conn.execute(text("ALTER TABLE user_documents ADD COLUMN error_message TEXT DEFAULT NULL"))
+            conn.commit()
+        except Exception:
+            pass
+
 
 
 # Auto-initialize database on import
@@ -475,19 +530,27 @@ def get_conversation(conversation_id: str, user_id: str) -> Optional[Dict[str, A
         msg_rows = msg_result.mappings().fetchall()
         
         mem_result = conn.execute(
-            text("SELECT summary, facts FROM conversation_memory WHERE conversation_id = :cid"),
+            text("SELECT summary, facts, active_entities, conversation_topic FROM conversation_memory WHERE conversation_id = :cid"),
             {"cid": conversation_id}
         )
         mem_row = mem_result.mappings().fetchone()
         
         facts_dict = {}
         summary_text = ""
+        active_entities_dict = {}
+        topic_text = ""
         if mem_row:
-            summary_text = mem_row["summary"] or ""
+            summary_text = mem_row.get("summary") or ""
+            topic_text = mem_row.get("conversation_topic") or ""
             try:
-                facts_dict = json.loads(mem_row["facts"] or "{}")
+                facts_dict = json.loads(mem_row.get("facts") or "{}")
             except Exception:
                 facts_dict = {}
+            try:
+                raw_ent = mem_row.get("active_entities") or "{}"
+                active_entities_dict = json.loads(raw_ent) if isinstance(raw_ent, str) else raw_ent
+            except Exception:
+                active_entities_dict = {}
                 
         return {
             "id": conv_row["id"],
@@ -497,8 +560,100 @@ def get_conversation(conversation_id: str, user_id: str) -> Optional[Dict[str, A
             "updated_at": conv_row["updated_at"],
             "messages": [dict(m) for m in msg_rows],
             "facts": facts_dict,
-            "summary": summary_text
+            "summary": summary_text,
+            "active_entities": active_entities_dict,
+            "conversation_topic": topic_text
         }
+
+def get_conversation_continuity(conversation_id: str, user_id: str = "") -> Dict[str, Any]:
+    """
+    Returns active_entities (dict) and conversation_topic (str) for a conversation.
+    Scoped by user_id to ensure strict user isolation.
+    """
+    if not conversation_id:
+        return {"active_entities": {}, "conversation_topic": ""}
+    try:
+        with get_db_connection() as conn:
+            if user_id:
+                conv = conn.execute(
+                    text("SELECT id FROM conversations WHERE id = :id AND user_id = :user_id"),
+                    {"id": conversation_id, "user_id": user_id}
+                ).fetchone()
+                if not conv:
+                    return {"active_entities": {}, "conversation_topic": ""}
+
+            row = conn.execute(
+                text("SELECT active_entities, conversation_topic FROM conversation_memory WHERE conversation_id = :id"),
+                {"id": conversation_id}
+            ).mappings().fetchone()
+            
+            if row:
+                raw_entities = row.get("active_entities") or "{}"
+                topic = row.get("conversation_topic") or ""
+                try:
+                    entities = json.loads(raw_entities) if isinstance(raw_entities, str) else raw_entities
+                except Exception:
+                    entities = {}
+                return {"active_entities": entities, "conversation_topic": topic}
+    except Exception as e:
+        print(f"[memory] Error getting conversation continuity: {e}")
+    return {"active_entities": {}, "conversation_topic": ""}
+
+def save_conversation_continuity(
+    conversation_id: str,
+    active_entities: Dict[str, Any],
+    conversation_topic: str = "",
+    user_id: str = ""
+) -> bool:
+    """
+    Persists active_entities and conversation_topic for a conversation.
+    Scoped by user_id to enforce user isolation.
+    """
+    if not conversation_id:
+        return False
+    try:
+        with get_db_connection() as conn:
+            if user_id:
+                conv = conn.execute(
+                    text("SELECT id FROM conversations WHERE id = :id AND user_id = :user_id"),
+                    {"id": conversation_id, "user_id": user_id}
+                ).fetchone()
+                if not conv:
+                    return False
+
+            entities_json = json.dumps(active_entities or {})
+            topic_str = str(conversation_topic or "")
+            now_iso = _get_utc_now()
+
+            existing = conn.execute(
+                text("SELECT conversation_id FROM conversation_memory WHERE conversation_id = :id"),
+                {"id": conversation_id}
+            ).fetchone()
+
+            if existing:
+                conn.execute(
+                    text("""
+                        UPDATE conversation_memory
+                        SET active_entities = :entities,
+                            conversation_topic = :topic,
+                            updated_at = :now
+                        WHERE conversation_id = :id
+                    """),
+                    {"entities": entities_json, "topic": topic_str, "now": now_iso, "id": conversation_id}
+                )
+            else:
+                conn.execute(
+                    text("""
+                        INSERT INTO conversation_memory (conversation_id, summary, facts, active_entities, conversation_topic, updated_at)
+                        VALUES (:id, '', '{}', :entities, :topic, :now)
+                    """),
+                    {"id": conversation_id, "entities": entities_json, "topic": topic_str, "now": now_iso}
+                )
+            conn.commit()
+            return True
+    except Exception as e:
+        print(f"[memory] Error saving conversation continuity: {e}")
+        return False
 
 def rename_conversation(conversation_id: str, new_title: str, user_id: str) -> bool:
     new_title = new_title.strip()
@@ -842,3 +997,206 @@ def extract_and_update_memory(conversation_id: str, user_message: str, assistant
     except Exception as e:
         print(f"Memory extraction notice: {e}")
         return "New Chat"
+
+
+# ==============================================================================
+# Daily Historical Snapshots (Equities & Mutual Funds Time-Series)
+# ==============================================================================
+
+def upsert_daily_snapshot(
+    asset_type: str,
+    symbol_or_scheme_code: str,
+    name: str,
+    value: float,
+    snapshot_date: str,
+    source: str = "market_sync"
+) -> bool:
+    """
+    Idempotently upserts a daily price / NAV snapshot into daily_snapshots table.
+    Works seamlessly across PostgreSQL (ON CONFLICT) and SQLite (INSERT OR REPLACE).
+    """
+    now = _get_utc_now()
+    clean_sym = symbol_or_scheme_code.strip()
+    clean_asset = asset_type.strip().lower()
+
+    with get_db_connection() as conn:
+        url = get_database_url()
+        if "postgres" in url:
+            query = text("""
+                INSERT INTO daily_snapshots (asset_type, symbol_or_scheme_code, name, value, snapshot_date, source, created_at)
+                VALUES (:asset_type, :symbol, :name, :value, :snapshot_date, :source, :created_at)
+                ON CONFLICT (asset_type, symbol_or_scheme_code, snapshot_date)
+                DO UPDATE SET
+                    value = EXCLUDED.value,
+                    name = EXCLUDED.name,
+                    source = EXCLUDED.source,
+                    created_at = EXCLUDED.created_at
+            """)
+        else:
+            # SQLite upsert
+            query = text("""
+                INSERT INTO daily_snapshots (asset_type, symbol_or_scheme_code, name, value, snapshot_date, source, created_at)
+                VALUES (:asset_type, :symbol, :name, :value, :snapshot_date, :source, :created_at)
+                ON CONFLICT(asset_type, symbol_or_scheme_code, snapshot_date) DO UPDATE SET
+                    value = excluded.value,
+                    name = excluded.name,
+                    source = excluded.source,
+                    created_at = excluded.created_at
+            """)
+
+        conn.execute(query, {
+            "asset_type": clean_asset,
+            "symbol": clean_sym,
+            "name": name,
+            "value": float(value),
+            "snapshot_date": snapshot_date,
+            "source": source,
+            "created_at": now
+        })
+        conn.commit()
+    return True
+
+
+def get_historical_snapshot(
+    asset_type: str,
+    symbol_or_scheme_code: str,
+    target_date: str
+) -> Optional[Dict[str, Any]]:
+    """
+    Finds the nearest recorded snapshot on or prior to target_date (YYYY-MM-DD).
+    """
+    clean_sym = symbol_or_scheme_code.strip()
+    clean_asset = asset_type.strip().lower()
+
+    with get_db_connection() as conn:
+        row = conn.execute(
+            text("""
+                SELECT id, asset_type, symbol_or_scheme_code, name, value, snapshot_date, source, created_at
+                FROM daily_snapshots
+                WHERE asset_type = :asset_type
+                  AND symbol_or_scheme_code = :symbol
+                  AND snapshot_date <= :target_date
+                ORDER BY snapshot_date DESC
+                LIMIT 1
+            """),
+            {"asset_type": clean_asset, "symbol": clean_sym, "target_date": target_date}
+        ).mappings().fetchone()
+
+        if row:
+            return dict(row)
+    return None
+
+
+def get_all_snapshots(
+    asset_type: str,
+    symbol_or_scheme_code: str,
+    limit: int = 365
+) -> List[Dict[str, Any]]:
+    """Returns chronological snapshots up to limit."""
+    clean_sym = symbol_or_scheme_code.strip()
+    clean_asset = asset_type.strip().lower()
+
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT id, asset_type, symbol_or_scheme_code, name, value, snapshot_date, source, created_at
+                FROM daily_snapshots
+                WHERE asset_type = :asset_type
+                  AND symbol_or_scheme_code = :symbol
+                ORDER BY snapshot_date ASC
+                LIMIT :limit
+            """),
+            {"asset_type": clean_asset, "symbol": clean_sym, "limit": limit}
+        ).mappings().fetchall()
+
+        return [dict(r) for r in rows]
+
+
+def get_distinct_tracked_symbols() -> List[Dict[str, str]]:
+    """Returns distinct list of asset_type and symbol pairs recorded in daily_snapshots."""
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT DISTINCT asset_type, symbol_or_scheme_code, name
+                FROM daily_snapshots
+                ORDER BY asset_type, symbol_or_scheme_code
+            """)
+        ).mappings().fetchall()
+        return [dict(r) for r in rows]
+
+# ==============================================================================
+# Mutual Fund AMFI NAV Time-Series (NAVAll.txt Sync)
+# ==============================================================================
+
+def upsert_mf_nav_snapshot(
+    scheme_code: str,
+    scheme_name: str,
+    nav: float,
+    snapshot_date: str,
+    source: str = "NAVAll.txt"
+) -> bool:
+    """
+    Idempotently upserts an AMFI daily NAV snapshot.
+    """
+    now = _get_utc_now()
+    clean_code = scheme_code.strip()
+
+    with get_db_connection() as conn:
+        url = get_database_url()
+        if "postgres" in url:
+            query = text("""
+                INSERT INTO mf_nav_snapshots (scheme_code, scheme_name, nav, snapshot_date, source, created_at)
+                VALUES (:scheme_code, :scheme_name, :nav, :snapshot_date, :source, :created_at)
+                ON CONFLICT (scheme_code, snapshot_date)
+                DO UPDATE SET
+                    nav = EXCLUDED.nav,
+                    scheme_name = EXCLUDED.scheme_name,
+                    source = EXCLUDED.source,
+                    created_at = EXCLUDED.created_at
+            """)
+        else:
+            query = text("""
+                INSERT INTO mf_nav_snapshots (scheme_code, scheme_name, nav, snapshot_date, source, created_at)
+                VALUES (:scheme_code, :scheme_name, :nav, :snapshot_date, :source, :created_at)
+                ON CONFLICT(scheme_code, snapshot_date) DO UPDATE SET
+                    nav = excluded.nav,
+                    scheme_name = excluded.scheme_name,
+                    source = excluded.source,
+                    created_at = excluded.created_at
+            """)
+
+        conn.execute(query, {
+            "scheme_code": clean_code,
+            "scheme_name": scheme_name,
+            "nav": float(nav),
+            "snapshot_date": snapshot_date,
+            "source": source,
+            "created_at": now
+        })
+        conn.commit()
+    return True
+
+def get_historical_mf_nav(
+    scheme_code: str,
+    target_date: str
+) -> Optional[Dict[str, Any]]:
+    """
+    Finds the nearest recorded NAV snapshot on or prior to target_date.
+    """
+    clean_code = scheme_code.strip()
+    with get_db_connection() as conn:
+        row = conn.execute(
+            text("""
+                SELECT id, scheme_code, scheme_name, nav, snapshot_date, source, created_at
+                FROM mf_nav_snapshots
+                WHERE scheme_code = :scheme_code
+                  AND snapshot_date <= :target_date
+                ORDER BY snapshot_date DESC
+                LIMIT 1
+            """),
+            {"scheme_code": clean_code, "target_date": target_date}
+        ).mappings().fetchone()
+        if row:
+            return dict(row)
+    return None
+

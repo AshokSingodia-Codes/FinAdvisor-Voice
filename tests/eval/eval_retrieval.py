@@ -17,9 +17,15 @@ from typing import List, Dict, Any
 # Ensure project root is in sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 from config.settings import settings
 from core.db import vector_index, kg
-from nodes.retriever import structured_retriever
+from nodes.retriever import structured_retriever, retrieve_shared_corpus_concurrent
 from retrieval.hybrid_rrf import reciprocal_rank_fusion
 from retrieval.reranker import cross_encode_rerank
 
@@ -75,7 +81,7 @@ def run_retrieval_evaluation(gold_set_path: str = None, top_k: int = 5) -> Dict[
     eval_subset = [q for q in questions if not q.get("is_out_of_corpus", False) and q.get("category") != "computational_market"]
     
     print(f"\n=======================================================")
-    print(f"📊 FinAdvisor-X Retrieval & Reranker Benchmark")
+    print(f"[BENCHMARK] FinAdvisor-X Retrieval & Reranker Benchmark")
     print(f"=======================================================")
     print(f"Evaluating {len(eval_subset)} in-corpus gold queries across 4 retrieval pipelines...\n")
     
@@ -102,12 +108,15 @@ def run_retrieval_evaluation(gold_set_path: str = None, top_k: int = 5) -> Dict[
             kw_docs = []
         t_kw = time.time() - t0
         
-        # 3. Hybrid RRF (No Reranker)
+        # 3. Hybrid RRF (Real Concurrent ThreadPoolExecutor Node Path)
         t0 = time.time()
-        fused_docs = reciprocal_rank_fusion([vec_docs, kw_docs], k=settings.RRF_K)
-        t_rrf = (time.time() - t0) + max(t_vec, t_kw)
+        try:
+            fused_docs = retrieve_shared_corpus_concurrent(query=q, top_k=20, apply_rerank=False)
+        except Exception:
+            fused_docs = []
+        t_rrf = time.time() - t0
         
-        # 4. Hybrid RRF + FlashRank Reranker
+        # 4. Hybrid RRF + FlashRank Reranker (Real End-to-End retrieve_shared_corpus_concurrent)
         t0 = time.time()
         reranked_docs = cross_encode_rerank(query=q, documents=fused_docs[:20], top_k=top_k)
         t_rerank = (time.time() - t0) + t_rrf
@@ -129,7 +138,8 @@ def run_retrieval_evaluation(gold_set_path: str = None, top_k: int = 5) -> Dict[
             results[mode]["mrr"].append(m["mrr"])
             results[mode]["latencies"].append(lat)
             
-        print(f"[{i:02d}/{len(eval_subset):02d}] {q[:50]}... | FlashRank P@5: {m_rerank['precision_at_k']:.2f}, R@5: {m_rerank['recall_at_k']:.2f}, MRR: {m_rerank['mrr']:.2f}")
+        rate_limit_flag = " [RATE-LIMIT BACKOFF]" if t_kw > 10.0 or t_rrf > 10.0 else ""
+        print(f"[{i:02d}/{len(eval_subset):02d}] {q[:50]}... | FlashRank P@5: {m_rerank['precision_at_k']:.2f}, R@5: {m_rerank['recall_at_k']:.2f}, MRR: {m_rerank['mrr']:.2f}{rate_limit_flag}")
 
     # Aggregations
     summary = {}
@@ -170,7 +180,7 @@ def run_retrieval_evaluation(gold_set_path: str = None, top_k: int = 5) -> Dict[
         json.dump(report_data, f, indent=2)
         
     print("\n=======================================================")
-    print("📈 RETRIEVAL & RERANKER BENCHMARK SUMMARY (k=5)")
+    print("[SUMMARY] RETRIEVAL & RERANKER BENCHMARK SUMMARY (k=5)")
     print("=======================================================")
     print(f"| Configuration             | Precision@5 | Recall@5  | MRR     | Latency   |")
     print(f"|---------------------------|-------------|-----------|---------|-----------|")
@@ -178,9 +188,9 @@ def run_retrieval_evaluation(gold_set_path: str = None, top_k: int = 5) -> Dict[
         mode_name = mode.replace("_", " ").title()
         print(f"| {mode_name:<25} | {data['avg_precision_at_k']:<11.3f} | {data['avg_recall_at_k']:<9.3f} | {data['avg_mrr']:<7.3f} | {data['avg_latency_sec']*1000:<7.1f}ms |")
     print("-------------------------------------------------------")
-    print(f"🚀 Hybrid RRF Recall Lift over Vector-only:    +{lift['recall_lift_vs_vector_pct']}%")
-    print(f"🎯 FlashRank Precision Lift over Hybrid RRF:  +{lift['precision_lift_from_flashrank_pct']}%")
-    print(f"💾 Report saved to: {report_file}")
+    print(f"[METRIC] Hybrid RRF Recall Lift over Vector-only:    +{lift['recall_lift_vs_vector_pct']}%")
+    print(f"[METRIC] FlashRank Precision Lift over Hybrid RRF:  +{lift['precision_lift_from_flashrank_pct']}%")
+    print(f"[OUTPUT] Report saved to: {report_file}")
     print("=======================================================\n")
     
     return report_data

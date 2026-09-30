@@ -43,8 +43,8 @@ fast_fallbacks = []
 if settings.GROQ_API_KEY:
     fast_primary = ChatGroq(
         temperature=0,
-        model_name="openai/gpt-oss-20b",
-        max_tokens=400,
+        model_name=settings.ROUTER_MODEL or "openai/gpt-oss-20b",
+        max_tokens=256,
         max_retries=0,
         api_key=settings.GROQ_API_KEY,
         timeout=4,
@@ -52,25 +52,13 @@ if settings.GROQ_API_KEY:
     fast_fallbacks.append(ChatGroq(
         temperature=0,
         model_name="qwen/qwen3.8-27b",
-        max_tokens=400,
+        max_tokens=256,
         max_retries=0,
         api_key=settings.GROQ_API_KEY,
         timeout=4,
     ))
 
-if settings.GOOGLE_API_KEY:
-    gemini_fast = ChatGoogleGenerativeAI(
-        model="gemini-3.5-flash",
-        google_api_key=settings.GOOGLE_API_KEY,
-        temperature=0,
-        max_output_tokens=400,
-        timeout=8,
-    )
-    if not fast_primary:
-        fast_primary = gemini_fast
-    else:
-        fast_fallbacks.append(gemini_fast)
-
+# 1. OpenRouter (Fast & High Availability)
 if settings.OPENROUTER_API_KEY:
     or_fast = ChatOpenAI(
         model="mistralai/mistral-small-24b-instruct-2501",
@@ -79,12 +67,27 @@ if settings.OPENROUTER_API_KEY:
         max_tokens=400,
         temperature=0,
         max_retries=0,
-        timeout=6,
+        timeout=5,
     )
     if not fast_primary:
         fast_primary = or_fast
     else:
         fast_fallbacks.append(or_fast)
+
+# 2. Google Gemini
+if settings.GOOGLE_API_KEY:
+    gemini_fast = ChatGoogleGenerativeAI(
+        model="gemini-3.8-flash",
+        google_api_key=settings.GOOGLE_API_KEY,
+        temperature=0,
+        max_output_tokens=400,
+        max_retries=0,
+        timeout=4,
+    )
+    if not fast_primary:
+        fast_primary = gemini_fast
+    else:
+        fast_fallbacks.append(gemini_fast)
 
 if not fast_primary:
     fast_primary = ChatGroq(temperature=0, model_name="dummy", api_key="dummy")
@@ -113,7 +116,7 @@ synthesis_fallbacks = []
 if settings.GROQ_API_KEY:
     synthesis_primary = ChatGroq(
         temperature=0,
-        model_name="openai/gpt-oss-120b",
+        model_name=settings.SYNTHESIS_MODEL or "openai/gpt-oss-120b",
         max_tokens=1000,
         max_retries=0,
         api_key=settings.GROQ_API_KEY,
@@ -128,19 +131,7 @@ if settings.GROQ_API_KEY:
         timeout=5,
     ))
 
-if settings.GOOGLE_API_KEY:
-    gemini_synth = ChatGoogleGenerativeAI(
-        model="gemini-3.5-flash",
-        google_api_key=settings.GOOGLE_API_KEY,
-        temperature=0,
-        max_output_tokens=1000,
-        timeout=10,
-    )
-    if not synthesis_primary:
-        synthesis_primary = gemini_synth
-    else:
-        synthesis_fallbacks.append(gemini_synth)
-
+# 1. OpenRouter (High Capacity & Fast Fallback)
 if settings.OPENROUTER_API_KEY:
     or_synth = ChatOpenAI(
         model="qwen/qwen-2.5-72b-instruct",
@@ -149,12 +140,27 @@ if settings.OPENROUTER_API_KEY:
         max_tokens=1000,
         temperature=0,
         max_retries=0,
-        timeout=10,
+        timeout=8,
     )
     if not synthesis_primary:
         synthesis_primary = or_synth
     else:
         synthesis_fallbacks.append(or_synth)
+
+# 2. Google Gemini
+if settings.GOOGLE_API_KEY:
+    gemini_synth = ChatGoogleGenerativeAI(
+        model="gemini-3.8-flash",
+        google_api_key=settings.GOOGLE_API_KEY,
+        temperature=0,
+        max_output_tokens=1000,
+        max_retries=0,
+        timeout=5,
+    )
+    if not synthesis_primary:
+        synthesis_primary = gemini_synth
+    else:
+        synthesis_fallbacks.append(gemini_synth)
 
 if not synthesis_primary:
     synthesis_primary = fast_primary

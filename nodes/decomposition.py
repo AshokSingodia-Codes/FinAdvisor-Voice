@@ -24,7 +24,7 @@ decompose_chain = decompose_prompt | get_structured_fast_chat(SubQueries)
 
 def decompose_question(state: AgentState):
     print("---NODE: DECOMPOSITION---")
-    question = state["original_question"]
+    question = state.get("resolved_query") or state.get("current_question") or state.get("original_question", "")
     sub_queries = decompose_chain.invoke({"question": question})
     
     # Extract just the text queries for the retriever for now

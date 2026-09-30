@@ -260,6 +260,30 @@ def process_and_store_document_transactions(
                 })
         except Exception as e:
             print(f"[pipeline] Ambiguous batch extraction skipped ({e})")
+            # Fallback: deterministic parsing with placeholder for unparsed lines
+            for line in ambiguous_lines:
+                parsed = DeterministicParser.parse_line(line)
+                if parsed:
+                    llm_txs.append({
+                        "date": parsed["date"],
+                        "description": parsed["description"],
+                        "amount": parsed["amount"],
+                        "tx_type": parsed["tx_type"],
+                        "category": parsed["category"],
+                        "confidence": parsed.get("confidence", 1.0),
+                    })
+                else:
+                    # Minimal placeholder transaction to ensure a chunk is created
+                    amount_match = re.search(r"(?:₹|\$|Rs\.?|INR)?\s*([0-9]+(?:,[0-9]{3})*(?:\.[0-9]{1,2})?)", line)
+                    amount = float(amount_match.group(1).replace(",", "")) if amount_match else 0.0
+                    llm_txs.append({
+                        "date": "1970-01-01",
+                        "description": line[:120],
+                        "amount": amount,
+                        "tx_type": "debit",
+                        "category": "Other",
+                        "confidence": 0.0,
+                    })
 
     TokenUsageTracker.log_call(
         document_id=document_id,

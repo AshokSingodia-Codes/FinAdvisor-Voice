@@ -22,6 +22,8 @@ feature with its own security analysis.
 
 from typing import List
 from core.db import hf as embeddings
+import base64
+from core.crypto import decrypt_text
 
 
 # ---------------------------------------------------------------------------
@@ -76,7 +78,19 @@ def personal_vector_search(
     try:
         results = kg.query(cypher_native, params)
         if results:
-            return [row["text"] for row in results if row.get("text")]
+            # Decrypt encrypted base64 text
+            decrypted = []
+            for row in results:
+                enc_b64 = row.get("text")
+                if not enc_b64:
+                    continue
+                try:
+                    encrypted_bytes = base64.urlsafe_b64decode(enc_b64.encode())
+                    plaintext = decrypt_text(encrypted_bytes)
+                    decrypted.append(plaintext)
+                except Exception:
+                    continue
+            return decrypted
     except Exception:
         # Path 2: GDS cosine similarity procedure
         cypher_gds = """
@@ -95,7 +109,19 @@ def personal_vector_search(
         try:
             results = kg.query(cypher_gds, params)
             if results:
-                return [row["text"] for row in results if row.get("text")]
+                # Decrypt encrypted base64 text
+                decrypted = []
+                for row in results:
+                    enc_b64 = row.get("text")
+                    if not enc_b64:
+                        continue
+                    try:
+                        encrypted_bytes = base64.urlsafe_b64decode(enc_b64.encode())
+                        plaintext = decrypt_text(encrypted_bytes)
+                        decrypted.append(plaintext)
+                    except Exception:
+                        continue
+                return decrypted
         except Exception:
             pass
 
@@ -206,7 +232,20 @@ def personal_keyword_search(
 
     try:
         results = kg.query(cypher, params)
-        return [row["text"] for row in results if row.get("text")]
+        if not results:
+            return []
+        decrypted = []
+        for row in results:
+            enc_b64 = row.get("text")
+            if not enc_b64:
+                continue
+            try:
+                encrypted_bytes = base64.urlsafe_b64decode(enc_b64.encode())
+                plaintext = decrypt_text(encrypted_bytes)
+                decrypted.append(plaintext)
+            except Exception:
+                continue
+        return decrypted
     except Exception as e:
         print(f"[personal_retriever] Keyword search error: {e}")
         return []
@@ -238,7 +277,21 @@ def get_all_personal_document_chunks(
     }
     try:
         results = kg.query(cypher, params)
-        return [row["text"] for row in results if row.get("text")]
+        if not results:
+            return []
+        decrypted = []
+        for row in results:
+            enc_b64 = row.get("text")
+            if not enc_b64:
+                continue
+            try:
+                encrypted_bytes = base64.urlsafe_b64decode(enc_b64.encode())
+                plaintext = decrypt_text(encrypted_bytes)
+                decrypted.append(plaintext)
+            except Exception as dec_err:
+                print(f"[personal_retriever] Decryption error: {dec_err}")
+                continue
+        return decrypted
     except Exception as e:
         print(f"[personal_retriever] get_all_personal_document_chunks error: {e}")
         return []

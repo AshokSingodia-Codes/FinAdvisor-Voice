@@ -48,6 +48,22 @@ vector_index = Neo4jVector.from_existing_index(
     search_type="hybrid",
     database=NEO4J_USERNAME
 )
-vector_index.add_documents(documents)
+import time
+for i in range(800, 850):
+    batch = [documents[i]]
+    print(f"Ingesting single chunk {i}...")
+    try:
+        vector_index.add_documents(batch)
+    except Exception as e:
+        print(f"Failed chunk {i}: {e}")
 
+batch_size = 50
+for i in range(850, len(documents), batch_size):
+    batch = documents[i:i+batch_size]
+    print(f"Ingesting batch {i} to {i+len(batch)} of {len(documents)}...")
+    try:
+        vector_index.add_documents(batch)
+        time.sleep(2)
+    except Exception as e:
+        print(f"Failed batch {i}: {e}")
 print("Done! The database now has properly formatted PDF text.")

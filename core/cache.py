@@ -37,15 +37,15 @@ def _get_cache():
     return _cache
 
 
-def _make_key(question: str, conversation_id: str, document_id: Optional[str]) -> str:
+def _make_key(question: str, conversation_id: str, document_id: Optional[str], user_id: Optional[str] = None) -> str:
     """
-    Build a deterministic cache key.
+    Build a deterministic cache key scoped to (question, user_id, conversation_id, document_id).
 
     Normalization: lowercase + collapse whitespace, so minor rephrasing
     differences don't produce unnecessary cache misses.
     """
     normalized = " ".join(question.lower().split())
-    raw = f"{normalized}|{conversation_id}|{document_id or ''}"
+    raw = f"{normalized}|{user_id or ''}|{conversation_id}|{document_id or ''}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -54,6 +54,7 @@ def get_cached_response(
     conversation_id: str,
     document_id: Optional[str],
     routing_decision: Optional[str] = None,
+    user_id: Optional[str] = None,
 ) -> Optional[str]:
     """
     Return a cached LLM answer, or None on cache miss.
@@ -63,7 +64,7 @@ def get_cached_response(
     if routing_decision in _SKIP_CACHE_ROUTING:
         return None
 
-    key = _make_key(question, conversation_id, document_id)
+    key = _make_key(question, conversation_id, document_id, user_id=user_id)
     cache = _get_cache()
     cached = cache.get(key)
     if cached:
@@ -79,6 +80,7 @@ def set_cached_response(
     document_id: Optional[str],
     answer: str,
     routing_decision: Optional[str] = None,
+    user_id: Optional[str] = None,
 ) -> None:
     """
     Store an LLM answer in the cache.
@@ -88,7 +90,7 @@ def set_cached_response(
     if routing_decision in _SKIP_CACHE_ROUTING:
         return
 
-    key = _make_key(question, conversation_id, document_id)
+    key = _make_key(question, conversation_id, document_id, user_id=user_id)
     cache = _get_cache()
     cache[key] = answer
     print(f"[cache] SET  key={key[:12]}…")

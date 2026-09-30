@@ -18,3 +18,9 @@ class AgentState(TypedDict, total=False):
     # the personal document; the shared corpus path is not touched.
     document_id: Optional[str]  # Active personal document ID (None = no document attached)
     user_id: Optional[str]      # Authenticated user's ID (needed for 3-field isolation filter)
+
+    # Conversational continuity & entity tracking fields (Phase 2)
+    active_entities: Optional[Dict[str, Any]]   # Current thread entities (e.g. {"company": "Reliance", "ticker": "RELIANCE.NS"})
+    conversation_topic: Optional[str]           # Short topic summary (e.g. "Reliance financials", "SIP return comparison")
+    resolved_query: Optional[str]               # Disambiguated self-contained query with pronouns resolved
+    retrieval_retries: Optional[int]            # Count of verification audit retrieval retry loops

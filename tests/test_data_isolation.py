@@ -288,3 +288,51 @@ def test_personal_document_isolation():
         f"After deletion, referencing the document must return 404. "
         f"Got {post_delete_chat.status_code}: {post_delete_chat.text}"
     )
+
+
+def test_multi_user_token_and_rate_limit_isolation():
+    """
+    CRITICAL MULTI-USER ISOLATION TEST:
+    Verifies that when User A exhausts their rate limit or token limit quota:
+      1. User A receives 429 "Rate limit exceeded" or "Token limit exceeded".
+      2. User B (a separate user account) can still send requests normally (200 OK).
+      3. User A's token usage / rate-limit state NEVER leaks to or blocks User B.
+    """
+    from core.rate_limiter import chat_rate_limiter
+    from core.circuit_breaker import synthesis_chain_breaker
+    chat_rate_limiter.clear()
+    synthesis_chain_breaker.clear()
+
+    # User A setup
+    user_a_email = f"user_a_limit_{int(time.time())}@isolation.com"
+    user_a = create_user(user_a_email, hash_password("PasswordA1!"))
+    token_a = create_access_token({"sub": user_a_email, "user_id": user_a["id"]})
+    headers_a = {"Authorization": f"Bearer {token_a}"}
+
+    # User B setup
+    user_b_email = f"user_b_limit_{int(time.time())}@isolation.com"
+    user_b = create_user(user_b_email, hash_password("PasswordB1!"))
+    token_b = create_access_token({"sub": user_b_email, "user_id": user_b["id"]})
+    headers_b = {"Authorization": f"Bearer {token_b}"}
+
+    # User A exhausts their request limit (20 requests)
+    for i in range(chat_rate_limiter.max_requests):
+        r_a = client.post("/api/chat", json={"message": f"hi {i}"}, headers=headers_a)
+        assert r_a.status_code == 200, f"User A request {i} failed: {r_a.text}"
+
+    # 21st request for User A MUST fail with 429
+    r_a_blocked = client.post("/api/chat", json={"message": "User A 21st query"}, headers=headers_a)
+    assert r_a_blocked.status_code == 429, f"User A should be blocked with 429, got {r_a_blocked.status_code}"
+    assert "limit exceeded" in r_a_blocked.text.lower() or "429" in r_a_blocked.text
+
+    # User B sends a request — MUST succeed (200 OK), completely unblocked by User A's limit
+    r_b_success = client.post("/api/chat", json={"message": "hi from User B"}, headers=headers_b)
+    assert r_b_success.status_code == 200, (
+        f"CRITICAL ISOLATION BUG: User B was blocked by User A's limit! "
+        f"Got status {r_b_success.status_code}: {r_b_success.text}"
+    )
+
+    # Clean up test rate limit state
+    chat_rate_limiter.clear()
+    synthesis_chain_breaker.clear()
+

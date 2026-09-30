@@ -82,7 +82,7 @@ def classify_formula(query: str) -> str:
 
 def solve_math(state):
     print("---NODE: MATH SOLVER---")
-    query = state.get("current_question", state.get("original_question", ""))
+    query = state.get("resolved_query") or state.get("current_question") or state.get("original_question", "")
     try:
         formula = classify_formula(query)
         if formula == "sip" or ("monthly" in query.lower() and "sip" in query.lower()):

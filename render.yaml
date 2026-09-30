@@ -39,3 +39,18 @@ services:
         sync: false
       - key: SMTP_FROM_EMAIL
         sync: false
+
+  - type: cron
+    name: finadvisor-daily-snapshots
+    env: python
+    region: ohio
+    plan: free
+    schedule: "0 16 * * 1-5"  # Mon-Fri at 9:30 PM IST (16:00 UTC) after daily NAVs and market close
+    buildCommand: pip install -r requirements.txt
+    startCommand: python scripts/daily_snapshot_job.py
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+

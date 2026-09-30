@@ -8,6 +8,7 @@ from nodes.verifier import verify_answer
 from nodes.math_solver import solve_math
 from nodes.math_calculation import do_math_calculation
 from nodes.market_data import fetch_live_data
+from nodes.news_data import fetch_current_events
 from config.settings import settings
 
 # Define graph
@@ -22,6 +23,7 @@ workflow.add_node("verifier", verify_answer)
 workflow.add_node("math_solver", solve_math)
 workflow.add_node("math_calculation", do_math_calculation)
 workflow.add_node("live_data", fetch_live_data)
+workflow.add_node("news_node", fetch_current_events)
 
 # Set entry point
 workflow.set_entry_point("router")
@@ -39,6 +41,8 @@ def route_decision(state: AgentState):
         return "math_calculation"
     elif decision == "live_market_data":
         return "live_market_data"
+    elif decision == "current_events":
+        return "current_events"
     elif decision == "financial_table":
         return "hybrid_search" # Route financial_table to retriever
     else:
@@ -54,6 +58,7 @@ workflow.add_conditional_edges(
         "calculation": "math_solver",
         "math_calculation": "math_calculation",
         "live_market_data": "live_data",
+        "current_events": "news_node",
         "direct_answer": "evidence_builder"
     }
 )
@@ -75,6 +80,9 @@ workflow.add_edge("math_calculation", "verifier")
 
 # Flow from live data
 workflow.add_edge("live_data", "evidence_builder")
+
+# Flow from news node
+workflow.add_edge("news_node", "evidence_builder")
 
 # Conditional edges from verifier (Multi-hop Iterative loop)
 def check_verification(state: AgentState):

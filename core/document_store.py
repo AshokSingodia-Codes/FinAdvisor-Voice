@@ -45,6 +45,7 @@ user_documents_table = Table(
     Column("file_size_bytes", Integer, nullable=False),
     Column("mime_type", String(128), nullable=False),
     Column("status", String(32), nullable=False, default="processing"),
+    Column("error_message", Text, nullable=True),
     Column("chunk_count", Integer, nullable=False, default=0),
     Column("created_at", String(64), nullable=False),
     Index("idx_user_documents_user_conv", "user_id", "conversation_id"),
@@ -67,7 +68,7 @@ class NonFinancialDocumentError(ValueError):
 # Constants
 # ---------------------------------------------------------------------------
 
-MAX_FILE_BYTES = 5 * 1024 * 1024  # 5 MB hard limit
+MAX_FILE_BYTES = 10 * 1024 * 1024  # 10 MB limit
 PERSONAL_CHUNK_LABEL = "PersonalChunk"
 CHUNK_SIZE_CHARS = 1200
 CHUNK_OVERLAP_CHARS = 200
@@ -122,6 +123,8 @@ def _extract_text_from_pdf(content: bytes) -> str:
         import pdfplumber
         text_parts: List[str] = []
         with pdfplumber.open(io.BytesIO(content)) as pdf:
+            if len(pdf.pages) > 50:
+                raise ValueError("PDF exceeds the 50 pages limit.")
             for page_idx, page in enumerate(pdf.pages, start=1):
                 page_text = (page.extract_text(layout=False) or "").strip()
                 # Extract structured tables and convert to standardized Markdown
@@ -146,6 +149,8 @@ def _extract_text_from_pdf(content: bytes) -> str:
     try:
         from pypdf import PdfReader
         reader = PdfReader(io.BytesIO(content))
+        if len(reader.pages) > 50:
+            raise ValueError("PDF exceeds the 50 pages limit.")
         text_parts = []
         for idx, page in enumerate(reader.pages, start=1):
             page_text = page.extract_text()
@@ -161,6 +166,8 @@ def _extract_text_from_pdf(content: bytes) -> str:
     try:
         from PyPDF2 import PdfReader as LegacyReader
         reader = LegacyReader(io.BytesIO(content))
+        if len(reader.pages) > 50:
+            raise ValueError("PDF exceeds the 50 pages limit.")
         text_parts = []
         for idx, page in enumerate(reader.pages, start=1):
             page_text = page.extract_text()
@@ -392,14 +399,16 @@ def ingest_chunks_to_neo4j(
 
     embeddings = _embed_texts(chunks)
 
-    # Prepare batch records
+    # Prepare batch records with encrypted text
+    from core.crypto import encrypt_text
+    import base64
     batch_data = [
         {
             "chunk_id": f"{document_id}::chunk::{idx}",
             "document_id": document_id,
             "user_id": user_id,
             "conversation_id": conversation_id,
-            "text": chunk_text,
+            "text": base64.urlsafe_b64encode(encrypt_text(chunk_text)).decode('utf-8'),
             "chunk_index": idx,
             "embedding": embedding,
         }
@@ -532,10 +541,10 @@ def update_document_error(document_id: str, error_msg: str) -> None:
         conn.execute(
             text("""
                 UPDATE user_documents
-                SET status = 'error'
+                SET status = 'failed', error_message = :error_msg
                 WHERE id = :id
             """),
-            {"id": document_id},
+            {"id": document_id, "error_msg": error_msg},
         )
         conn.commit()
 
@@ -571,8 +580,12 @@ def ingest_document(
     mime_type: str,
     user_id: str,
     conversation_id: str,
+    background_tasks: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """
+    Ingests a document. If background_tasks is provided, the heavy processing
+    is deferred to the background task, and it returns immediately.
+
     Full document ingestion pipeline:
         1. Validate size
         2. Extract text & structured tables
@@ -592,30 +605,11 @@ def ingest_document(
     # 1. Size guard (5 MB hard limit)
     if len(content) > MAX_FILE_BYTES:
         raise ValueError(
-            f"File size {len(content):,} bytes exceeds the 5 MB limit "
+            f"File size {len(content):,} bytes exceeds the 10 MB limit "
             f"({MAX_FILE_BYTES:,} bytes)."
         )
 
-    # 2. Extract text & tables
-    raw_text = extract_text(content, mime_type)
-    if not raw_text or not raw_text.strip():
-        raise RuntimeError("No readable text or financial data could be extracted from the document.")
-
-    # 3. Domain Gatekeeper: Reject non-financial documents
-    if not validate_financial_domain(raw_text, filename):
-        raise NonFinancialDocumentError(
-            f"The uploaded document '{filename}' is not finance-related. "
-            "FinAdvisor-X only stores and processes financial documents (e.g., bank statements, "
-            "salary slips, investment reports, balance sheets, tax returns, invoices, bills, portfolios)."
-        )
-
-    # 4. Token Optimization: Compress tabular whitespace and markdown structure (lossless ~35% token savings)
-    compressed_text = compress_financial_text(raw_text)
-
-    # 5. Extract compact statement manifest (<50 tokens) for instant conversational routing
-    manifest = extract_statement_manifest(compressed_text, filename)
-
-    # 6. Create SQL record
+    # 2. Create SQL record immediately with "queued" or "processing" status
     document_id = str(uuid.uuid4())
     record = create_document_record(
         document_id=document_id,
@@ -625,15 +619,69 @@ def ingest_document(
         file_size_bytes=len(content),
         mime_type=mime_type,
     )
-    record["manifest"] = manifest
+    # Manifest will be populated in the background task
+    record["manifest"] = {}
 
+    if background_tasks:
+        background_tasks.add_task(
+            _process_document_pipeline,
+            content=content,
+            filename=filename,
+            mime_type=mime_type,
+            user_id=user_id,
+            conversation_id=conversation_id,
+            document_id=document_id,
+            record=record
+        )
+        return record
+    else:
+        return _process_document_pipeline(
+            content=content,
+            filename=filename,
+            mime_type=mime_type,
+            user_id=user_id,
+            conversation_id=conversation_id,
+            document_id=document_id,
+            record=record
+        )
+
+
+def _process_document_pipeline(
+    content: bytes,
+    filename: str,
+    mime_type: str,
+    user_id: str,
+    conversation_id: str,
+    document_id: str,
+    record: Dict[str, Any]
+) -> Dict[str, Any]:
     try:
+        # 2. Extract text & tables
+        raw_text = extract_text(content, mime_type)
+        if not raw_text or not raw_text.strip():
+            raise RuntimeError("No readable text or financial data could be extracted from the document.")
+
+        # 3. Domain Gatekeeper
+        if not validate_financial_domain(raw_text, filename):
+            raise NonFinancialDocumentError(
+                f"The uploaded document '{filename}' is not finance-related. "
+                "FinAdvisor-X only stores and processes financial documents (e.g., bank statements, "
+                "salary slips, investment reports, balance sheets, tax returns, invoices, bills, portfolios)."
+            )
+
+        # 4. Token Optimization
+        compressed_text = compress_financial_text(raw_text)
+
+        # 5. Extract manifest
+        manifest = extract_statement_manifest(compressed_text, filename)
+        record["manifest"] = manifest
+
         # 7. Chunk text
         chunks = _chunk_text(compressed_text)
         if not chunks:
             raise RuntimeError("No readable chunks could be produced from the document.")
 
-        # 8. Embed + write to Neo4j in batches
+        # 8. Embed + write to Neo4j
         from core.db import kg
         ingest_chunks_to_neo4j(
             kg=kg,
@@ -643,7 +691,7 @@ def ingest_document(
             chunks=chunks,
         )
 
-        # 9. Extract and store structured transactions (Deterministic + Batched LLM Fallback)
+        # 9. Transactions
         try:
             from financial.transaction_pipeline import process_and_store_document_transactions
             tx_res = process_and_store_document_transactions(
@@ -661,11 +709,12 @@ def ingest_document(
         record["status"] = "ready"
         record["chunk_count"] = len(chunks)
         return record
-
     except Exception as exc:
         update_document_error(document_id, str(exc))
-        record["status"] = "error"
-        raise
+        record["status"] = "failed"
+        record["error_message"] = str(exc)
+        if not isinstance(exc, (ValueError, NonFinancialDocumentError, RuntimeError)):
+            print(f"[document_store] Unhandled error during background ingestion: {exc}")
 
 
 def extract_statement_manifest(text_content: str, filename: str) -> str:

@@ -7,13 +7,18 @@ if hasattr(sys.stdout, 'reconfigure'):
         pass
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File, Form
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File, Form, Request, BackgroundTasks
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta, timezone
 import re
+import json
+import asyncio
 
+from config.settings import settings
 from graph.workflow import workflow
 from dotenv import load_dotenv
 import uuid
@@ -35,7 +40,9 @@ from core.memory import (
     save_otp_record,
     get_last_otp_record,
     verify_and_claim_otp,
-    consume_verification_token
+    consume_verification_token,
+    get_conversation_continuity,
+    save_conversation_continuity
 )
 from core.auth import (
     hash_password,
@@ -60,13 +67,60 @@ from core.document_store import (
     MAX_FILE_BYTES,
     NonFinancialDocumentError,
 )
+from tools.fast_math import try_evaluate_fast_math
+from core.greeting_handler import is_greeting_or_chitchat, get_greeting_response
 
 load_dotenv()
+
+
 
 # Compile the LangGraph
 app_graph = workflow.compile()
 
-app = FastAPI(title="Financial Advisor API", version="2.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """FastAPI lifespan context manager — runs startup tasks and manages clean shutdown."""
+    from core.regulatory_watcher import monthly_watchdog_background_loop
+    # Start background workers
+    reg_task = asyncio.create_task(monthly_watchdog_background_loop())
+    snap_task = asyncio.create_task(_daily_snapshot_background_loop())
+    # Pre-warm FlashRank, FastEmbed, Postgres, and Neo4j in background thread
+    def _warmup():
+        try:
+            from retrieval.reranker import get_ranker
+            get_ranker()
+        except Exception as e:
+            print(f"[Lifespan Warmup Notice] FlashRank warmup: {e}")
+
+        try:
+            from core.db import fast_embeddings
+            fast_embeddings._get_model()
+        except Exception as e:
+            print(f"[Lifespan Warmup Notice] FastEmbed warmup: {e}")
+
+        try:
+            from core.memory import get_db_connection
+            from sqlalchemy import text
+            with get_db_connection() as conn:
+                conn.execute(text("SELECT 1")).fetchone()
+        except Exception as e:
+            print(f"[Lifespan Warmup Notice] Postgres warmup: {e}")
+
+        try:
+            from core.db import kg
+            kg.query("RETURN 1 AS val")
+        except Exception as e:
+            print(f"[Lifespan Warmup Notice] Neo4j warmup: {e}")
+
+    asyncio.get_event_loop().run_in_executor(None, _warmup)
+    yield  # application is running
+    # Graceful shutdown — cancel background tasks
+    reg_task.cancel()
+    snap_task.cancel()
+
+
+app = FastAPI(title="Financial Advisor API", version="2.0", lifespan=lifespan)
 
 # Allow React frontend to communicate with FastAPI
 app.add_middleware(
@@ -86,6 +140,11 @@ def validate_email_format(email: str) -> str:
     if not re.match(EMAIL_REGEX, cleaned):
         raise HTTPException(status_code=400, detail="Invalid email address format.")
     return cleaned
+
+@app.get("/api/health")
+def health_check():
+    """Lightweight endpoint for health-ping cron jobs."""
+    return {"status": "ok"}
 
 class SendOtpRequest(BaseModel):
     email: str
@@ -122,6 +181,7 @@ class ChatRequest(BaseModel):
     # When set, the retriever exclusively searches this personal document.
     # Must match a document uploaded to the same conversation_id by the same user.
     document_id: Optional[str] = None
+    stream: Optional[bool] = False
 
 class ChatResponse(BaseModel):
     answer: str
@@ -386,18 +446,23 @@ def remove_conversation(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- Protected Chat Endpoint ---
+# --- Protected Chat Endpoints ---
 
-@app.post("/api/chat", response_model=ChatResponse)
-def chat_endpoint(
+@app.post("/api/chat")
+async def chat_endpoint(
     request: ChatRequest,
+    http_request: Request,
+    background_tasks: BackgroundTasks,
     current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     try:
         query = request.message.strip()
+        if not query:
+            raise HTTPException(status_code=400, detail="Message cannot be empty.")
         user_id = current_user["id"]
         conv_id = request.conversation_id
         document_id = request.document_id or None
+        is_stream_requested = request.stream or "text/event-stream" in http_request.headers.get("accept", "")
 
         # --- Rate limiting ---
         chat_rate_limiter.check_rate_limit(user_id)
@@ -437,38 +502,135 @@ def chat_endpoint(
             if doc_record["status"] != "ready":
                 raise HTTPException(status_code=409, detail=f"Document is not ready (status: {doc_record['status']}).")
 
-        # --- Cache check (skip for live market queries) ---
+        # --- Deterministic Short-Circuit 1: Fast-Math Engine ---
+        if not document_id:
+            is_math, math_ans, _ = try_evaluate_fast_math(query)
+            if is_math and math_ans:
+                add_message(conv_id, "user", query, user_id=user_id)
+                add_message(conv_id, "assistant", math_ans, user_id=user_id)
+                set_cached_response(
+                    question=query,
+                    conversation_id=conv_id,
+                    document_id=None,
+                    answer=math_ans,
+                    routing_decision="math_calculation",
+                    user_id=user_id
+                )
+                background_tasks.add_task(extract_and_update_memory, conv_id, query, math_ans, user_id)
+                chat_title = query[:35].title() if len(query) <= 35 else query[:30].title() + "..."
+                if is_stream_requested:
+                    async def event_generator():
+                        yield f"event: step\ndata: {json.dumps({'node': 'fast_math'})}\n\n"
+                        yield f"event: token\ndata: {json.dumps({'chunk': math_ans})}\n\n"
+                        yield f"event: done\ndata: {json.dumps({'answer': math_ans, 'conversation_id': conv_id, 'title': chat_title})}\n\n"
+                    return StreamingResponse(event_generator(), media_type="text/event-stream")
+                return ChatResponse(answer=math_ans, conversation_id=conv_id, title=chat_title)
+
+        # --- Deterministic Short-Circuit 2: Greetings & Chit-Chat ---
+        if not document_id:
+            is_greet, cat = is_greeting_or_chitchat(query)
+            if is_greet and cat:
+                prior_msgs = get_conversation_context(conv_id, user_id=user_id)
+                turn_estimate = prior_msgs.count("[User]:")
+                greet_ans = get_greeting_response(cat, query, turn_count=turn_estimate)
+                add_message(conv_id, "user", query, user_id=user_id)
+                add_message(conv_id, "assistant", greet_ans, user_id=user_id)
+                set_cached_response(
+                    question=query,
+                    conversation_id=conv_id,
+                    document_id=None,
+                    answer=greet_ans,
+                    routing_decision="direct_answer",
+                    user_id=user_id
+                )
+                background_tasks.add_task(extract_and_update_memory, conv_id, query, greet_ans, user_id)
+                chat_title = "Greeting"
+                if is_stream_requested:
+                    async def event_generator():
+                        yield f"event: step\ndata: {json.dumps({'node': 'greeting_handler'})}\n\n"
+                        yield f"event: token\ndata: {json.dumps({'chunk': greet_ans})}\n\n"
+                        yield f"event: done\ndata: {json.dumps({'answer': greet_ans, 'conversation_id': conv_id, 'title': chat_title})}\n\n"
+                    return StreamingResponse(event_generator(), media_type="text/event-stream")
+                return ChatResponse(answer=greet_ans, conversation_id=conv_id, title=chat_title)
+
+        # --- Cache check ---
         cached_answer = get_cached_response(
             question=query,
             conversation_id=conv_id,
             document_id=document_id,
+            user_id=user_id,
         )
         if cached_answer:
             add_message(conv_id, "user", query, user_id=user_id)
             add_message(conv_id, "assistant", cached_answer, user_id=user_id)
-            chat_title = extract_and_update_memory(conv_id, query, cached_answer, user_id=user_id)
+            background_tasks.add_task(extract_and_update_memory, conv_id, query, cached_answer, user_id)
+            chat_title = query[:35].title() if len(query) <= 35 else query[:30].title() + "..."
+            if is_stream_requested:
+                async def event_generator():
+                    yield f"event: step\ndata: {json.dumps({'node': 'cache_hit'})}\n\n"
+                    yield f"event: token\ndata: {json.dumps({'chunk': cached_answer})}\n\n"
+                    yield f"event: done\ndata: {json.dumps({'answer': cached_answer, 'conversation_id': conv_id, 'title': chat_title})}\n\n"
+                return StreamingResponse(event_generator(), media_type="text/event-stream")
             return ChatResponse(answer=cached_answer, conversation_id=conv_id, title=chat_title)
 
         # Save user message with user_id
         add_message(conv_id, "user", query, user_id=user_id)
 
-        # Retrieve context (structured facts + summary + recent turns) for this conversation
-        memory_ctx = get_conversation_context(conv_id, user_id=user_id)
+        # Retrieve context with configurable windowing (default 6 turns)
+        memory_ctx = get_conversation_context(conv_id, user_id=user_id, max_turns=settings.MAX_CHAT_HISTORY_TURNS)
+        continuity = get_conversation_continuity(conv_id, user_id=user_id) if conv_id else {}
+        active_entities = continuity.get("active_entities") or {}
+        conversation_topic = continuity.get("conversation_topic") or ""
 
-        # Prepare state for LangGraph
+        # Prepare state for LangGraph with windowed history
+        windowed_history = [
+            m.model_dump() if hasattr(m, "model_dump") else m 
+            for m in (request.chat_history or [])
+        ][-settings.MAX_CHAT_HISTORY_TURNS:]
+
         initial_state = {
             "original_question": query,
             "current_question": query,
-            "chat_history": [],
+            "chat_history": windowed_history,
             "memory_context": memory_ctx,
             "conversation_id": conv_id,
             "user_id": user_id,
             "document_id": document_id,
+            "active_entities": active_entities,
+            "conversation_topic": conversation_topic,
         }
 
-        final_state = {}
+        if is_stream_requested:
+            async def run_and_stream():
+                final_state = {}
+                # LangGraph node progress streaming
+                for out in app_graph.stream(initial_state):
+                    for node_name, state in out.items():
+                        final_state = state
+                        yield f"event: step\ndata: {json.dumps({'node': node_name})}\n\n"
+                        await asyncio.sleep(0.01)
 
-        # Execute the LangGraph
+                ans = final_state.get("final_answer") or final_state.get("draft_answer", "Sorry, I couldn't process your request.")
+                r_decision = final_state.get("routing_decision")
+                set_cached_response(
+                    question=query,
+                    conversation_id=conv_id,
+                    document_id=document_id,
+                    answer=ans,
+                    routing_decision=r_decision,
+                    user_id=user_id,
+                )
+                add_message(conv_id, "assistant", ans, user_id=user_id)
+                background_tasks.add_task(extract_and_update_memory, conv_id, query, ans, user_id)
+                chat_title = query[:35].title() if len(query) <= 35 else query[:30].title() + "..."
+
+                yield f"event: token\ndata: {json.dumps({'chunk': ans})}\n\n"
+                yield f"event: done\ndata: {json.dumps({'answer': ans, 'conversation_id': conv_id, 'title': chat_title})}\n\n"
+
+            return StreamingResponse(run_and_stream(), media_type="text/event-stream")
+
+        final_state = {}
+        # Execute standard LangGraph run
         for out in app_graph.stream(initial_state):
             for node_name, state in out.items():
                 final_state = state
@@ -483,13 +645,15 @@ def chat_endpoint(
             document_id=document_id,
             answer=answer,
             routing_decision=routing_decision,
+            user_id=user_id,
         )
 
         # Save assistant message with user_id
         add_message(conv_id, "assistant", answer, user_id=user_id)
 
-        # Extract facts, update conversation title if needed
-        chat_title = extract_and_update_memory(conv_id, query, answer, user_id=user_id)
+        # Offload fact extraction and title generation to background task
+        background_tasks.add_task(extract_and_update_memory, conv_id, query, answer, user_id)
+        chat_title = query[:35].title() if len(query) <= 35 else query[:30].title() + "..."
 
         return ChatResponse(
             answer=answer,
@@ -520,6 +684,7 @@ ALLOWED_MIME_TYPES = {
 
 @app.post("/api/documents/upload")
 async def upload_document(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     conversation_id: str = Form(...),
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -586,6 +751,7 @@ async def upload_document(
             mime_type=mime_type,
             user_id=user_id,
             conversation_id=conversation_id,
+            background_tasks=background_tasks,
         )
         return {
             "status": "success",
@@ -608,6 +774,28 @@ async def upload_document(
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Document ingestion failed: {e}")
+
+
+@app.get("/api/documents/status/{document_id}")
+def get_document_status(
+    document_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    from core.document_store import get_document_record
+    record = get_document_record(document_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    
+    if record["user_id"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied.")
+        
+    return {
+        "document_id": document_id,
+        "status": record.get("status", "unknown"),
+        "error_message": record.get("error_message"),
+        "chunk_count": record.get("chunk_count", 0),
+        "filename": record.get("filename"),
+    }
 
 
 @app.delete("/api/documents/{document_id}")
@@ -646,27 +834,152 @@ def delete_document_endpoint(
 
     return {"status": "deleted", "document_id": document_id}
 
-from core.regulatory_watcher import check_and_sync_financial_rules, monthly_watchdog_background_loop
-import asyncio
+from core.regulatory_watcher import check_and_sync_financial_rules
 
-@app.on_event("startup")
-async def startup_event():
-    # Start the monthly regulatory watchdog in the background
-    asyncio.create_task(monthly_watchdog_background_loop())
-    # Pre-warm FlashRank ranker and FastEmbed in background to eliminate query cold-starts
-    def _warmup():
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 6 — Daily Snapshot Scheduler
+# Runs scripts/daily_snapshot_job.py every day at ~18:30 IST (13:00 UTC),
+# capturing Indian equity closing prices and mutual fund NAVs into PostgreSQL.
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def _daily_snapshot_background_loop():
+    """
+    Background async loop: runs run_daily_snapshots() once per day.
+    Target time: 13:00 UTC (≈ 18:30 IST) — after NSE/BSE market close.
+    On startup it sleeps until the next target window, then fires every 24h.
+    """
+    from datetime import datetime, timezone, timedelta
+    import asyncio as _aio
+    from scripts.daily_snapshot_job import run_daily_snapshots
+
+    print("🕐 [Daily Snapshot Scheduler] Background worker initialized.")
+
+    _TARGET_HOUR_UTC = 13  # 18:30 IST
+
+    while True:
         try:
-            from retrieval.reranker import get_ranker
-            get_ranker()
-        except Exception:
-            pass
-    asyncio.get_event_loop().run_in_executor(None, _warmup)
+            now = datetime.now(timezone.utc)
+            # Calculate seconds until next 13:00 UTC
+            next_run = now.replace(hour=_TARGET_HOUR_UTC, minute=0, second=0, microsecond=0)
+            if now >= next_run:
+                next_run += timedelta(days=1)
+            wait_secs = (next_run - now).total_seconds()
+            print(f"  [Daily Snapshot Scheduler] Next run at {next_run.isoformat()}Z "
+                  f"(in {wait_secs / 3600:.1f}h)")
+            await _aio.sleep(wait_secs)
+
+            # Execute the snapshot job in a thread-pool executor (blocking I/O)
+            loop = _aio.get_event_loop()
+            result = await loop.run_in_executor(None, run_daily_snapshots)
+            print(f"  [Daily Snapshot Scheduler] Completed: "
+                  f"equity+MF saved={result.get('success_count', 0)}, "
+                  f"failed={result.get('fail_count', 0)}, "
+                  f"mf_nav_saved={result.get('mf_nav_success', 0)}")
+        except Exception as _exc:
+            print(f"  [Daily Snapshot Scheduler Error]: {_exc}")
+            # Back off 1 hour on error to prevent tight crash loops
+            await _aio.sleep(3600)
+
+
+# Startup/shutdown lifecycle is now managed by the lifespan() context manager above.
+# (Migrated from deprecated @app.on_event("startup") to lifespan for FastAPI 0.100+ compatibility.)
+
 
 @app.post("/api/admin/sync-regulatory-updates")
 async def trigger_regulatory_sync(user_data: dict = Depends(get_current_user)):
     """Admin/Manual trigger to execute the monthly regulatory knowledge sync immediately."""
     result = check_and_sync_financial_rules()
     return result
+
+
+@app.post("/api/admin/run-daily-snapshot")
+async def trigger_daily_snapshot(user_data: dict = Depends(get_current_user)):
+    """
+    Admin/Manual trigger to execute the daily equity + mutual fund NAV snapshot job immediately.
+    Useful for testing or catching up after a missed nightly run.
+    """
+    from scripts.daily_snapshot_job import run_daily_snapshots
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, run_daily_snapshots)
+    return result
+
+
+@app.get("/api/snapshots/{asset_type}/{symbol}")
+async def get_snapshot_history(
+    asset_type: str,
+    symbol: str,
+    limit: int = 30,
+    user_data: dict = Depends(get_current_user)
+):
+    """
+    Returns chronological daily price / NAV history for a tracked asset.
+
+    - **asset_type**: `equity` or `mutual_fund`
+    - **symbol**: NSE ticker (e.g. `RELIANCE.NS`) or AMFI scheme code (e.g. `122639`)
+    - **limit**: number of historical records to return (default 30, max 365)
+    """
+    from core.memory import get_all_snapshots, get_historical_snapshot
+    limit = min(max(1, limit), 365)
+    records = get_all_snapshots(asset_type=asset_type, symbol_or_scheme_code=symbol, limit=limit)
+    return {
+        "asset_type": asset_type,
+        "symbol": symbol,
+        "count": len(records),
+        "snapshots": records
+    }
+
+
+@app.get("/api/snapshots/{asset_type}/{symbol}/return")
+async def get_snapshot_period_return(
+    asset_type: str,
+    symbol: str,
+    current_value: float,
+    period: str = "1w",
+    user_data: dict = Depends(get_current_user)
+):
+    """
+    Computes the percentage change for an asset over the requested period
+    using stored daily snapshot history.
+
+    - **asset_type**: `equity` or `mutual_fund`
+    - **symbol**: ticker or AMFI scheme code
+    - **current_value**: live price or NAV to compare against
+    - **period**: `1d`, `1w`, `1m`, `3m`, `6m`, `1y`
+    """
+    from tools.snapshot_helper import calculate_period_return
+    result = calculate_period_return(
+        asset_type=asset_type,
+        symbol_or_scheme_code=symbol,
+        current_value=current_value,
+        period=period
+    )
+    return result
+
+
+@app.get("/api/mf-nav/{scheme_code}")
+async def get_mf_nav_history(
+    scheme_code: str,
+    target_date: Optional[str] = None,
+    user_data: dict = Depends(get_current_user)
+):
+    """
+    Returns the most recent NAV snapshot for an AMFI mutual fund scheme on or
+    before the requested date (defaults to today).
+
+    - **scheme_code**: AMFI scheme code (e.g. `122639` for Parag Parikh Flexi Cap)
+    - **target_date**: ISO date string `YYYY-MM-DD` (optional, defaults to today)
+    """
+    from core.memory import get_historical_mf_nav
+    from datetime import datetime, timezone
+    if not target_date:
+        target_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    record = get_historical_mf_nav(scheme_code=scheme_code, target_date=target_date)
+    if not record:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No NAV history found for scheme {scheme_code} on or before {target_date}."
+        )
+    return record
 
 import os
 from fastapi.staticfiles import StaticFiles

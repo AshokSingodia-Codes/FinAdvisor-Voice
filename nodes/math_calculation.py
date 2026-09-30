@@ -11,6 +11,7 @@ from tools.calculator import (
     sum_list,
     strip_currency_and_commas
 )
+from tools.fast_math import try_evaluate_fast_math
 
 class BasicMathExtraction(BaseModel):
     operation: str = Field(description="The mathematical operation to perform: 'arithmetic', 'percentage_of', 'percentage_change', 'sum_list', or 'none'")
@@ -38,11 +39,19 @@ basic_math_chain = basic_math_prompt | get_structured_chat(BasicMathExtraction)
 
 def do_math_calculation(state: AgentState):
     print("---NODE: MATH CALCULATION---")
-    question = state["current_question"]
-    question = strip_currency_and_commas(question)
+    question = state.get("resolved_query") or state.get("current_question") or state.get("original_question", "")
+    
+    # 1. Deterministic Fast-Math Engine (Categories A-E, G, J, L, M) (0 LLM tokens)
+    is_pure, pure_ans, _ = try_evaluate_fast_math(question)
+    if is_pure and pure_ans:
+        print("  [Math Calculation: DETERMINISTIC FAST-PATH]")
+        return {"draft_answer": pure_ans}
+
+
+    question_cleaned = strip_currency_and_commas(question)
     
     try:
-        extraction = basic_math_chain.invoke({"question": question})
+        extraction = basic_math_chain.invoke({"question": question_cleaned})
         op = extraction.operation
         expr = extraction.expression
         vals = extraction.values
@@ -69,7 +78,15 @@ def do_math_calculation(state: AgentState):
                 else:
                     draft = f"The calculated result is {result:,.2f}."
         else:
-            draft = "I could not extract the exact numbers required to perform this basic calculation."
+            # Deterministic fallback try on raw expression
+            try:
+                res = safe_calculate(question_cleaned)
+                if float(res).is_integer():
+                    draft = f"The calculated result is {int(res):,}."
+                else:
+                    draft = f"The calculated result is {res:,.2f}."
+            except Exception:
+                draft = "I could not extract the exact numbers required to perform this basic calculation."
             
     except ValueError as ve:
         print(f"Calculator ValueError: {ve}")
@@ -79,3 +96,4 @@ def do_math_calculation(state: AgentState):
         draft = "An error occurred while attempting to compute the arithmetic."
         
     return {"draft_answer": draft}
+

@@ -9,8 +9,14 @@ class Settings(BaseSettings):
     NEO4J_USERNAME: str = Field("neo4j", description="Neo4j Username")
     NEO4J_PASSWORD: str = Field("password", description="Neo4j Password")
     
+    # LLM Model Configuration
     GROQ_API_KEY: str = Field("", description="Groq API Key")
-    GROQ_MODEL: str = Field("qwen/qwen3.8-27b", description="Groq Model to use")
+    GROQ_MODEL: str = Field("openai/gpt-oss-120b", description="Primary Groq Model")
+    ROUTER_MODEL: str = Field("openai/gpt-oss-20b", description="Fast Router Groq Model (max_tokens ~64)")
+    VERIFIER_MODEL: str = Field("openai/gpt-oss-20b", description="Fast Verifier Groq Model (max_tokens ~64)")
+    SYNTHESIS_MODEL: str = Field("openai/gpt-oss-120b", description="High-capacity Synthesis Groq Model")
+    MAX_CHAT_HISTORY_TURNS: int = Field(6, description="Max conversation turns passed into StateGraph")
+    
     GITHUB_API_KEY: Optional[str] = Field(None, description="GitHub PAT for Models API fallback")
     OPENROUTER_API_KEY: Optional[str] = Field(None, description="OpenRouter API Key for fallback")
     GOOGLE_API_KEY: Optional[str] = Field(None, description="Google API Key for Gemini fallback")
@@ -81,6 +87,35 @@ class Settings(BaseSettings):
         return url
 
 
+KNOWN_GROQ_MODELS = {
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
+    "qwen/qwen3.8-27b",
+    "allam-2-7b",
+    "openai/gpt-oss-safeguard-20b",
+    "meta-llama/llama-prompt-guard-2-86m",
+    "meta-llama/llama-prompt-guard-2-22m",
+    "whisper-large-v3-turbo",
+    "whisper-large-v3",
+}
+
+def validate_groq_models(s: Settings):
+    """Fails loudly if any configured Groq model is not in the confirmed supported models list."""
+    if not s.GROQ_API_KEY:
+        return
+    for name, model_str in [
+        ("GROQ_MODEL", s.GROQ_MODEL),
+        ("ROUTER_MODEL", s.ROUTER_MODEL),
+        ("VERIFIER_MODEL", s.VERIFIER_MODEL),
+        ("SYNTHESIS_MODEL", s.SYNTHESIS_MODEL),
+    ]:
+        if model_str and model_str not in KNOWN_GROQ_MODELS and not model_str.startswith("custom/"):
+            raise ValueError(
+                f"[FinAdvisor-X Startup Error] Invalid {name}='{model_str}'. "
+                f"Model identifier not in verified Groq supported models list: {sorted(list(KNOWN_GROQ_MODELS))}"
+            )
+
 # Instantiate a singleton settings object
 settings = Settings()
+validate_groq_models(settings)
 
