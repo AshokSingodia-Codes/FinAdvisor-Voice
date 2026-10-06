@@ -1,5 +1,0 @@
-﻿[pytest]
-# Set per-test timeout to 10 minutes (600 seconds)
-timeout = 600
-# Set entire test session timeout to 10 minutes
-session_timeout = 600
