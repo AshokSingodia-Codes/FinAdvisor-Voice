@@ -218,8 +218,19 @@ def get_db_connection(custom_engine=None):
 
 def init_db(target_engine=None):
     """Initializes all database tables and indexes."""
+    global engine
     eng = target_engine or engine
-    metadata.create_all(bind=eng)
+    try:
+        metadata.create_all(bind=eng)
+    except Exception as e:
+        if not str(eng.url).startswith("sqlite"):
+            print(f"[DB Warning] Primary DB connection failed ({e}). Falling back to local SQLite at data/conversations.db")
+            os.makedirs("data", exist_ok=True)
+            engine = create_db_engine("sqlite:///data/conversations.db")
+            eng = engine
+            metadata.create_all(bind=eng)
+        else:
+            raise
     
     with get_db_connection(custom_engine=eng) as conn:
         # Purge any legacy NULL user_id conversations

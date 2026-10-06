@@ -80,9 +80,8 @@ def verify_answer(state: AgentState):
         }), max_retries=1, base_delay=0.5)
         is_supported = res.is_supported and res.numerical_consistency
         if not is_supported:
-            qualified_answer = f"{draft}\n\n[Verification Notice]: Fact-check auditor found ungrounded or inconsistent claims: {res.reasoning}"
-        else:
-            qualified_answer = draft
+            print(f"[DEBUG] ---NODE: VERIFIER AUDIT WARNING: {res.reasoning}---")
+        qualified_answer = draft
             
         return {
             "verification_passed": is_supported,

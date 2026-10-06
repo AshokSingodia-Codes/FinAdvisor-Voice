@@ -1,0 +1,41 @@
+# Heavy PDFs & Datasets
+data/*.pdf
+Annual Report/
+Annual Report/*.pdf
+*.pkl
+graph_documents.pkl
+cached_10k.md
+
+# Scratch and Local test scripts
+scratch/
+scratch_*.py
+sanity_check*.py
+check_db.py
+dry_run_*.py
+extract_real_subset.py
+subset_from_db.py
+rebuild_*.py
+insert_50_chunks.py
+patch_daily_test.py
+test_quota.py
+test_db_direct.py
+test_doc_validation.py
+test_e2e_financial_pdf_rag.py
+
+# Documentation, Learning & Reports
+learning/
+reports/
+*.md
+!README.md
+
+# Caches & Local Databases
+.cache/
+.pytest_cache/
+*.db
+*.sqlite3
+data/*.db
+data/*.sqlite3
+
+# Frontend (if frontend is deployed separately on Vercel/Netlify)
+frontend/
+node_modules/

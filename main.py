@@ -82,38 +82,9 @@ app_graph = workflow.compile()
 async def lifespan(app: FastAPI):
     """FastAPI lifespan context manager — runs startup tasks and manages clean shutdown."""
     from core.regulatory_watcher import monthly_watchdog_background_loop
-    # Start background workers
+    # Start light background tasks
     reg_task = asyncio.create_task(monthly_watchdog_background_loop())
     snap_task = asyncio.create_task(_daily_snapshot_background_loop())
-    # Pre-warm FlashRank, FastEmbed, Postgres, and Neo4j in background thread
-    def _warmup():
-        try:
-            from retrieval.reranker import get_ranker
-            get_ranker()
-        except Exception as e:
-            print(f"[Lifespan Warmup Notice] FlashRank warmup: {e}")
-
-        try:
-            from core.db import fast_embeddings
-            fast_embeddings._get_model()
-        except Exception as e:
-            print(f"[Lifespan Warmup Notice] FastEmbed warmup: {e}")
-
-        try:
-            from core.memory import get_db_connection
-            from sqlalchemy import text
-            with get_db_connection() as conn:
-                conn.execute(text("SELECT 1")).fetchone()
-        except Exception as e:
-            print(f"[Lifespan Warmup Notice] Postgres warmup: {e}")
-
-        try:
-            from core.db import kg
-            kg.query("RETURN 1 AS val")
-        except Exception as e:
-            print(f"[Lifespan Warmup Notice] Neo4j warmup: {e}")
-
-    asyncio.get_event_loop().run_in_executor(None, _warmup)
     yield  # application is running
     # Graceful shutdown — cancel background tasks
     reg_task.cancel()
@@ -201,7 +172,7 @@ def read_root():
 # --- Authentication Endpoints ---
 
 @app.post("/api/auth/send-otp")
-def send_otp_endpoint(request: SendOtpRequest):
+async def send_otp_endpoint(request: SendOtpRequest):
     email = validate_email_format(request.email)
     purpose = request.purpose.strip().lower()
     
@@ -238,7 +209,7 @@ def send_otp_endpoint(request: SendOtpRequest):
     exp_iso = (datetime.now(timezone.utc) + timedelta(minutes=OTP_EXPIRY_MINUTES)).isoformat()
     
     save_otp_record(email, otp_hash, purpose, exp_iso)
-    send_otp_email(email, otp, purpose)
+    await asyncio.to_thread(send_otp_email, email, otp, purpose)
     
     return {
         "status": "success",
@@ -318,6 +289,7 @@ def login_endpoint(request: LoginRequest):
     }
 
 @app.post("/api/auth/forgot-password/reset")
+@app.post("/api/auth/reset-password")
 def reset_password_endpoint(request: ResetPasswordRequest):
     email = validate_email_format(request.email)
     new_password = request.new_password

@@ -4,8 +4,8 @@ services:
     env: python
     region: ohio
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    buildCommand: pip install --no-cache-dir -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --limit-concurrency 30
     envVars:
       - key: PYTHONUNBUFFERED
         value: "1"
@@ -14,6 +14,16 @@ services:
       - key: OMP_NUM_THREADS
         value: "1"
       - key: MKL_NUM_THREADS
+        value: "1"
+      - key: OPENBLAS_NUM_THREADS
+        value: "1"
+      - key: VECLIB_MAXIMUM_THREADS
+        value: "1"
+      - key: NUMEXPR_NUM_THREADS
+        value: "1"
+      - key: MALLOC_ARENA_MAX
+        value: "2"
+      - key: WEB_CONCURRENCY
         value: "1"
       - key: GROQ_API_KEY
         sync: false

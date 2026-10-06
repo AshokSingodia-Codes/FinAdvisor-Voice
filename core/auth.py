@@ -98,11 +98,12 @@ def send_otp_email(to_email: str, otp: str, purpose: str = "register") -> bool:
     </html>
     """
 
-    # 1. Primary Delivery Method: Brevo HTTPS Transactional Email API (if configured)
-    if settings.BREVO_API_KEY:
+    # 1. Primary Delivery Method: Brevo HTTPS Transactional Email API
+    brevo_api_key = (settings.BREVO_API_KEY or os.getenv("BREVO_API_KEY") or os.getenv("SENDINBLUE_API_KEY") or "").strip()
+    if brevo_api_key:
         try:
-            sender_email = settings.BREVO_SENDER_EMAIL or settings.SMTP_FROM_EMAIL or "replitashok@gmail.com"
-            sender_name = settings.BREVO_SENDER_NAME or "FinAdvisor-X"
+            sender_email = settings.BREVO_SENDER_EMAIL or os.getenv("BREVO_SENDER_EMAIL") or settings.SMTP_FROM_EMAIL or "replitashok@gmail.com"
+            sender_name = settings.BREVO_SENDER_NAME or os.getenv("BREVO_SENDER_NAME") or "FinAdvisor-X"
             payload = {
                 "sender": {"name": sender_name, "email": sender_email},
                 "to": [{"email": to_email}],
@@ -113,17 +114,20 @@ def send_otp_email(to_email: str, otp: str, purpose: str = "register") -> bool:
                 "https://api.brevo.com/v3/smtp/email",
                 data=json.dumps(payload).encode("utf-8"),
                 headers={
-                    "api-key": settings.BREVO_API_KEY.strip(),
+                    "api-key": brevo_api_key,
                     "Content-Type": "application/json",
                     "Accept": "application/json"
                 },
                 method="POST"
             )
-            with urllib.request.urlopen(req, timeout=12) as response:
+            with urllib.request.urlopen(req, timeout=8) as response:
                 if response.status in (200, 201, 202):
                     res_body = response.read().decode('utf-8')
                     print(f"[AUTH] Successfully dispatched OTP email to {to_email} via Brevo HTTPS API: {res_body}")
                     return True
+        except urllib.error.HTTPError as he:
+            err_body = he.read().decode('utf-8', errors='ignore') if hasattr(he, 'read') else str(he)
+            print(f"[AUTH ERROR] Brevo API HTTP {he.code} error: {err_body}. Attempting SMTP fallback...")
         except Exception as e:
             print(f"[AUTH WARNING] Brevo API dispatch failed ({e}). Attempting SMTP fallback...")
 
@@ -145,13 +149,17 @@ def send_otp_email(to_email: str, otp: str, purpose: str = "register") -> bool:
         msg.attach(text_part)
         msg.attach(html_part)
 
-        ports_to_try = [465, 587] if settings.SMTP_PORT in (465, 587, None) else [settings.SMTP_PORT, 465, 587]
+        # For Gmail and standard SSL SMTP, port 465 (direct SSL) connects instantly (<0.5s)
+        # whereas port 587 (STARTTLS) often stalls/times out on many networks.
+        ports_to_try = [465, 587] if (not settings.SMTP_PORT or settings.SMTP_PORT in (465, 587)) else [settings.SMTP_PORT, 465, 587]
+        # Remove duplicates while preserving order
+        ports_to_try = list(dict.fromkeys(ports_to_try))
         for port in ports_to_try:
             try:
                 if port == 465:
-                    server = smtplib.SMTP_SSL(smtp_host, 465, timeout=12)
+                    server = smtplib.SMTP_SSL(smtp_host, 465, timeout=8)
                 else:
-                    server = smtplib.SMTP(smtp_host, port, timeout=12)
+                    server = smtplib.SMTP(smtp_host, port, timeout=8)
                     server.starttls()
 
                 server.login(smtp_user, smtp_pwd)

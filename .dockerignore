@@ -32,7 +32,16 @@ yarn-error.log*
 # Temporary Data & Artifacts
 reports/
 Annual Report/
+data/*.pdf
 *.pkl
+graph_documents.pkl
+cached_10k.md
 .env
 .env.local
 .cache/
+scratch/
+scratch_*.py
+sanity_check*.py
+rebuild_*.py
+dry_run_*.py
+

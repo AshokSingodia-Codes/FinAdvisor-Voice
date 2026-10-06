@@ -1,6 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  Send,
   TrendingUp,
   DollarSign,
   Activity,
@@ -13,28 +12,19 @@ import {
   LogOut,
   LogIn,
   UserPlus,
-  Paperclip,
-  FileText,
-  AlertTriangle,
-  Upload,
-  X
+  X,
+  Sparkles
 } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 import { AuthModal } from './components/AuthModal';
 import { LoginPage } from './components/LoginPage';
-import { VoiceInputButton } from './components/VoiceInputButton';
 import { ChatMessageItem } from './components/ChatMessageItem';
 import type { ChatMessage } from './components/ChatMessageItem';
 import { ConversationSidebarItem } from './components/ConversationSidebarItem';
 import type { ConversationItem } from './components/ConversationSidebarItem';
+import { ChatInputBar } from './components/ChatInputBar';
+import type { ActiveDocument } from './components/ChatInputBar';
 import { API_BASE } from './config';
-
-interface ActiveDocument {
-  id: string;
-  filename: string;
-  chunk_count: number;
-  file_size_bytes: number;
-}
 
 function App() {
   const {
@@ -55,15 +45,12 @@ function App() {
   });
   const [activeTitle, setActiveTitle] = useState<string>('New Chat');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState('');
-  const [interimVoice, setInterimVoice] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Document upload state
   const [activeDoc, setActiveDoc] = useState<ActiveDocument | null>(null);
   const [uploadLoading, setUploadLoading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Rate limit toast
   const [rateLimitSeconds, setRateLimitSeconds] = useState<number | null>(null);
@@ -72,6 +59,23 @@ function App() {
 
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
+
+  // Refs for stable callbacks without triggering re-renders
+  const messagesRef = useRef<ChatMessage[]>(messages);
+  messagesRef.current = messages;
+
+  const activeConvIdRef = useRef<string>(activeConvId);
+  activeConvIdRef.current = activeConvId;
+
+  const activeDocRef = useRef<ActiveDocument | null>(activeDoc);
+  activeDocRef.current = activeDoc;
+
+  const isAuthenticatedRef = useRef<boolean>(isAuthenticated);
+  isAuthenticatedRef.current = isAuthenticated;
+
+  const isSendingRef = useRef<boolean>(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const handleCopyMessage = useCallback((content: string, index: number) => {
     if (!navigator.clipboard) {
@@ -162,12 +166,9 @@ function App() {
     window.speechSynthesis.speak(utterance);
   }, [speakingIndex, getSoftFemaleVoice]);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Stop speech synthesis and preload voices on mount / change
+  // Stop speech synthesis on conv change
   useEffect(() => {
     if (typeof window !== 'undefined' && window.speechSynthesis) {
-      // Ensure voices list is loaded immediately and on event
       window.speechSynthesis.getVoices();
       if (window.speechSynthesis.onvoiceschanged !== undefined) {
         window.speechSynthesis.onvoiceschanged = () => {
@@ -191,14 +192,14 @@ function App() {
     return () => clearTimeout(timer);
   }, [rateLimitSeconds]);
 
-  // Detach document automatically when the user switches to a different conversation
+  // Detach document automatically when switching conversations
   useEffect(() => {
     setActiveDoc(null);
   }, [activeConvId]);
 
   // Load conversations list
-  const fetchConversations = async () => {
-    if (!isAuthenticated) {
+  const fetchConversations = useCallback(async () => {
+    if (!isAuthenticatedRef.current) {
       setConversations([]);
       return [];
     }
@@ -213,11 +214,11 @@ function App() {
       console.error('Failed to fetch conversations:', err);
     }
     return [];
-  };
+  }, [authFetch]);
 
   // Load single conversation messages
-  const loadConversation = async (convId: string) => {
-    if (!isAuthenticated) return;
+  const loadConversation = useCallback(async (convId: string) => {
+    if (!isAuthenticatedRef.current) return;
     try {
       const res = await authFetch(`${API_BASE}/api/conversations/${convId}`);
       if (res.ok) {
@@ -226,7 +227,6 @@ function App() {
         setActiveTitle(data.title || 'New Chat');
         setMessages(data.messages || []);
       } else {
-        // Fallback for new empty chat
         setActiveConvId(convId);
         setActiveTitle('New Chat');
         setMessages([]);
@@ -237,7 +237,23 @@ function App() {
       setActiveTitle('New Chat');
       setMessages([]);
     }
-  };
+  }, [authFetch]);
+
+  const handleNewChat = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    isSendingRef.current = false;
+    setLoading(false);
+
+    const newId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
+    setActiveConvId(newId);
+    setActiveTitle('New Chat');
+    setMessages([]);
+    setActiveDoc(null);
+    setIsSidebarOpen(false);
+  }, []);
 
   // When auth changes (user signs in or out), load conversations
   useEffect(() => {
@@ -256,30 +272,29 @@ function App() {
       }
     };
     init();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, fetchConversations, loadConversation, handleNewChat]);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, loading]);
-
-  const handleNewChat = () => {
-    const newId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
-    setActiveConvId(newId);
-    setActiveTitle('New Chat');
-    setMessages([]);
-    setActiveDoc(null); // detach document when starting a new chat
-    setIsSidebarOpen(false);
-  };
+  }, [messages, loading, scrollToBottom]);
 
   const handleSelectConversation = useCallback(async (convId: string) => {
     setIsSidebarOpen(false);
-    if (convId === activeConvId) return;
+    if (convId === activeConvIdRef.current) return;
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    isSendingRef.current = false;
+    setLoading(false);
+
     await loadConversation(convId);
-  }, [activeConvId]);
+  }, [loadConversation]);
 
   const handleDeleteConversation = useCallback(async (e: React.MouseEvent, convId: string) => {
     e.stopPropagation();
@@ -289,7 +304,7 @@ function App() {
       if (res.ok) {
         setConversations(prev => {
           const updated = prev.filter(c => c.id !== convId);
-          if (activeConvId === convId) {
+          if (activeConvIdRef.current === convId) {
             if (updated.length > 0) {
               loadConversation(updated[0].id);
             } else {
@@ -305,7 +320,7 @@ function App() {
       console.error('Failed to delete conversation:', err);
       alert('Error deleting conversation.');
     }
-  }, [activeConvId, authFetch]);
+  }, [authFetch, loadConversation, handleNewChat]);
 
   const handleClearAllConversations = useCallback(async () => {
     if (!window.confirm('Are you sure you want to delete ALL conversations? This cannot be undone.')) return;
@@ -321,7 +336,7 @@ function App() {
       console.error('Failed to clear conversations:', err);
       alert('Error clearing conversations.');
     }
-  }, [authFetch]);
+  }, [authFetch, handleNewChat]);
 
   const startRename = useCallback((e: React.MouseEvent, conv: ConversationItem) => {
     e.stopPropagation();
@@ -349,7 +364,7 @@ function App() {
       });
       if (res.ok) {
         setConversations(prev => prev.map(c => c.id === convId ? { ...c, title: trimmed } : c));
-        if (activeConvId === convId) {
+        if (activeConvIdRef.current === convId) {
           setActiveTitle(trimmed);
         }
       }
@@ -358,35 +373,45 @@ function App() {
     } finally {
       setEditingConvId(null);
     }
-  }, [editTitleInput, activeConvId, authFetch]);
+  }, [editTitleInput, authFetch]);
 
-  const handleSend = async (textToSend?: string) => {
-    if (!isAuthenticated) {
+  // Main Non-blocking Send Handler with Timeout & Cancellation
+  const handleSend = useCallback(async (textToSend: string) => {
+    if (!isAuthenticatedRef.current) {
       openAuthModal('signin');
       return;
     }
 
-    const currentPending = (input + (interimVoice ? (input ? ' ' : '') + interimVoice : '')).trim();
-    const userMsg = (textToSend ?? currentPending).trim();
-    if (!userMsg || loading) return;
+    const userMsg = textToSend.trim();
+    if (!userMsg || isSendingRef.current) return;
 
-    setInput('');
-    setInterimVoice('');
-    const newMessages: ChatMessage[] = [...messages, { role: 'user', content: userMsg }];
+    isSendingRef.current = true;
+    const currentMessages = messagesRef.current;
+    const newMessages: ChatMessage[] = [...currentMessages, { role: 'user', content: userMsg }];
     setMessages(newMessages);
     setLoading(true);
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
+
     try {
+      const targetConvId = activeConvIdRef.current;
+      const targetDocId = activeDocRef.current?.id ?? null;
+
       const response = await authFetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMsg,
-          conversation_id: activeConvId,
-          chat_history: messages,
-          document_id: activeDoc?.id ?? null,
-        })
+          conversation_id: targetConvId,
+          chat_history: currentMessages,
+          document_id: targetDocId,
+        }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (response.status === 429) {
         const err = await response.json().catch(() => ({}));
@@ -400,7 +425,11 @@ function App() {
         return;
       }
 
-      if (!response.ok) throw new Error('Network response was not ok');
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Network response was not ok');
+      }
+
       const data = await response.json();
 
       setMessages([...newMessages, { role: 'assistant', content: data.answer }]);
@@ -409,28 +438,38 @@ function App() {
         setActiveTitle(data.title);
       }
 
-      // Refresh sidebar conversations to show updated title and order
-      await fetchConversations();
-    } catch (error) {
-      console.error('Error fetching chat response:', error);
-      setMessages([
-        ...newMessages,
-        { role: 'assistant', content: 'Sorry, I encountered an error while trying to process your request. Please try again.' }
-      ]);
+      // Refresh sidebar conversations in background without blocking UI
+      fetchConversations();
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        setMessages([
+          ...newMessages,
+          { role: 'assistant', content: '⏱️ Request timed out. The server is taking longer than usual to respond. Please try asking again.', isError: true }
+        ]);
+      } else {
+        console.error('Error fetching chat response:', error);
+        setMessages([
+          ...newMessages,
+          { role: 'assistant', content: 'Sorry, I encountered an error while processing your request. Please check your connection and try again.', isError: true }
+        ]);
+      }
     } finally {
+      isSendingRef.current = false;
+      abortControllerRef.current = null;
       setLoading(false);
     }
-  };
+  }, [authFetch, openAuthModal, fetchConversations]);
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !isAuthenticated) return;
+    if (!file || !isAuthenticatedRef.current) return;
 
     setUploadLoading(true);
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('conversation_id', activeConvId);
+      formData.append('conversation_id', activeConvIdRef.current);
 
       const res = await authFetch(`${API_BASE}/api/documents/upload`, {
         method: 'POST',
@@ -469,16 +508,16 @@ function App() {
       alert('Upload failed. Please try again.');
     } finally {
       setUploadLoading(false);
-      // Reset file input so same file can be re-uploaded
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (e.target) e.target.value = '';
     }
-  };
+  }, [authFetch]);
 
-  const handleDetachDoc = async () => {
-    if (!activeDoc || !isAuthenticated) return;
+  const handleDetachDoc = useCallback(async () => {
+    const doc = activeDocRef.current;
+    if (!doc || !isAuthenticatedRef.current) return;
     try {
       await authFetch(
-        `${API_BASE}/api/documents/${activeDoc.id}?conversation_id=${encodeURIComponent(activeConvId)}`,
+        `${API_BASE}/api/documents/${doc.id}?conversation_id=${encodeURIComponent(activeConvIdRef.current)}`,
         { method: 'DELETE' }
       );
     } catch (err) {
@@ -486,7 +525,11 @@ function App() {
     } finally {
       setActiveDoc(null);
     }
-  };
+  }, [authFetch]);
+
+  const handleClearRateLimit = useCallback(() => {
+    setRateLimitSeconds(null);
+  }, []);
 
   if (isLoading) {
     return (
@@ -795,12 +838,15 @@ function App() {
                 />
               ))}
               {loading && (
-                <div className="flex gap-3.5 justify-start">
+                <div className="flex gap-3.5 justify-start animate-in fade-in duration-200">
                   <div className="w-8 h-8 rounded-lg bg-[#0f274a] text-white flex items-center justify-center shrink-0 shadow-xs mt-1 animate-pulse">
                     <Bot size={18} />
                   </div>
                   <div className="max-w-md rounded-2xl px-4 py-3 bg-[#f8fafc] border border-slate-200 rounded-tl-sm text-slate-700 text-xs flex items-center gap-3 shadow-xs">
-                    <span className="font-bold text-blue-900">Analyzing financial context...</span>
+                    <span className="font-bold text-blue-900 flex items-center gap-1.5">
+                      <Sparkles size={13} className="text-blue-700 animate-spin" />
+                      Analyzing financial context...
+                    </span>
                     <div className="flex items-center gap-1">
                       <div className="w-1.5 h-1.5 bg-[#0f274a] rounded-full animate-bounce [animation-delay:-0.3s]"></div>
                       <div className="w-1.5 h-1.5 bg-[#0f274a] rounded-full animate-bounce [animation-delay:-0.15s]"></div>
@@ -814,126 +860,18 @@ function App() {
           )}
         </div>
 
-        {/* Input Bar */}
-        <div className="border-t border-slate-200/90 bg-white pt-3 pb-3 px-4 sm:px-6 z-10">
-
-          {/* Hidden file input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.txt,.md,.csv,text/plain,text/markdown,application/pdf"
-            className="hidden"
-            onChange={handleUpload}
-          />
-
-          {/* Rate-limit toast */}
-          {rateLimitSeconds !== null && rateLimitSeconds > 0 && (
-            <div className="max-w-4xl mx-auto mb-2 flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-2 text-xs font-medium animate-pulse">
-              <AlertTriangle size={14} className="shrink-0 text-amber-700" />
-              <span>Rate limit reached. You can send another message in <strong>{rateLimitSeconds}s</strong>.</span>
-              <button onClick={() => setRateLimitSeconds(null)} className="ml-auto text-amber-700 hover:text-amber-900 cursor-pointer">
-                <X size={13} />
-              </button>
-            </div>
-          )}
-
-          {/* Active document chip + disclaimer banner */}
-          {activeDoc && (
-            <div className="max-w-4xl mx-auto mb-2 space-y-1.5">
-              {/* Document chip */}
-              <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-1.5 text-xs text-blue-950">
-                <FileText size={13} className="text-blue-800 shrink-0" />
-                <span className="text-blue-950 font-semibold truncate max-w-[260px]" title={activeDoc.filename}>
-                  {activeDoc.filename}
-                </span>
-                <span className="text-slate-500 font-mono shrink-0">
-                  {activeDoc.chunk_count} chunks · {(activeDoc.file_size_bytes / 1024).toFixed(0)} KB
-                </span>
-                <button
-                  onClick={handleDetachDoc}
-                  title="Detach & delete document"
-                  className="ml-auto p-0.5 text-slate-400 hover:text-red-600 transition-colors rounded cursor-pointer shrink-0"
-                >
-                  <X size={13} />
-                </button>
-              </div>
-              {/* Disclaimer */}
-              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 text-[10px] text-amber-900 leading-relaxed">
-                <AlertTriangle size={11} className="shrink-0 mt-0.5 text-amber-700" />
-                <span>
-                  <strong className="font-semibold text-amber-950">Personal document mode active.</strong>{' '}
-                  Responses are based on your uploaded document. This is general guidance — not formal RIA advisory.
-                </span>
-              </div>
-            </div>
-          )}
-
-          <div className="max-w-4xl mx-auto relative flex items-end bg-white border border-slate-300 rounded-xl focus-within:border-[#0f274a] focus-within:ring-2 focus-within:ring-[#0f274a]/15 shadow-xs transition-all overflow-visible p-1.5">
-            <textarea
-              rows={1}
-              value={interimVoice ? input + (input && !input.endsWith(' ') ? ' ' : '') + interimVoice : input}
-              onChange={(e) => {
-                setInput(e.target.value);
-                setInterimVoice('');
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              disabled={loading}
-              placeholder={isAuthenticated ? "Ask for financial advice, stock updates, budgeting, or return calculations..." : "Please sign in to start asking questions..."}
-              className="flex-1 bg-transparent pl-3 pr-2 py-2 text-slate-900 text-sm focus:outline-none placeholder:text-slate-400 disabled:opacity-50 resize-none min-h-[38px] max-h-36 overflow-y-auto leading-relaxed"
-            />
-
-            {interimVoice && (
-              <span className="absolute left-5 -top-6 text-[10px] text-blue-900 font-semibold bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-                Listening continuously...
-              </span>
-            )}
-
-            <div className="flex items-center gap-1.5 pr-1 pb-1 shrink-0 relative">
-              {/* Upload document button */}
-              {isAuthenticated && (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={loading || uploadLoading}
-                  title={uploadLoading ? "Uploading..." : activeDoc ? `Active: ${activeDoc.filename} — click to replace` : "Attach a financial document (PDF / TXT / MD, max 5 MB)"}
-                  className={`p-2 rounded-lg transition-all shadow-xs cursor-pointer z-10 relative ${activeDoc
-                      ? 'bg-blue-100 text-blue-900 hover:bg-blue-200'
-                      : 'bg-slate-100 text-[#0f274a] hover:bg-blue-50 hover:text-blue-800 border border-slate-200'
-                    } disabled:opacity-40 disabled:cursor-not-allowed`}
-                >
-                  {uploadLoading ? (
-                    <Upload size={16} className="animate-bounce text-blue-800" />
-                  ) : (
-                    <Paperclip size={16} />
-                  )}
-                </button>
-              )}
-              <VoiceInputButton
-                disabled={loading}
-                onInterimResult={(text) => setInterimVoice(text)}
-                onFinalResult={(text) => {
-                  setInput(prev => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + text);
-                  setInterimVoice('');
-                }}
-              />
-              <button
-                onClick={() => handleSend()}
-                disabled={loading || (!input.trim() && !interimVoice.trim())}
-                className="p-2 rounded-lg bg-[#0f274a] hover:bg-[#163a6f] text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm cursor-pointer z-10 relative"
-              >
-                <Send size={16} />
-              </button>
-            </div>
-          </div>
-          <div className="text-center mt-2 text-[11px] text-slate-500">
-            FinAdvisor-X is an AI financial assistant. Always verify critical decisions with a licensed advisor.
-          </div>
-        </div>
+        {/* Input Bar (Isolated Memoized Component) */}
+        <ChatInputBar
+          onSend={handleSend}
+          loading={loading}
+          uploadLoading={uploadLoading}
+          activeDoc={activeDoc}
+          onUploadFile={handleUpload}
+          onDetachDoc={handleDetachDoc}
+          isAuthenticated={isAuthenticated}
+          rateLimitSeconds={rateLimitSeconds}
+          onClearRateLimit={handleClearRateLimit}
+        />
 
       </main>
     </div>

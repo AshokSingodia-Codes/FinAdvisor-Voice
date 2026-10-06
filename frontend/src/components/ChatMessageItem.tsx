@@ -22,6 +22,83 @@ interface ChatMessageItemProps {
   loading: boolean;
 }
 
+// Static markdown renderer map to prevent recreation on re-renders
+const markdownComponents = {
+  h1: ({ children }: any) => (
+    <h1 className="text-lg font-bold text-slate-900 mt-3 mb-2 pb-1 border-b border-slate-200">
+      {children}
+    </h1>
+  ),
+  h2: ({ children }: any) => (
+    <h2 className="text-base font-bold text-blue-900 mt-3 mb-1.5">{children}</h2>
+  ),
+  h3: ({ children }: any) => (
+    <h3 className="text-sm font-semibold text-blue-800 mt-2 mb-1">{children}</h3>
+  ),
+  p: ({ children }: any) => <p className="mb-2 leading-relaxed text-slate-800">{children}</p>,
+  ul: ({ children }: any) => (
+    <ul className="list-disc pl-5 mb-2.5 space-y-1 text-slate-800">{children}</ul>
+  ),
+  ol: ({ children }: any) => (
+    <ol className="list-decimal pl-5 mb-2.5 space-y-1 text-slate-800">{children}</ol>
+  ),
+  li: ({ children }: any) => <li className="text-slate-800">{children}</li>,
+  hr: () => <hr className="border-slate-200 my-3" />,
+  strong: ({ children }: any) => (
+    <strong className="font-bold text-slate-950">{children}</strong>
+  ),
+  code: ({ children }: any) => (
+    <code className="bg-blue-50 text-blue-900 border border-blue-200 px-1.5 py-0.5 rounded text-xs font-mono font-semibold">
+      {children}
+    </code>
+  ),
+  table: ({ children }: any) => (
+    <div className="my-3 overflow-x-auto rounded-xl border border-slate-200 shadow-xs">
+      <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
+        {children}
+      </table>
+    </div>
+  ),
+  thead: ({ children }: any) => (
+    <thead className="bg-slate-100 text-blue-950 font-bold border-b border-slate-200">
+      {children}
+    </thead>
+  ),
+  tbody: ({ children }: any) => (
+    <tbody className="divide-y divide-slate-100 bg-white">{children}</tbody>
+  ),
+  tr: ({ children }: any) => <tr className="hover:bg-slate-50 transition-colors">{children}</tr>,
+  th: ({ children }: any) => (
+    <th className="px-3.5 py-2.5 text-[11px] uppercase tracking-wider font-bold text-blue-950">
+      {children}
+    </th>
+  ),
+  td: ({ children }: any) => (
+    <td className="px-3.5 py-2.5 text-xs text-slate-800 whitespace-normal">
+      {children}
+    </td>
+  ),
+};
+
+const gfmPlugins = [remarkGfm];
+
+function cleanAssistantMessage(raw: string): string {
+  if (!raw) return raw;
+  let cleaned = raw;
+  // Strip [Verification Notice]: ... and everything following until newline
+  cleaned = cleaned.replace(/\[Verification Notice\]:[^\n]*/gi, '');
+  cleaned = cleaned.replace(/\[Audit Notice\]:[^\n]*/gi, '');
+  // Strip inline source citations like 【Source: Yahoo Finance】, [Source: 10-K], (Source: Yahoo Finance)
+  cleaned = cleaned.replace(/【\s*Source:[^】]*】/gi, '');
+  cleaned = cleaned.replace(/\[\s*Source:[^\]]*\]/gi, '');
+  cleaned = cleaned.replace(/\(\s*Source:[^)]*\)/gi, '');
+  // Strip standalone Source lines like "**Source:** Yahoo Finance" or "Source: Finnhub"
+  cleaned = cleaned.replace(/^\s*\*{0,2}Source:\*{0,2}\s*[^\n]*$/gim, '');
+  // Remove multiple consecutive blank lines
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+  return cleaned.trim();
+}
+
 export const ChatMessageItem = React.memo(function ChatMessageItem({
   msg,
   index,
@@ -32,20 +109,35 @@ export const ChatMessageItem = React.memo(function ChatMessageItem({
   onSendAction,
   loading
 }: ChatMessageItemProps) {
+  // Clean assistant content to remove unwanted source citations and backend verification notices
+  const displayContent = useMemo(() => {
+    if (msg.role !== 'assistant') return msg.content;
+    return cleanAssistantMessage(msg.content);
+  }, [msg.content, msg.role]);
+
   // Extract interactive next-step action chips once per message content change
   const suggestions = useMemo(() => {
-    if (msg.role !== 'assistant' || !msg.content) return [];
+    if (msg.role !== 'assistant' || !displayContent) return [];
     const items: string[] = [];
     const regex = /\[([A-Za-z0-9\s₹$,%.\-/?!]{4,50})\]/g;
     let match;
-    while ((match = regex.exec(msg.content)) !== null) {
+    while ((match = regex.exec(displayContent)) !== null) {
       const act = match[1].trim();
-      if (act && !items.includes(act) && !act.toLowerCase().startsWith('action')) {
+      const lower = act.toLowerCase();
+      if (
+        act &&
+        !items.includes(act) &&
+        !lower.startsWith('action') &&
+        !lower.startsWith('source:') &&
+        !lower.startsWith('verification notice') &&
+        !lower.startsWith('audit notice') &&
+        !lower.includes('segment bounded')
+      ) {
         items.push(act);
       }
     }
     return items.slice(0, 3);
-  }, [msg.content, msg.role]);
+  }, [displayContent, msg.role]);
 
   return (
     <div className={`flex gap-3.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -59,6 +151,8 @@ export const ChatMessageItem = React.memo(function ChatMessageItem({
         className={`rounded-2xl px-5 py-4 text-[14.5px] leading-relaxed select-text ${
           msg.role === 'user'
             ? 'max-w-[80%] bg-[#0f274a] text-white rounded-tr-sm shadow-md font-normal'
+            : msg.isError
+            ? 'w-full max-w-full bg-amber-50/80 border border-amber-200 text-amber-950 rounded-tl-sm shadow-xs'
             : 'w-full max-w-full bg-[#f8fafc] border border-slate-200/90 text-slate-900 rounded-tl-sm shadow-xs'
         }`}
       >
@@ -67,65 +161,10 @@ export const ChatMessageItem = React.memo(function ChatMessageItem({
         ) : (
           <div className="prose max-w-none text-slate-900 leading-relaxed space-y-2.5">
             <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                h1: ({ children }) => (
-                  <h1 className="text-lg font-bold text-slate-900 mt-3 mb-2 pb-1 border-b border-slate-200">
-                    {children}
-                  </h1>
-                ),
-                h2: ({ children }) => (
-                  <h2 className="text-base font-bold text-blue-900 mt-3 mb-1.5">{children}</h2>
-                ),
-                h3: ({ children }) => (
-                  <h3 className="text-sm font-semibold text-blue-800 mt-2 mb-1">{children}</h3>
-                ),
-                p: ({ children }) => <p className="mb-2 leading-relaxed text-slate-800">{children}</p>,
-                ul: ({ children }) => (
-                  <ul className="list-disc pl-5 mb-2.5 space-y-1 text-slate-800">{children}</ul>
-                ),
-                ol: ({ children }) => (
-                  <ol className="list-decimal pl-5 mb-2.5 space-y-1 text-slate-800">{children}</ol>
-                ),
-                li: ({ children }) => <li className="text-slate-800">{children}</li>,
-                hr: () => <hr className="border-slate-200 my-3" />,
-                strong: ({ children }) => (
-                  <strong className="font-bold text-slate-950">{children}</strong>
-                ),
-                code: ({ children }) => (
-                  <code className="bg-blue-50 text-blue-900 border border-blue-200 px-1.5 py-0.5 rounded text-xs font-mono font-semibold">
-                    {children}
-                  </code>
-                ),
-                table: ({ children }) => (
-                  <div className="my-3 overflow-x-auto rounded-xl border border-slate-200 shadow-xs">
-                    <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
-                      {children}
-                    </table>
-                  </div>
-                ),
-                thead: ({ children }) => (
-                  <thead className="bg-slate-100 text-blue-950 font-bold border-b border-slate-200">
-                    {children}
-                  </thead>
-                ),
-                tbody: ({ children }) => (
-                  <tbody className="divide-y divide-slate-100 bg-white">{children}</tbody>
-                ),
-                tr: ({ children }) => <tr className="hover:bg-slate-50 transition-colors">{children}</tr>,
-                th: ({ children }) => (
-                  <th className="px-3.5 py-2.5 text-[11px] uppercase tracking-wider font-bold text-blue-950">
-                    {children}
-                  </th>
-                ),
-                td: ({ children }) => (
-                  <td className="px-3.5 py-2.5 text-xs text-slate-800 whitespace-normal">
-                    {children}
-                  </td>
-                ),
-              }}
+              remarkPlugins={gfmPlugins}
+              components={markdownComponents}
             >
-              {msg.content}
+              {displayContent}
             </ReactMarkdown>
 
             {/* Interactive Next-Step Action Chips */}
@@ -161,7 +200,7 @@ export const ChatMessageItem = React.memo(function ChatMessageItem({
               </div>
               <div className="flex items-center gap-1.5">
                 <button
-                  onClick={() => onToggleTTS(msg.content, index)}
+                  onClick={() => onToggleTTS(displayContent, index)}
                   className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     isSpeaking
                       ? 'bg-blue-100 text-blue-900 border border-blue-300 animate-pulse'
@@ -174,7 +213,7 @@ export const ChatMessageItem = React.memo(function ChatMessageItem({
                 </button>
 
                 <button
-                  onClick={() => onCopy(msg.content, index)}
+                  onClick={() => onCopy(displayContent, index)}
                   className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     isCopied
                       ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
@@ -197,5 +236,15 @@ export const ChatMessageItem = React.memo(function ChatMessageItem({
         </div>
       )}
     </div>
+  );
+}, (prev, next) => {
+  return (
+    prev.msg.content === next.msg.content &&
+    prev.msg.role === next.msg.role &&
+    prev.msg.isError === next.msg.isError &&
+    prev.isSpeaking === next.isSpeaking &&
+    prev.isCopied === next.isCopied &&
+    prev.loading === next.loading &&
+    prev.index === next.index
   );
 });

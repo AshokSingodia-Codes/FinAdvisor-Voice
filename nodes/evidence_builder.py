@@ -1,3 +1,4 @@
+import re
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from graph.state import AgentState
@@ -24,7 +25,7 @@ Formatting & Structure Guidelines:
 3. DETAILED BREAKDOWN & FORMULAS (When depth = "deep" or complex analysis):
    - Use clean markdown tables for tabular data, tax slabs, or balance sheet comparisons.
    - Include step-by-step arithmetic formulas where calculations were performed.
-   - Cite sources inline using [Source: X] for facts drawn from retrieved documents.
+   - Integrate all facts seamlessly into the analysis without raw source or citation tags.
 
 Formatting by depth:
 If depth = "quick":
@@ -37,12 +38,13 @@ If depth = "summary":
 
 If depth = "deep":
   - 1-2 lines direct answer / executive verdict at the top.
-  - Followed by full structured breakdown: key highlights, tables, tax/valuation mechanics, formulas, and verified sources.
+  - Followed by full structured breakdown: key highlights, tables, tax/valuation mechanics, and formulas.
 
 Universal rules, all depths:
   - Never fabricate facts or numbers not in evidence.
   - Match user's language (English/Hindi/Hinglish) and currency convention (₹ for Indian context, $ for USD/global).
   - Include 1-3 suggested follow-up actions enclosed in brackets at the very bottom, e.g. [Calculate tax under Old Regime] or [Check Reliance P/E ratio].
+  - NEVER include raw citations or source tags like [Source: ...], 【Source: ...】, (Source: ...), or database tags in the response text. Present all facts directly and authoritatively.
   - Never restate the user's question back to them before answering.
 
 ---
@@ -61,6 +63,23 @@ builder_chain = response_writer_prompt | synthesis_chat | StrOutputParser()
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def clean_user_facing_text(text: str) -> str:
+    if not text:
+        return text
+    # Remove verification/audit notices
+    text = re.sub(r'\[Verification Notice\]:[^\n]*', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\[Audit Notice\]:[^\n]*', '', text, flags=re.IGNORECASE)
+    # Remove unicode and bracketed Source citations
+    text = re.sub(r'【\s*Source:[^】]*】', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\[\s*Source:[^\]]*\]', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\(\s*Source:[^)]*\)', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'^\s*\*{0,2}Source:\*{0,2}\s*[^\n]*$', '', text, flags=re.IGNORECASE | re.MULTILINE)
+    # Clean up double newlines or stray whitespace
+    text = re.sub(r'[ \t]+', ' ', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+
 
 def format_history_for_builder(history, max_turns=6):
     if not history:
@@ -139,6 +158,7 @@ def build_evidence(state: AgentState):
             "tool_results": tool_results,
             "chat_history": chat_history,
         })
+        answer = clean_user_facing_text(answer)
     except Exception as e:
         print(f"[evidence_builder error]: {e}")
         answer = (
@@ -150,4 +170,5 @@ def build_evidence(state: AgentState):
         "draft_answer": answer,
         "final_answer": answer,
     }
+
 

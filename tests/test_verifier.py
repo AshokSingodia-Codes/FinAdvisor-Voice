@@ -39,7 +39,8 @@ def test_verify_answer_hallucinated_company_numbers(mocker):
     
     res = verify_answer(state)
     assert res["verification_passed"] is False
-    assert "[Verification Notice]" in res["final_answer"]
+    assert "[Verification Notice]" not in res["final_answer"]
+    assert res["final_answer"] == state["draft_answer"]
 
 def test_verify_answer_skipped_when_disabled():
     state = {

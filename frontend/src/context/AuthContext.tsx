@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { API_BASE } from '../config';
 
 export interface User {
@@ -68,34 +68,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkAuth();
   }, []);
 
-  const login = (newToken: string, newUser: User) => {
+  const login = useCallback((newToken: string, newUser: User) => {
     localStorage.setItem(TOKEN_KEY, newToken);
     localStorage.setItem(USER_KEY, JSON.stringify(newUser));
     setToken(newToken);
     setUser(newUser);
     setIsAuthModalOpen(false);
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     setToken(null);
     setUser(null);
-  };
+  }, []);
 
-  const openAuthModal = (tab: 'signin' | 'register' | 'forgot' = 'signin') => {
+  const openAuthModal = useCallback((tab: 'signin' | 'register' | 'forgot' = 'signin') => {
     setAuthModalInitialTab(tab);
     setIsAuthModalOpen(true);
-  };
+  }, []);
 
-  const closeAuthModal = () => {
+  const closeAuthModal = useCallback(() => {
     setIsAuthModalOpen(false);
-  };
+  }, []);
 
-  const authFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
+  const authFetch = useCallback(async (url: string, options: RequestInit = {}): Promise<Response> => {
     const headers = new Headers(options.headers || {});
-    if (token) {
-      headers.set('Authorization', `Bearer ${token}`);
+    const currentToken = token || localStorage.getItem(TOKEN_KEY);
+    if (currentToken) {
+      headers.set('Authorization', `Bearer ${currentToken}`);
     }
     
     const response = await fetch(url, {
@@ -110,24 +111,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     return response;
-  };
+  }, [token, logout]);
+
+  const value = React.useMemo(() => ({
+    user,
+    token,
+    isAuthenticated: !!token && !!user,
+    isLoading,
+    login,
+    logout,
+    authFetch,
+    isAuthModalOpen,
+    authModalInitialTab,
+    openAuthModal,
+    closeAuthModal
+  }), [user, token, isLoading, login, logout, authFetch, isAuthModalOpen, authModalInitialTab, openAuthModal, closeAuthModal]);
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        token,
-        isAuthenticated: !!token && !!user,
-        isLoading,
-        login,
-        logout,
-        authFetch,
-        isAuthModalOpen,
-        authModalInitialTab,
-        openAuthModal,
-        closeAuthModal
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

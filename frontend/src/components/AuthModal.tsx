@@ -46,6 +46,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTa
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [loading, setLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [cooldown, setCooldown] = useState(0);
@@ -74,6 +75,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTa
     setForgotStep(1);
     setErrorMessage('');
     setSuccessMessage('');
+    setLoading(false);
+    setLoadingAction(null);
   };
 
   const switchView = (newView: PageView) => {
@@ -81,25 +84,47 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTa
     resetForm();
   };
 
+  const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeoutMs = 25000) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(id);
+      return response;
+    } catch (err: any) {
+      clearTimeout(id);
+      if (err.name === 'AbortError') {
+        throw new Error('Request timed out. Please check your network connection and try again.');
+      }
+      throw err;
+    }
+  };
+
   if (!isOpen) return null;
 
   // 1. LOGIN
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setErrorMessage('');
     setSuccessMessage('');
-    if (!email.trim() || !password) {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !password) {
       setErrorMessage('Please enter both your email address and password.');
       return;
     }
     setLoading(true);
+    setLoadingAction('Signing In...');
     try {
-      const res = await fetch(`${API_BASE}/api/auth/login`, {
+      const res = await fetchWithTimeout(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({ email: cleanEmail, password }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.detail || 'Invalid email or password. Please try again.');
       }
@@ -109,29 +134,33 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTa
       setErrorMessage(err.message || 'Failed to sign in.');
     } finally {
       setLoading(false);
+      setLoadingAction(null);
     }
   };
 
   // 2. SEND OTP
   const handleSendOtp = async (purpose: 'register' | 'forgot_password') => {
+    if (loading) return;
     setErrorMessage('');
     setSuccessMessage('');
-    if (!email.trim() || !email.includes('@')) {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
       setErrorMessage('Please enter a valid email address.');
       return;
     }
     setLoading(true);
+    setLoadingAction('Sending OTP...');
     try {
-      const res = await fetch(`${API_BASE}/api/auth/send-otp`, {
+      const res = await fetchWithTimeout(`${API_BASE}/api/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), purpose }),
+        body: JSON.stringify({ email: cleanEmail, purpose }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.detail || 'Failed to send OTP code.');
       }
-      setSuccessMessage(`A 6-digit verification code was sent to ${email.trim()}.`);
+      setSuccessMessage(`A 6-digit verification code was sent to ${cleanEmail}.`);
       setCooldown(data.cooldown_seconds || data.resend_after_seconds || 60);
 
       if (purpose === 'register') {
@@ -143,25 +172,29 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTa
       setErrorMessage(err.message || 'Failed to send OTP.');
     } finally {
       setLoading(false);
+      setLoadingAction(null);
     }
   };
 
   // 3. VERIFY OTP (Forgot Password)
   const handleVerifyOtpForForgot = async () => {
+    if (loading) return;
     setErrorMessage('');
     setSuccessMessage('');
-    if (!otp || otp.trim().length !== 6) {
+    const cleanOtp = otp.trim();
+    if (!cleanOtp || cleanOtp.length !== 6) {
       setErrorMessage('Please enter the 6-digit code sent to your email.');
       return;
     }
     setLoading(true);
+    setLoadingAction('Verifying Code...');
     try {
-      const res = await fetch(`${API_BASE}/api/auth/verify-otp`, {
+      const res = await fetchWithTimeout(`${API_BASE}/api/auth/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), otp: otp.trim(), purpose: 'forgot_password' }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), otp: cleanOtp, purpose: 'forgot_password' }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.detail || 'Invalid or expired verification code.');
       }
@@ -172,15 +205,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTa
       setErrorMessage(err.message || 'Invalid or expired code.');
     } finally {
       setLoading(false);
+      setLoadingAction(null);
     }
   };
 
   // 4. CREATE ACCOUNT
   const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setErrorMessage('');
     setSuccessMessage('');
-    if (!otp || otp.trim().length !== 6) {
+    const cleanOtp = otp.trim();
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanOtp || cleanOtp.length !== 6) {
       setErrorMessage('Please enter the 6-digit verification code.');
       return;
     }
@@ -193,27 +230,28 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTa
       return;
     }
     setLoading(true);
+    setLoadingAction('Creating Account...');
     try {
       let token = verificationToken;
       if (!token) {
-        const verifyRes = await fetch(`${API_BASE}/api/auth/verify-otp`, {
+        const verifyRes = await fetchWithTimeout(`${API_BASE}/api/auth/verify-otp`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email.trim(), otp: otp.trim(), purpose: 'register' }),
+          body: JSON.stringify({ email: cleanEmail, otp: cleanOtp, purpose: 'register' }),
         });
-        const verifyData = await verifyRes.json();
+        const verifyData = await verifyRes.json().catch(() => ({}));
         if (!verifyRes.ok) {
           throw new Error(verifyData.detail || 'Invalid or expired OTP code.');
         }
         token = verifyData.verification_token;
       }
 
-      const res = await fetch(`${API_BASE}/api/auth/register`, {
+      const res = await fetchWithTimeout(`${API_BASE}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password, verification_token: token }),
+        body: JSON.stringify({ email: cleanEmail, password, verification_token: token }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.detail || 'Registration failed. Please try again.');
       }
@@ -223,12 +261,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTa
       setErrorMessage(err.message || 'Failed to complete registration.');
     } finally {
       setLoading(false);
+      setLoadingAction(null);
     }
   };
 
   // 5. RESET PASSWORD
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setErrorMessage('');
     setSuccessMessage('');
     if (password.length < 6) {
@@ -240,13 +280,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTa
       return;
     }
     setLoading(true);
+    setLoadingAction('Resetting Password...');
     try {
-      const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
+      const res = await fetchWithTimeout(`${API_BASE}/api/auth/forgot-password/reset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), new_password: password, verification_token: verificationToken }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), new_password: password, verification_token: verificationToken }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.detail || 'Password reset failed.');
       }
@@ -256,6 +297,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTa
       setErrorMessage(err.message || 'Failed to reset password.');
     } finally {
       setLoading(false);
+      setLoadingAction(null);
     }
   };
 
@@ -371,7 +413,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTa
               className="w-full mt-2 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-sm shadow-lg shadow-cyan-500/20 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               {loading ? (
-                <RefreshCw size={16} className="animate-spin text-slate-950" />
+                <>
+                  <RefreshCw size={16} className="animate-spin text-slate-950" />
+                  <span>{loadingAction || 'Signing In...'}</span>
+                </>
               ) : (
                 <>
                   <span>Sign In</span>
@@ -422,7 +467,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTa
                   className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-sm shadow-lg shadow-cyan-500/20 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {loading ? (
-                    <RefreshCw size={16} className="animate-spin text-slate-950" />
+                    <>
+                      <RefreshCw size={16} className="animate-spin text-slate-950" />
+                      <span>{loadingAction || 'Sending OTP...'}</span>
+                    </>
                   ) : (
                     <>
                       <span>Send OTP</span>
@@ -524,7 +572,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTa
                   className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-sm shadow-lg shadow-cyan-500/20 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {loading ? (
-                    <RefreshCw size={16} className="animate-spin text-slate-950" />
+                    <>
+                      <RefreshCw size={16} className="animate-spin text-slate-950" />
+                      <span>{loadingAction || 'Creating Account...'}</span>
+                    </>
                   ) : (
                     <>
                       <span>Create Account</span>
@@ -577,7 +628,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTa
                   className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-sm shadow-lg shadow-cyan-500/20 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {loading ? (
-                    <RefreshCw size={16} className="animate-spin text-slate-950" />
+                    <>
+                      <RefreshCw size={16} className="animate-spin text-slate-950" />
+                      <span>{loadingAction || 'Sending OTP...'}</span>
+                    </>
                   ) : (
                     <>
                       <span>Send OTP</span>
@@ -634,7 +688,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTa
                   className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-sm shadow-lg shadow-cyan-500/20 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {loading ? (
-                    <RefreshCw size={16} className="animate-spin text-slate-950" />
+                    <>
+                      <RefreshCw size={16} className="animate-spin text-slate-950" />
+                      <span>{loadingAction || 'Verifying Code...'}</span>
+                    </>
                   ) : (
                     <>
                       <span>Verify OTP</span>
@@ -699,7 +756,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTa
                   className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-sm shadow-lg shadow-cyan-500/20 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {loading ? (
-                    <RefreshCw size={16} className="animate-spin text-slate-950" />
+                    <>
+                      <RefreshCw size={16} className="animate-spin text-slate-950" />
+                      <span>{loadingAction || 'Resetting Password...'}</span>
+                    </>
                   ) : (
                     <>
                       <span>Reset Password</span>
