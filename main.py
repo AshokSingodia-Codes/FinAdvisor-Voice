@@ -112,9 +112,10 @@ def validate_email_format(email: str) -> str:
         raise HTTPException(status_code=400, detail="Invalid email address format.")
     return cleaned
 
-@app.get("/api/health")
+@app.api_route("/api/health", methods=["GET", "HEAD"])
+@app.api_route("/health", methods=["GET", "HEAD"])
 def health_check():
-    """Lightweight endpoint for health-ping cron jobs."""
+    """Lightweight endpoint for health-ping cron jobs and uptime monitors."""
     return {"status": "ok"}
 
 class SendOtpRequest(BaseModel):

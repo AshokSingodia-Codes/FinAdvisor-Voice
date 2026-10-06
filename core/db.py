@@ -251,23 +251,20 @@ def init_kg():
         return None
 
 class CachedHuggingFaceEmbeddings(Embeddings):
-    def __init__(self, model_name="sentence-transformers/all-mpnet-base-v2"):
-        from langchain_huggingface import HuggingFaceEmbeddings
-        self._hf = HuggingFaceEmbeddings(
-            model_name=model_name,
-            model_kwargs={"device": "cpu"},
-            encode_kwargs={"normalize_embeddings": False}
-        )
+    def __init__(self, model_name="sentence-transformers/paraphrase-multilingual-mpnet-base-v2"):
+        self.model_name = model_name
+        self._fastembed = FastEmbedWrapper(model_name=model_name)
 
     def embed_documents(self, texts):
-        return self._hf.embed_documents(texts)
+        return self._fastembed.embed_documents(texts)
 
     def embed_query(self, text):
         cached = get_cached_embedding(text)
         if cached is not None and len(cached) == 768:
             return cached
-        emb = self._hf.embed_query(text)
-        set_cached_embedding(text, emb)
+        emb = self._fastembed.embed_query(text)
+        if emb is not None and len(emb) == 768:
+            set_cached_embedding(text, emb)
         return emb
 
 _cached_embeddings = None
@@ -276,7 +273,7 @@ def init_hf():
     if _cached_embeddings is not None:
         return _cached_embeddings
     try:
-        _cached_embeddings = CachedHuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
+        _cached_embeddings = CachedHuggingFaceEmbeddings(model_name="sentence-transformers/paraphrase-multilingual-mpnet-base-v2")
         return _cached_embeddings
     except Exception as e:
         print(f"🚨 [EMBEDDINGS ERROR] Embeddings initialization failed: {e}")
