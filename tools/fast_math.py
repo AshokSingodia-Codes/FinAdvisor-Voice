@@ -325,8 +325,29 @@ def evaluate_percentage_and_ratio_patterns(raw_text: str, currency_symbol: str, 
         )
         return True, ans, final_val
 
-    # 2. "X% increase on Y" / "X% hike on Y" / "X% markup on Y" / "X% tax on Y"
-    hike_match = re.search(r'(\d+(?:\.\d+)?)\s*%\s*(?:increase\s+on|hike\s+on|markup\s+on|tax\s+on)\s+(\d+(?:\.\d+)?)', text_clean)
+    # 2. "X% GST on Y" / "X% tax on Y" / "X% VAT on Y"
+    gst_match = re.search(r'(\d+(?:\.\d+)?)\s*%\s*(?:gst\s+on|gst\s+of|tax\s+on|tax\s+of|vat\s+on|vat\s+of)\s+(\d+(?:\.\d+)?)', text_clean)
+    if gst_match:
+        pct = float(gst_match.group(1))
+        base = float(gst_match.group(2))
+        gst_amount = (pct / 100.0) * base
+        total_val = base + gst_amount
+        half_gst = gst_amount / 2.0
+        base_f = format_indian_number(base, currency_symbol) if style == "indian" else format_western_number(base, currency_symbol)
+        gst_f = format_indian_number(gst_amount, currency_symbol) if style == "indian" else format_western_number(gst_amount, currency_symbol)
+        total_f = format_indian_number(total_val, currency_symbol) if style == "indian" else format_western_number(total_val, currency_symbol)
+        cgst_f = format_indian_number(half_gst, currency_symbol) if style == "indian" else format_western_number(half_gst, currency_symbol)
+        sgst_f = format_indian_number(half_gst, currency_symbol) if style == "indian" else format_western_number(half_gst, currency_symbol)
+        ans = (
+            f"**The total amount with {pct:g}% GST is {total_f}.**\n\n"
+            f"* **Base Amount**: {base_f}\n"
+            f"* **GST ({pct:g}%)**: +{gst_f} *(CGST: {cgst_f} + SGST: {sgst_f})*\n"
+            f"* **Total Payable**: **{total_f}**"
+        )
+        return True, ans, total_val
+
+    # 3. "X% increase on Y" / "X% hike on Y" / "X% markup on Y"
+    hike_match = re.search(r'(\d+(?:\.\d+)?)\s*%\s*(?:increase\s+on|hike\s+on|markup\s+on)\s+(\d+(?:\.\d+)?)', text_clean)
     if hike_match:
         pct = float(hike_match.group(1))
         base = float(hike_match.group(2))
@@ -335,8 +356,8 @@ def evaluate_percentage_and_ratio_patterns(raw_text: str, currency_symbol: str, 
         final_f = format_indian_number(final_val, currency_symbol) if style == "indian" else format_western_number(final_val, currency_symbol)
         return True, f"**The calculated total is {final_f}** (Base: {base:,.2f} + {pct}%: {hike_amount:,.2f}).", final_val
 
-    # 3. "X% of Y" / "X percent of Y"
-    pct_of_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:%|\s*percent)\s+of\s+(\d+(?:\.\d+)?)', text_clean)
+    # 4. "X% of Y" / "X% on Y" / "X percent of Y" / "X percent on Y"
+    pct_of_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:%|\s*percent)\s*(?:of|on)\s+(\d+(?:\.\d+)?)', text_clean)
     if pct_of_match:
         pct = float(pct_of_match.group(1))
         base = float(pct_of_match.group(2))

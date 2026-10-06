@@ -10,21 +10,71 @@ _PRICE_CACHE = {}
 CACHE_TTL = 600
 
 def _get_yfinance_data_with_retries(ticker_symbol: str):
-    delays = [1, 2, 4]
+    delays = [0.5, 1, 2]
     for attempt in range(3):
         try:
             stock = yf.Ticker(ticker_symbol)
-            info = stock.info
+            info = {}
+            
+            # 1. Fast, unblockable lightweight quote endpoint
+            try:
+                fi = stock.fast_info
+                price = fi.get('last_price') or fi.get('lastPrice') or fi.get('previousClose')
+                if price:
+                    high_val = fi.get('yearHigh') or fi.get('year_high')
+                    low_val = fi.get('yearLow') or fi.get('year_low')
+                    info = {
+                        'currentPrice': round(float(price), 2),
+                        'regularMarketPrice': round(float(price), 2),
+                        'marketCap': fi.get('marketCap') or fi.get('market_cap', 'N/A'),
+                        'fiftyTwoWeekHigh': round(float(high_val), 2) if high_val else 'N/A',
+                        'fiftyTwoWeekLow': round(float(low_val), 2) if low_val else 'N/A',
+                        'trailingPE': 'N/A',
+                    }
+            except Exception:
+                pass
+
+            # 2. Try stock.info if available for deeper metrics
+            if not info or info.get('currentPrice') in (None, 'N/A'):
+                try:
+                    full_info = stock.info
+                    if full_info and ('regularMarketPrice' in full_info or 'currentPrice' in full_info):
+                        info = full_info
+                except Exception:
+                    pass
+
+            # 3. Try 1d history as guaranteed price fallback
             if not info or ('regularMarketPrice' not in info and 'currentPrice' not in info):
-                raise ValueError("Incomplete data received from yfinance")
-            news = stock.news
-            # Fetch 1 year of monthly historical data for historical queries
-            history_df = stock.history(period="1y", interval="1mo")
+                hist_1d = stock.history(period="1d")
+                if not hist_1d.empty and 'Close' in hist_1d:
+                    close_p = round(float(hist_1d['Close'].iloc[-1]), 2)
+                    info = {
+                        'currentPrice': close_p,
+                        'regularMarketPrice': close_p,
+                        'marketCap': 'N/A',
+                        'fiftyTwoWeekHigh': 'N/A',
+                        'fiftyTwoWeekLow': 'N/A',
+                        'trailingPE': 'N/A',
+                    }
+                else:
+                    raise ValueError(f"Incomplete data received from yfinance for {ticker_symbol}")
+
+            news = []
+            try:
+                news = stock.news or []
+            except Exception:
+                news = []
+
+            # Fetch 1 year of monthly historical data
             hist_str = ""
-            if not history_df.empty:
-                # Format index to YYYY-MM
-                history_df.index = history_df.index.strftime('%Y-%m')
-                hist_str = history_df[['Close']].to_string()
+            try:
+                history_df = stock.history(period="1y", interval="1mo")
+                if not history_df.empty:
+                    history_df.index = history_df.index.strftime('%Y-%m')
+                    hist_str = history_df[['Close']].to_string()
+            except Exception:
+                hist_str = ""
+
             return info, news, hist_str
         except Exception as e:
             if attempt < 2:

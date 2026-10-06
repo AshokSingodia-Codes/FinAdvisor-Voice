@@ -147,9 +147,25 @@ def retrieve_shared_corpus_concurrent(query: str, top_k: int = 4, apply_rerank: 
     Executes vector, keyword/graph, and local guide retrieval in parallel using ThreadPoolExecutor,
     fuses candidates via Reciprocal Rank Fusion (RRF), and optionally applies FlashRank cross-encoding.
     """
+    def _safe_structured_retriever(q: str):
+        try:
+            return structured_retriever(q)
+        except Exception as e:
+            print(f"⚠️ [GRAPH/KEYWORD RETRIEVAL WARNING]: {e}")
+            return []
+
+    def _safe_vector_search(q: str):
+        try:
+            if not vector_index:
+                return []
+            return vector_index.similarity_search(q, k=15)
+        except Exception as e:
+            print(f"⚠️ [VECTOR SEARCH WARNING]: {e}")
+            return []
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-        future_kw = executor.submit(structured_retriever, query)
-        future_vec = executor.submit(vector_index.similarity_search, query, k=15)
+        future_kw = executor.submit(_safe_structured_retriever, query)
+        future_vec = executor.submit(_safe_vector_search, query)
         future_guide = executor.submit(_search_local_guide, query, top_k=3)
 
         graph_list = future_kw.result()
