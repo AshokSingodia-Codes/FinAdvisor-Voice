@@ -351,8 +351,15 @@ def extract_text(content: bytes, mime_type: str) -> str:
 # Neo4j ingestion
 # ---------------------------------------------------------------------------
 
-def _embed_texts(texts: List[str]) -> List[List[float]]:
-    """Generate embeddings using the shared FastEmbedWrapper from core.db."""
+def _embed_texts(texts: List[str]) -> List[Optional[List[float]]]:
+    """
+    Generate embeddings for personal chunks only if PERSONAL_DOCS_EMBEDDING != 'keyword_only'.
+    In keyword_only mode (default), returns None vectors with zero external API calls.
+    """
+    mode = getattr(settings, "PERSONAL_DOCS_EMBEDDING", "keyword_only").lower()
+    if mode == "keyword_only":
+        return [None] * len(texts)
+
     from core.db import hf
     return hf.embed_documents(texts)
 
@@ -369,13 +376,6 @@ def ingest_chunks_to_neo4j(
 
     Each node carries the three isolation fields:
         user_id, document_id, conversation_id
-
-    The embedding vector is stored as `embedding` so it can be queried
-    via Neo4j's vector index (personal_chunk_index).
-
-    All existing PersonalChunk nodes with the same (user_id, document_id,
-    conversation_id) triple are deleted first to avoid duplicates if the
-    function is retried.
     """
     if not chunks:
         return
@@ -429,8 +429,7 @@ def ingest_chunks_to_neo4j(
                 conversation_id: item.conversation_id,
                 text:            item.text,
                 chunk_index:     item.chunk_index,
-                embedding:       item.embedding,
-                embedding_384:   item.embedding
+                embedding_v2:    item.embedding
             })
             """,
             {"batch": batch_slice},

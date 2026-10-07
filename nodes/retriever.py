@@ -156,7 +156,7 @@ def retrieve_shared_corpus_concurrent(query: str, top_k: int = 4, apply_rerank: 
 
     def _safe_vector_search(q: str):
         try:
-            if not vector_index:
+            if not getattr(settings, "VECTOR_SEARCH_ENABLED", True) or not vector_index:
                 return []
             return vector_index.similarity_search(q, k=15)
         except Exception as e:

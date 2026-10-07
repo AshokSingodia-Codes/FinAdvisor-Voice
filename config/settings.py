@@ -12,23 +12,33 @@ class Settings(BaseSettings):
     # LLM Model Configuration
     GROQ_API_KEY: str = Field("", description="Groq API Key")
     GROQ_MODEL: str = Field("openai/gpt-oss-120b", description="Primary Groq Model")
-    ROUTER_MODEL: str = Field("openai/gpt-oss-20b", description="Fast Router Groq Model (max_tokens ~64)")
-    VERIFIER_MODEL: str = Field("openai/gpt-oss-20b", description="Fast Verifier Groq Model (max_tokens ~64)")
+    ROUTER_MODEL: str = Field("openai/gpt-oss-20b", description="Fast Router Groq Model")
+    VERIFIER_MODEL: str = Field("openai/gpt-oss-20b", description="Fast Verifier Groq Model")
     SYNTHESIS_MODEL: str = Field("openai/gpt-oss-120b", description="High-capacity Synthesis Groq Model")
     MAX_CHAT_HISTORY_TURNS: int = Field(6, description="Max conversation turns passed into StateGraph")
     
     GITHUB_API_KEY: Optional[str] = Field(None, description="GitHub PAT for Models API fallback")
     OPENROUTER_API_KEY: Optional[str] = Field(None, description="OpenRouter API Key for fallback")
+    OPENROUTER_MODEL: str = Field("mistralai/mistral-small-24b-instruct-2501", description="OpenRouter Fallback Model")
     GOOGLE_API_KEY: Optional[str] = Field(None, description="Google API Key for Gemini fallback")
+    GEMINI_MODEL: str = Field("gemini-3.5-flash-lite", description="Google Gemini Fallback Chat Model (highest free-tier RPD limit)")
     
-    # RAG Settings
-    VECTOR_INDEX_NAME: str = Field("vector_markdown_384", description="Vector Index Name")
-    PERSONAL_VECTOR_INDEX_NAME: str = Field("personalchunk_vector_384", description="Personal Vector Index Name")
-    EMBEDDING_PROVIDER: str = Field("fastembed", description="Embedding Provider (fastembed, huggingface, openai)")
-    EMBEDDING_DIM: int = Field(384, description="Vector embedding dimension (BAAI/bge-small-en-v1.5)")
+    # RAG & Embedding Settings
+    VECTOR_INDEX_NAME: str = Field("vector_markdown_v2", description="Vector Index Name")
+    PERSONAL_VECTOR_INDEX_NAME: str = Field("personalchunk_vector_v2", description="Personal Vector Index Name")
+    EMBEDDING_PROVIDER: str = Field("gemini", description="Embedding Provider (gemini, fastembed, openai)")
+    EMBEDDING_MODEL: str = Field("models/gemini-embedding-001", description="Hosted Embedding Model Name")
+    EMBEDDING_DIM: int = Field(768, description="Vector embedding dimension (768 with L2 normalization)")
+    VECTOR_SEARCH_ENABLED: bool = Field(True, description="Enable vector similarity search (false = keyword/graph search only)")
     KEYWORD_INDEX_NAME: str = Field("keyword_markdown", description="Keyword Index Name")
     MAX_RETRIEVAL_ITERATIONS: int = Field(3, description="Max iterative loops in the LangGraph agent")
     RRF_K: int = Field(60, description="RRF constant k")
+    
+    # Privacy & Personal Document Protection Flags
+    PERSONAL_DOCS_EMBEDDING: str = Field("keyword_only", description="Personal Document Embedding Mode (keyword_only | gemini)")
+    PERSONAL_CONTEXT_PROVIDERS: str = Field("groq,openrouter", description="Allowed LLM providers for requests containing personal document context")
+    PERSONAL_CONTEXT_EMBEDDING: str = Field("off", description="Whether to embed user queries when personal document context is active (off = BM25 fallback)")
+    RERANKER_PROVIDER: str = Field("none", description="Reranker Provider (none | flashrank)")
     
     # LangSmith Observability
     LANGCHAIN_TRACING_V2: str = Field("false", description="Enable LangSmith Tracing")
@@ -46,8 +56,6 @@ class Settings(BaseSettings):
     DATABASE_URL: Optional[str] = Field(None, description="PostgreSQL Connection URI (Neon pooled connection with sslmode=require)")
 
     # Document Encryption (Fernet AES-128-CBC + HMAC-SHA256)
-    # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-    # If unset, a per-process ephemeral key is used (dev only — NOT suitable for production).
     ENCRYPTION_KEY: Optional[str] = Field(None, description="Fernet encryption key for personal document content")
 
     # Brevo (Sendinblue) HTTPS Email API
@@ -84,13 +92,19 @@ class Settings(BaseSettings):
         if not self.DATABASE_URL:
             return None
         url = self.DATABASE_URL.strip()
-        # Handle postgres:// prefix to ensure SQLAlchemy uses psycopg2/postgresql driver
         if url.startswith("postgres://"):
             url = "postgresql://" + url[len("postgres://"):]
         return url
 
 
 KNOWN_GROQ_MODELS = {
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "llama-3.1-70b-versatile",
+    "llama3-70b-8192",
+    "llama3-8b-8192",
+    "mixtral-8x7b-32768",
+    "gemma2-9b-it",
     "openai/gpt-oss-120b",
     "openai/gpt-oss-20b",
     "qwen/qwen3.8-27b",
@@ -103,7 +117,7 @@ KNOWN_GROQ_MODELS = {
 }
 
 def validate_groq_models(s: Settings):
-    """Fails loudly if any configured Groq model is not in the confirmed supported models list."""
+    """Permits standard models and custom prefixed model identifiers."""
     if not s.GROQ_API_KEY:
         return
     for name, model_str in [
@@ -112,13 +126,11 @@ def validate_groq_models(s: Settings):
         ("VERIFIER_MODEL", s.VERIFIER_MODEL),
         ("SYNTHESIS_MODEL", s.SYNTHESIS_MODEL),
     ]:
-        if model_str and model_str not in KNOWN_GROQ_MODELS and not model_str.startswith("custom/"):
-            raise ValueError(
-                f"[FinAdvisor-X Startup Error] Invalid {name}='{model_str}'. "
-                f"Model identifier not in verified Groq supported models list: {sorted(list(KNOWN_GROQ_MODELS))}"
-            )
+        if model_str and model_str not in KNOWN_GROQ_MODELS and not (model_str.startswith("llama") or model_str.startswith("meta-") or model_str.startswith("custom/") or model_str.startswith("openai/") or model_str.startswith("qwen/")):
+            logger.warning(f"[Settings] Custom Groq model '{model_str}' configured for {name}.")
 
 # Instantiate a singleton settings object
 settings = Settings()
 validate_groq_models(settings)
+
 

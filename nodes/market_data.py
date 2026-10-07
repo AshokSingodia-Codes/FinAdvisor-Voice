@@ -1,4 +1,3 @@
-import yfinance as yf
 from langchain_core.prompts import ChatPromptTemplate
 from core.db import chat, get_structured_chat
 from pydantic import BaseModel, Field
@@ -10,6 +9,7 @@ _PRICE_CACHE = {}
 CACHE_TTL = 600
 
 def _get_yfinance_data_with_retries(ticker_symbol: str):
+    import yfinance as yf
     delays = [0.5, 1, 2]
     for attempt in range(3):
         try:

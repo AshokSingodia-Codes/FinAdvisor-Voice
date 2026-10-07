@@ -1,11 +1,16 @@
 import os
 import re
 from typing import List
+from config.settings import settings
 
 _ranker = None
 
 def get_ranker():
     global _ranker
+    provider = getattr(settings, "RERANKER_PROVIDER", "none").lower()
+    if provider == "none":
+        return None
+
     if _ranker is None:
         try:
             from flashrank import Ranker
@@ -14,7 +19,6 @@ def get_ranker():
             os.makedirs(cache_dir, exist_ok=True)
             _ranker = Ranker(model_name="ms-marco-MiniLM-L-12-v2", cache_dir=cache_dir)
         except Exception as e:
-            print(f"Warning: FlashRank lazy load deferred: {e}")
             return None
     return _ranker
 

@@ -1,287 +1,85 @@
+"""
+core/db.py
+----------
+Database connections, Vector Stores, and Resilient Multi-Provider LLM Services.
+
+- Vector Index: Neo4j Aura vector_markdown_v2 (768 dimensions, cosine similarity)
+- Embeddings: Zero-local-RAM hosted Gemini embeddings (core/embeddings.py)
+- LLMs: Dual-tier ResilientFallbackChat (Groq -> Gemini -> OpenRouter) with circuit breakers
+"""
+
 import os
-from dotenv import load_dotenv
+import sys
+import logging
+from typing import Optional, List, Dict, Any, Type
+from pydantic import BaseModel
 
-# Set memory-efficient thread configuration
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
-
-from config.settings import settings
-from core.cache import get_cached_embedding, set_cached_embedding
-
-# LangChain fallback environment variables
-if settings.NEO4J_URI:
-    os.environ["NEO4J_URI"] = settings.NEO4J_URI
-if settings.NEO4J_USERNAME:
-    os.environ["NEO4J_USERNAME"] = settings.NEO4J_USERNAME
-if settings.NEO4J_PASSWORD:
-    os.environ["NEO4J_PASSWORD"] = settings.NEO4J_PASSWORD
-if settings.GROQ_API_KEY:
-    os.environ["GROQ_API_KEY"] = settings.GROQ_API_KEY
-
-from langchain_groq import ChatGroq
-from langchain_openai import ChatOpenAI
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_neo4j import Neo4jGraph, Neo4jVector
 from langchain_core.embeddings import Embeddings
 
-# ==============================================================================
-# Dual-Tier LLM Architecture:
-# 1. Fast Chain (fast_chat / fast_structured_chat):
-#    Dedicated to Router, Decomposer, Verifier, and Eval Judge.
-#    Order: Small/Fast model (Groq Qwen-3.8-27B / OpenRouter DeepSeek/Gemini) -> Fast Fallback.
-#    NO 72B model in this chain to keep latency ultra-low (<500ms).
-#
-# 2. Synthesis Chain (synthesis_chat / chat):
-#    Dedicated to Evidence Builder and complex advisory synthesis.
-#    Order: OpenRouter Qwen 2.5 72B -> DeepSeek -> Gemini -> Groq.
-# ==============================================================================
+from config.settings import settings
+from core.embeddings import get_embedding_service
+from core.llm_manager import ResilientFallbackChat
 
-# --- A. Fast Chain Setup (Sub-second classification & extraction) ---
-fast_primary = None
-fast_fallbacks = []
+logger = logging.getLogger("finadvisor.db")
 
-if settings.GROQ_API_KEY:
-    fast_primary = ChatGroq(
-        temperature=0,
-        model_name=settings.ROUTER_MODEL or "openai/gpt-oss-20b",
-        max_tokens=256,
-        max_retries=0,
-        api_key=settings.GROQ_API_KEY,
-        timeout=4,
+# 1. Hosted Embeddings Service (Zero local memory footprint)
+hf = get_embedding_service()
+
+# 2. Neo4j Graph Connection (refresh_schema=False to prevent eager connection on import)
+kg = Neo4jGraph(
+    url=settings.NEO4J_URI,
+    username=settings.NEO4J_USERNAME,
+    password=settings.NEO4J_PASSWORD,
+    refresh_schema=False,
+)
+
+# 3. Neo4j Vector Store (points to vector_markdown_v2)
+index_name = getattr(settings, "VECTOR_INDEX_NAME", "vector_markdown_v2")
+try:
+    vector_index = Neo4jVector.from_existing_graph(
+        embedding=hf,
+        url=settings.NEO4J_URI,
+        username=settings.NEO4J_USERNAME,
+        password=settings.NEO4J_PASSWORD,
+        index_name=index_name,
+        node_label="Chunk",
+        text_node_properties=["text"],
+        embedding_node_property="embedding_v2",
     )
-    fast_fallbacks.append(ChatGroq(
-        temperature=0,
-        model_name="qwen/qwen3.8-27b",
-        max_tokens=256,
-        max_retries=0,
-        api_key=settings.GROQ_API_KEY,
-        timeout=4,
-    ))
+except Exception as _v_err:
+    logger.warning(f"[core/db] Neo4jVector initialization deferred/warning: {_v_err}")
+    vector_index = None
 
-# 1. OpenRouter (Fast & High Availability)
-if settings.OPENROUTER_API_KEY:
-    or_fast = ChatOpenAI(
-        model="mistralai/mistral-small-24b-instruct-2501",
-        openai_api_key=settings.OPENROUTER_API_KEY,
-        openai_api_base="https://openrouter.ai/api/v1",
-        max_tokens=400,
-        temperature=0,
-        max_retries=0,
-        timeout=5,
-    )
-    if not fast_primary:
-        fast_primary = or_fast
-    else:
-        fast_fallbacks.append(or_fast)
+# 4. Resilient LLM Services
+# A. Fast Tier (Router, Decomposer, Entities, Verifier, Solver)
+fast_chat = ResilientFallbackChat(
+    tier="fast",
+    has_personal_context=False,
+    temperature=0.0,
+    max_tokens=256,
+)
 
-# 2. Google Gemini
-if settings.GOOGLE_API_KEY:
-    gemini_fast = ChatGoogleGenerativeAI(
-        model="gemini-3.8-flash",
-        google_api_key=settings.GOOGLE_API_KEY,
-        temperature=0,
-        max_output_tokens=400,
-        max_retries=0,
-        timeout=4,
-    )
-    if not fast_primary:
-        fast_primary = gemini_fast
-    else:
-        fast_fallbacks.append(gemini_fast)
-
-if not fast_primary:
-    fast_primary = ChatGroq(temperature=0, model_name="dummy", api_key="dummy")
-
-fast_chat = fast_primary.with_fallbacks(fast_fallbacks) if fast_fallbacks else fast_primary
-
-
-def get_structured_fast_chat(schema, **kwargs):
-    primary_structured = fast_primary.with_structured_output(schema, **kwargs)
-    if fast_fallbacks:
-        fallback_structured = []
-        for f in fast_fallbacks:
-            try:
-                fallback_structured.append(f.with_structured_output(schema, **kwargs))
-            except Exception:
-                pass
-        if fallback_structured:
-            return primary_structured.with_fallbacks(fallback_structured)
-    return primary_structured
-
-
-# --- B. Synthesis Chain Setup ---
-synthesis_primary = None
-synthesis_fallbacks = []
-
-if settings.GROQ_API_KEY:
-    synthesis_primary = ChatGroq(
-        temperature=0,
-        model_name=settings.SYNTHESIS_MODEL or "openai/gpt-oss-120b",
-        max_tokens=1000,
-        max_retries=0,
-        api_key=settings.GROQ_API_KEY,
-        timeout=5,
-    )
-    synthesis_fallbacks.append(ChatGroq(
-        temperature=0,
-        model_name="openai/gpt-oss-20b",
-        max_tokens=1000,
-        max_retries=0,
-        api_key=settings.GROQ_API_KEY,
-        timeout=5,
-    ))
-
-# 1. OpenRouter (High Capacity & Fast Fallback)
-if settings.OPENROUTER_API_KEY:
-    or_synth = ChatOpenAI(
-        model="qwen/qwen-2.5-72b-instruct",
-        openai_api_key=settings.OPENROUTER_API_KEY,
-        openai_api_base="https://openrouter.ai/api/v1",
-        max_tokens=1000,
-        temperature=0,
-        max_retries=0,
-        timeout=8,
-    )
-    if not synthesis_primary:
-        synthesis_primary = or_synth
-    else:
-        synthesis_fallbacks.append(or_synth)
-
-# 2. Google Gemini
-if settings.GOOGLE_API_KEY:
-    gemini_synth = ChatGoogleGenerativeAI(
-        model="gemini-3.8-flash",
-        google_api_key=settings.GOOGLE_API_KEY,
-        temperature=0,
-        max_output_tokens=1000,
-        max_retries=0,
-        timeout=5,
-    )
-    if not synthesis_primary:
-        synthesis_primary = gemini_synth
-    else:
-        synthesis_fallbacks.append(gemini_synth)
-
-if not synthesis_primary:
-    synthesis_primary = fast_primary
-
-synthesis_chat = synthesis_primary.with_fallbacks(synthesis_fallbacks) if synthesis_fallbacks else synthesis_primary
-
-def get_structured_synthesis_chat(schema, **kwargs):
-    primary_structured = synthesis_primary.with_structured_output(schema, **kwargs)
-    if synthesis_fallbacks:
-        fallback_structured = []
-        for f in synthesis_fallbacks:
-            try:
-                fallback_structured.append(f.with_structured_output(schema, **kwargs))
-            except Exception:
-                pass
-        if fallback_structured:
-            return primary_structured.with_fallbacks(fallback_structured)
-    return primary_structured
-
-# Backwards compatibility aliases
+# B. Synthesis Tier (Evidence Builder, complex advisory response)
+synthesis_chat = ResilientFallbackChat(
+    tier="synthesis",
+    has_personal_context=False,
+    temperature=0.0,
+    max_tokens=1000,
+)
 chat = synthesis_chat
-get_structured_chat = get_structured_synthesis_chat
 
 
-# --- C. Ultra-lightweight ONNX-based FastEmbed Wrapper with Vector Caching ---
-class FastEmbedWrapper(Embeddings):
-    def __init__(self, model_name="BAAI/bge-small-en-v1.5"):
-        self.model_name = model_name
-        self._model = None
-
-    def _get_model(self):
-        if self._model is None:
-            from fastembed import TextEmbedding
-            self._model = TextEmbedding(model_name=self.model_name)
-        return self._model
-
-    def embed_documents(self, texts):
-        model = self._get_model()
-        return [list(emb) for emb in model.embed(texts)]
-
-    def embed_query(self, text):
-        cached = get_cached_embedding(text)
-        if cached is not None:
-            return cached
-        model = self._get_model()
-        emb = list(next(model.embed([text])))
-        set_cached_embedding(text, emb)
-        return emb
+def get_structured_fast_chat(schema: Any, **kwargs: Any) -> Any:
+    """Returns a fast LLM configured to produce validated structured output."""
+    return fast_chat.with_structured_output(schema, **kwargs)
 
 
-# --- D. Lazy Proxy helper to defer heavy memory allocations ---
-class LazyProxy:
-    def __init__(self, init_fn):
-        self._init_fn = init_fn
-        self._obj = None
-        self._attempted = False
-
-    def _get_obj(self):
-        if self._obj is None:
-            self._obj = self._init_fn()
-        return self._obj
-
-    def __getattr__(self, name):
-        obj = self._get_obj()
-        if obj is None:
-            raise RuntimeError("Database component is not initialized.")
-        return getattr(obj, name)
-
-    def __bool__(self):
-        return self._get_obj() is not None
+def get_structured_synthesis_chat(schema: Any, **kwargs: Any) -> Any:
+    """Returns a synthesis LLM configured to produce validated structured output."""
+    return synthesis_chat.with_structured_output(schema, **kwargs)
 
 
-def init_kg():
-    try:
-        from langchain_neo4j import Neo4jGraph
-        if not settings.NEO4J_URI:
-            print("🚨 [NEO4J ERROR] NEO4J_URI is not set in environment!")
-            return None
-        return Neo4jGraph(
-            url=settings.NEO4J_URI,
-            username=settings.NEO4J_USERNAME,
-            password=settings.NEO4J_PASSWORD,
-            database=settings.NEO4J_USERNAME
-        )
-    except Exception as e:
-        print(f"\n🚨 [NEO4J UNREACHABLE] Could not connect to Neo4j database ({settings.NEO4J_URI}): {e}\n"
-              f"   👉 Check if your Neo4j Aura instance is PAUSED in the Aura console or if credentials in .env are correct.\n")
-        return None
-
-from core.embeddings import get_embeddings_service, FastEmbedService
-
-def init_embeddings():
-    try:
-        return get_embeddings_service()
-    except Exception as e:
-        print(f"🚨 [EMBEDDINGS ERROR] Embeddings initialization failed: {e}")
-        return None
-
-def init_vector_index():
-    try:
-        from langchain_neo4j import Neo4jVector
-        emb_service = get_embeddings_service()
-        if not emb_service or not settings.NEO4J_URI:
-            return None
-        return Neo4jVector.from_existing_index(
-            emb_service,
-            url=settings.NEO4J_URI,
-            username=settings.NEO4J_USERNAME,
-            password=settings.NEO4J_PASSWORD,
-            index_name=settings.VECTOR_INDEX_NAME,
-            keyword_index_name=settings.KEYWORD_INDEX_NAME,
-            search_type="hybrid",
-            database=settings.NEO4J_USERNAME,
-            embedding_node_property="embedding_384"
-        )
-    except Exception as e:
-        print(f"\n🚨 [NEO4J VECTOR INDEX UNREACHABLE] Failed to initialize Neo4jVector ({settings.NEO4J_URI}): {e}\n")
-        return None
-
-# Lazy proxy instances
-kg = LazyProxy(init_kg)
-hf = LazyProxy(init_embeddings)
-fast_embeddings = LazyProxy(init_embeddings)
-vector_index = LazyProxy(init_vector_index)
+def get_structured_chat(schema: Any, **kwargs: Any) -> Any:
+    """Alias for structured synthesis chat."""
+    return get_structured_synthesis_chat(schema, **kwargs)
