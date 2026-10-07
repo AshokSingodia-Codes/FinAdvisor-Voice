@@ -68,3 +68,5 @@ Thumbs.db
 .ruff_cache/
 .mypy_cache/
 scratch/
+data/.fastembed_cache/
+data/.flashrank_cache/

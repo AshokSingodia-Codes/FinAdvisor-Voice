@@ -54,15 +54,15 @@ def personal_vector_search(
 
     query_embedding = embeddings.embed_query(query)
 
-    # Path 1: Neo4j 5.x native vector similarity
+    # Path 1: Neo4j 5.x native vector similarity strictly over 384-dim vectors
     cypher_native = """
     MATCH (c:PersonalChunk {
         user_id:         $user_id,
         document_id:     $document_id,
         conversation_id: $conversation_id
     })
-    WHERE c.embedding IS NOT NULL
-    WITH c, vector.similarity.cosine(c.embedding, $query_embedding) AS score
+    WHERE c.embedding_384 IS NOT NULL
+    WITH c, vector.similarity.cosine(c.embedding_384, $query_embedding) AS score
     WHERE score > 0.0
     ORDER BY score DESC
     LIMIT $top_k
@@ -78,7 +78,6 @@ def personal_vector_search(
     try:
         results = kg.query(cypher_native, params)
         if results:
-            # Decrypt encrypted base64 text
             decrypted = []
             for row in results:
                 enc_b64 = row.get("text")
@@ -90,44 +89,25 @@ def personal_vector_search(
                     decrypted.append(plaintext)
                 except Exception:
                     continue
-            return decrypted
-    except Exception:
-        # Path 2: GDS cosine similarity procedure
-        cypher_gds = """
-        MATCH (c:PersonalChunk {
-            user_id:         $user_id,
-            document_id:     $document_id,
-            conversation_id: $conversation_id
-        })
-        WHERE c.embedding IS NOT NULL
-        WITH c, gds.similarity.cosine(c.embedding, $query_embedding) AS score
-        WHERE score > 0.0
-        ORDER BY score DESC
-        LIMIT $top_k
-        RETURN c.text AS text
-        """
-        try:
-            results = kg.query(cypher_gds, params)
-            if results:
-                # Decrypt encrypted base64 text
-                decrypted = []
-                for row in results:
-                    enc_b64 = row.get("text")
-                    if not enc_b64:
-                        continue
-                    try:
-                        encrypted_bytes = base64.urlsafe_b64decode(enc_b64.encode())
-                        plaintext = decrypt_text(encrypted_bytes)
-                        decrypted.append(plaintext)
-                    except Exception:
-                        continue
+            if decrypted:
                 return decrypted
-        except Exception:
-            pass
+    except Exception as e:
+        print(f"[personal_retriever] Native vector search notice: {e}")
 
-    # Path 3: In-memory exact cosine fallback
-    return _personal_vector_search_fallback(
+    # Path 2: In-memory exact cosine fallback over 384-dim vectors
+    fallback_res = _personal_vector_search_fallback(
         query_embedding=query_embedding,
+        user_id=user_id,
+        document_id=document_id,
+        conversation_id=conversation_id,
+        top_k=top_k,
+    )
+    if fallback_res:
+        return fallback_res
+
+    # Path 3: Fall back to keyword search if vector search returns no results
+    return personal_keyword_search(
+        query=query,
         user_id=user_id,
         document_id=document_id,
         conversation_id=conversation_id,
@@ -143,7 +123,7 @@ def _personal_vector_search_fallback(
     top_k: int,
 ) -> List[str]:
     """
-    Brute-force cosine similarity over PersonalChunk nodes.
+    Exact cosine similarity over PersonalChunk nodes with embedding_384.
     The 3-field isolation filter is strictly enforced.
     """
     import math
@@ -155,8 +135,8 @@ def _personal_vector_search_fallback(
         document_id:     $document_id,
         conversation_id: $conversation_id
     })
-    WHERE c.embedding IS NOT NULL
-    RETURN c.text AS text, c.embedding AS embedding
+    WHERE c.embedding_384 IS NOT NULL
+    RETURN c.text AS text, c.embedding_384 AS embedding
     """
     params = _build_isolation_params(user_id, document_id, conversation_id)
     try:
@@ -166,6 +146,8 @@ def _personal_vector_search_fallback(
         return []
 
     def cosine(a: List[float], b: List[float]) -> float:
+        if len(a) != len(b):
+            return 0.0
         dot = sum(x * y for x, y in zip(a, b))
         mag_a = math.sqrt(sum(x * x for x in a))
         mag_b = math.sqrt(sum(x * x for x in b))
@@ -177,8 +159,13 @@ def _personal_vector_search_fallback(
     for row in rows:
         text = row.get("text")
         emb = row.get("embedding")
-        if text and emb:
-            scored.append((text, cosine(query_embedding, emb)))
+        if text and emb and len(emb) == 384:
+            try:
+                encrypted_bytes = base64.urlsafe_b64decode(text.encode())
+                decrypted_plain = decrypt_text(encrypted_bytes)
+                scored.append((decrypted_plain, cosine(query_embedding, emb)))
+            except Exception:
+                continue
 
     scored.sort(key=lambda x: x[1], reverse=True)
     return [text for text, _ in scored[:top_k]]

@@ -81,7 +81,22 @@ app_graph = workflow.compile()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """FastAPI lifespan context manager — runs startup tasks and manages clean shutdown."""
+    import psutil
     from core.regulatory_watcher import monthly_watchdog_background_loop
+    from core.embeddings import get_embeddings_service
+
+    # 1. Pre-warm FastEmbed singleton once at startup
+    try:
+        emb = get_embeddings_service()
+        emb.embed_query("warmup")
+    except Exception as e:
+        print(f"[lifespan] Embeddings pre-warming notice: {e}")
+
+    # 2. Log startup memory usage
+    proc = psutil.Process()
+    rss_mb = proc.memory_info().rss / (1024 * 1024)
+    print(f"🚀 [STARTUP] FastAPI server started | Peak RSS Memory: {rss_mb:.2f} MB")
+
     # Start light background tasks
     reg_task = asyncio.create_task(monthly_watchdog_background_loop())
     snap_task = asyncio.create_task(_daily_snapshot_background_loop())
@@ -115,8 +130,13 @@ def validate_email_format(email: str) -> str:
 @app.api_route("/api/health", methods=["GET", "HEAD"])
 @app.api_route("/health", methods=["GET", "HEAD"])
 def health_check():
-    """Lightweight endpoint for health-ping cron jobs and uptime monitors."""
-    return {"status": "ok"}
+    """Lightweight endpoint for health-ping cron jobs and uptime monitors with memory telemetry."""
+    try:
+        import psutil
+        rss_mb = round(psutil.Process().memory_info().rss / (1024 * 1024), 2)
+    except Exception:
+        rss_mb = None
+    return {"status": "ok", "rss_mb": rss_mb}
 
 class SendOtpRequest(BaseModel):
     email: str

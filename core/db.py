@@ -250,53 +250,31 @@ def init_kg():
               f"   👉 Check if your Neo4j Aura instance is PAUSED in the Aura console or if credentials in .env are correct.\n")
         return None
 
-class CachedHuggingFaceEmbeddings(Embeddings):
-    def __init__(self, model_name="sentence-transformers/paraphrase-multilingual-mpnet-base-v2"):
-        self.model_name = model_name
-        self._fastembed = FastEmbedWrapper(model_name=model_name)
+from core.embeddings import get_embeddings_service, FastEmbedService
 
-    def embed_documents(self, texts):
-        return self._fastembed.embed_documents(texts)
-
-    def embed_query(self, text):
-        cached = get_cached_embedding(text)
-        if cached is not None and len(cached) == 768:
-            return cached
-        emb = self._fastembed.embed_query(text)
-        if emb is not None and len(emb) == 768:
-            set_cached_embedding(text, emb)
-        return emb
-
-_cached_embeddings = None
-def init_hf():
-    global _cached_embeddings
-    if _cached_embeddings is not None:
-        return _cached_embeddings
+def init_embeddings():
     try:
-        _cached_embeddings = CachedHuggingFaceEmbeddings(model_name="sentence-transformers/paraphrase-multilingual-mpnet-base-v2")
-        return _cached_embeddings
+        return get_embeddings_service()
     except Exception as e:
         print(f"🚨 [EMBEDDINGS ERROR] Embeddings initialization failed: {e}")
         return None
 
-# Export FastEmbed ONNX wrapper instance
-fast_embeddings = FastEmbedWrapper(model_name="BAAI/bge-small-en-v1.5")
-
 def init_vector_index():
     try:
         from langchain_neo4j import Neo4jVector
-        curr_hf = init_hf()
-        if not curr_hf or not settings.NEO4J_URI:
+        emb_service = get_embeddings_service()
+        if not emb_service or not settings.NEO4J_URI:
             return None
         return Neo4jVector.from_existing_index(
-            curr_hf,
+            emb_service,
             url=settings.NEO4J_URI,
             username=settings.NEO4J_USERNAME,
             password=settings.NEO4J_PASSWORD,
             index_name=settings.VECTOR_INDEX_NAME,
             keyword_index_name=settings.KEYWORD_INDEX_NAME,
             search_type="hybrid",
-            database=settings.NEO4J_USERNAME
+            database=settings.NEO4J_USERNAME,
+            embedding_node_property="embedding_384"
         )
     except Exception as e:
         print(f"\n🚨 [NEO4J VECTOR INDEX UNREACHABLE] Failed to initialize Neo4jVector ({settings.NEO4J_URI}): {e}\n")
@@ -304,5 +282,6 @@ def init_vector_index():
 
 # Lazy proxy instances
 kg = LazyProxy(init_kg)
-hf = LazyProxy(init_hf)
+hf = LazyProxy(init_embeddings)
+fast_embeddings = LazyProxy(init_embeddings)
 vector_index = LazyProxy(init_vector_index)

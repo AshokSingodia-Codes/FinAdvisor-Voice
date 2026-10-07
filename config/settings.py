@@ -22,7 +22,10 @@ class Settings(BaseSettings):
     GOOGLE_API_KEY: Optional[str] = Field(None, description="Google API Key for Gemini fallback")
     
     # RAG Settings
-    VECTOR_INDEX_NAME: str = Field("vector_markdown", description="Vector Index Name")
+    VECTOR_INDEX_NAME: str = Field("vector_markdown_384", description="Vector Index Name")
+    PERSONAL_VECTOR_INDEX_NAME: str = Field("personalchunk_vector_384", description="Personal Vector Index Name")
+    EMBEDDING_PROVIDER: str = Field("fastembed", description="Embedding Provider (fastembed, huggingface, openai)")
+    EMBEDDING_DIM: int = Field(384, description="Vector embedding dimension (BAAI/bge-small-en-v1.5)")
     KEYWORD_INDEX_NAME: str = Field("keyword_markdown", description="Keyword Index Name")
     MAX_RETRIEVAL_ITERATIONS: int = Field(3, description="Max iterative loops in the LangGraph agent")
     RRF_K: int = Field(60, description="RRF constant k")

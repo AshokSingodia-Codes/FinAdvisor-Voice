@@ -429,7 +429,8 @@ def ingest_chunks_to_neo4j(
                 conversation_id: item.conversation_id,
                 text:            item.text,
                 chunk_index:     item.chunk_index,
-                embedding:       item.embedding
+                embedding:       item.embedding,
+                embedding_384:   item.embedding
             })
             """,
             {"batch": batch_slice},
