@@ -56,10 +56,26 @@ def _is_provider_available(provider: str) -> bool:
 def _record_provider_failure(provider: str, error: Exception):
     """
     Sets appropriate cooldown:
+    - If credit balance exhausted (402): 24h cooldown so provider isn't repeatedly queried.
     - If daily quota (RPD) exhausted: disables provider until midnight Pacific Time.
-    - If minute rate limit (RPM) or temporary 5xx: 60-second cooldown (or Retry-After duration).
+    - If minute rate limit (RPM/TPM): parses provider's wait hint (e.g. 'try again in 2.8s') or sets 3-5s cooldown.
+    - If transient 5xx or read timeout: 5.0s cooldown.
+    - If 400 Bad Request / tool_use_failed / validation error: do NOT trip the circuit breaker.
     """
     err_str = str(error).lower()
+
+    # Client-side / schema errors (e.g. model returned text instead of tool call) must not disable provider globally
+    if any(k in err_str for k in ("tool_use_failed", "bad request", "400", "invalid_request_error", "validation_error")):
+        logger.warning(f"[CircuitBreaker] Skipping cooldown for '{provider}' on client/format error: {error}")
+        return
+
+    # Check 402 / credit exhaustion
+    if any(k in err_str for k in ("402", "openrouter_credits", "more credits", "adjust the key's total limit")):
+        cooldown_seconds = 86400.0
+        _CIRCUIT_BREAKER[provider] = time.time() + cooldown_seconds
+        logger.warning(f"[CircuitBreaker] Provider '{provider}' has no credits (402). Cooldown set for 24h.")
+        return
+
     is_daily_limit = any(k in err_str for k in ("perday", "daily", "requestsperday", "quotaexceededfor", "free_tier_daily"))
 
     if is_daily_limit:
@@ -71,18 +87,26 @@ def _record_provider_failure(provider: str, error: Exception):
         )
         return
 
-    cooldown_seconds = 60.0
-    if hasattr(error, "response") and error.response is not None:
+    # Check for specific retry hint like 'try again in 2.8875s'
+    import re
+    match = re.search(r"try again in (\d+(?:\.\d+)?)s", err_str)
+    if match:
+        cooldown_seconds = max(float(match.group(1)) + 0.5, 2.0)
+    elif hasattr(error, "response") and error.response is not None:
         retry_after = getattr(error.response, "headers", {}).get("retry-after")
         if retry_after:
             try:
                 cooldown_seconds = max(float(retry_after), 10.0)
             except (ValueError, TypeError):
-                pass
+                cooldown_seconds = 60.0
+        else:
+            cooldown_seconds = 60.0
+    else:
+        cooldown_seconds = 60.0
 
     _CIRCUIT_BREAKER[provider] = time.time() + cooldown_seconds
     logger.warning(
-        f"[CircuitBreaker] Tripped for provider '{provider}' (RPM/Transient error: {type(error).__name__}). "
+        f"[CircuitBreaker] Tripped for provider '{provider}' (Error: {type(error).__name__}). "
         f"Cooldown set for {cooldown_seconds:.1f}s."
     )
 
@@ -91,6 +115,72 @@ def _record_provider_success(provider: str):
     """Clears cooldown upon successful execution."""
     if provider in _CIRCUIT_BREAKER:
         _CIRCUIT_BREAKER.pop(provider, None)
+
+
+class StructuredFallbackRunnable(Runnable):
+    """
+    Executes structured output with resilient multi-provider fallback.
+    Returns the parsed Pydantic / structured object directly to match LangChain's contract.
+    """
+    def __init__(self, parent_chat: "ResilientFallbackChat", schema: Any):
+        self.parent_chat = parent_chat
+        self.schema = schema
+
+    def invoke(self, input: Any, config: Optional[RunnableConfig] = None, **kwargs: Any) -> Any:
+        providers = self.parent_chat._get_providers_order()
+        # Find providers that are not in cooldown
+        available_providers = [p for p in providers if _is_provider_available(p)]
+        if not available_providers:
+            # All providers are in cooldown! Pick the one whose cooldown expires earliest.
+            # If the remaining cooldown is small (<= 4s), wait briefly to allow the window to clear.
+            best = min(providers, key=lambda p: _CIRCUIT_BREAKER.get(p, 0.0))
+            remaining = _CIRCUIT_BREAKER.get(best, 0.0) - time.time()
+            if 0 < remaining <= 4.0:
+                logger.info(f"[StructuredLLM] All in cooldown. Waiting {remaining:.1f}s for '{best}' window to clear...")
+                time.sleep(remaining + 0.1)
+            available_providers = [best]
+            logger.info(f"[StructuredLLM] Resuming attempt with provider '{best}'.")
+
+        last_error = None
+        for provider in available_providers:
+            client = self.parent_chat._instantiate_provider_client(provider)
+            if client is None:
+                continue
+            try:
+                structured_client = client.with_structured_output(self.schema)
+                res = structured_client.invoke(input, config=config, **kwargs)
+                _record_provider_success(provider)
+                logger.info(f"[StructuredLLM] Success via '{provider}' (tier={self.parent_chat.tier})")
+                return res
+            except Exception as e:
+                last_error = e
+                _record_provider_failure(provider, e)
+                # If provider is groq and it's a minor minute/token rate limit with short retry hint (<= 5s), wait and retry once
+                import re
+                match = re.search(r"try again in (\d+(?:\.\d+)?)s", str(e).lower())
+                if match and float(match.group(1)) <= 5.0 and provider == "groq":
+                    wait_s = float(match.group(1)) + 0.3
+                    logger.info(f"[StructuredLLM] Groq TPM limit: waiting {wait_s:.1f}s for bucket to drain...")
+                    time.sleep(wait_s)
+                    try:
+                        structured_client = client.with_structured_output(self.schema)
+                        res = structured_client.invoke(input, config=config, **kwargs)
+                        _record_provider_success(provider)
+                        logger.info(f"[StructuredLLM] Success on retry via '{provider}' (tier={self.parent_chat.tier})")
+                        return res
+                    except Exception as e2:
+                        last_error = e2
+                        _record_provider_failure(provider, e2)
+                logger.warning(f"[StructuredLLM] Provider '{provider}' failed: {e}. Cascading...")
+                continue
+
+        logger.error(f"[StructuredLLM] All providers ({providers}) failed for schema {self.schema}: {last_error}")
+        if isinstance(self.schema, type) and issubclass(self.schema, BaseModel):
+            try:
+                return self.schema()
+            except Exception:
+                pass
+        raise last_error or RuntimeError(f"All structured LLM providers failed for {self.schema}")
 
 
 class ResilientFallbackChat(BaseChatModel):
@@ -154,7 +244,7 @@ class ResilientFallbackChat(BaseChatModel):
                     temperature=self.temperature,
                     max_output_tokens=self.max_tokens,
                     max_retries=0,
-                    timeout=5 if self.tier == "fast" else 8,
+                    timeout=25 if self.tier == "fast" else 35,
                 )
 
             elif provider == "openrouter":
@@ -195,46 +285,80 @@ class ResilientFallbackChat(BaseChatModel):
     ) -> ChatResult:
         """Executes the fallback cascade across available providers."""
         providers = self._get_providers_order()
+        available_providers = [p for p in providers if _is_provider_available(p)]
+        if not available_providers:
+            # All providers are in cooldown! Pick the one whose cooldown expires earliest.
+            best = min(providers, key=lambda p: _CIRCUIT_BREAKER.get(p, 0.0))
+            remaining = _CIRCUIT_BREAKER.get(best, 0.0) - time.time()
+            if 0 < remaining <= 4.0:
+                logger.info(f"[LLM] All providers in cooldown. Waiting {remaining:.1f}s for '{best}' window to clear...")
+                time.sleep(remaining + 0.1)
+            available_providers = [best]
+            logger.info(f"[LLM] Resuming attempt with provider '{best}'.")
+
         last_error = None
         attempted_providers = []
 
-        for provider in providers:
-            if not _is_provider_available(provider):
-                continue
-
+        for provider in available_providers:
             client = self._instantiate_provider_client(provider)
             if client is None:
                 continue
 
             attempted_providers.append(provider)
             try:
-                if self.structured_schema is not None:
-                    structured_client = client.with_structured_output(self.structured_schema)
-                    result_obj = structured_client.invoke(messages, **kwargs)
-                    _record_provider_success(provider)
-                    logger.info(f"[LLM] Success via '{provider}' (tier={self.tier}, personal_context={self.has_personal_context})")
-                    gen = ChatGeneration(
-                        message=AIMessage(
-                            content=str(result_obj),
-                            additional_kwargs={"answered_by": provider, "structured_result": result_obj}
-                        )
-                    )
-                    return ChatResult(generations=[gen])
+                response = client.invoke(messages, stop=stop, **kwargs)
+                _record_provider_success(provider)
+                logger.info(f"[LLM] Success via '{provider}' (tier={self.tier}, personal_context={self.has_personal_context})")
+
+                raw_content = response.content if isinstance(response, AIMessage) else getattr(response, "content", str(response))
+                if isinstance(raw_content, list):
+                    text_parts = []
+                    for part in raw_content:
+                        if isinstance(part, dict) and "text" in part:
+                            text_parts.append(part["text"])
+                        elif isinstance(part, str):
+                            text_parts.append(part)
+                        else:
+                            text_parts.append(str(part))
+                    content_str = "\n".join(text_parts)
                 else:
-                    response = client.invoke(messages, stop=stop, **kwargs)
-                    _record_provider_success(provider)
-                    logger.info(f"[LLM] Success via '{provider}' (tier={self.tier}, personal_context={self.has_personal_context})")
-                    
-                    if isinstance(response, AIMessage):
-                        response.additional_kwargs["answered_by"] = provider
-                        return ChatResult(generations=[ChatGeneration(message=response)])
-                    else:
-                        msg = AIMessage(content=str(response.content), additional_kwargs={"answered_by": provider})
-                        return ChatResult(generations=[ChatGeneration(message=msg)])
+                    content_str = str(raw_content)
+
+                msg = AIMessage(content=content_str, additional_kwargs={"answered_by": provider})
+                return ChatResult(generations=[ChatGeneration(message=msg)])
 
             except Exception as e:
                 last_error = e
                 _record_provider_failure(provider, e)
+                # If provider is groq and it's a minor minute/token rate limit with short retry hint (<= 5s), wait and retry once
+                import re
+                match = re.search(r"try again in (\d+(?:\.\d+)?)s", str(e).lower())
+                if match and float(match.group(1)) <= 5.0 and provider == "groq":
+                    wait_s = float(match.group(1)) + 0.3
+                    logger.info(f"[LLM] Groq TPM limit: waiting {wait_s:.1f}s for bucket to drain...")
+                    time.sleep(wait_s)
+                    try:
+                        response = client.invoke(messages, stop=stop, **kwargs)
+                        _record_provider_success(provider)
+                        logger.info(f"[LLM] Success on retry via '{provider}' (tier={self.tier})")
+                        raw_content = response.content if isinstance(response, AIMessage) else getattr(response, "content", str(response))
+                        if isinstance(raw_content, list):
+                            text_parts = []
+                            for part in raw_content:
+                                if isinstance(part, dict) and "text" in part:
+                                    text_parts.append(part["text"])
+                                elif isinstance(part, str):
+                                    text_parts.append(part)
+                                else:
+                                    text_parts.append(str(part))
+                            content_str = "\n".join(text_parts)
+                        else:
+                            content_str = str(raw_content)
+                        msg = AIMessage(content=content_str, additional_kwargs={"answered_by": provider})
+                        return ChatResult(generations=[ChatGeneration(message=msg)])
+                    except Exception as e2:
+                        last_error = e2
+                        _record_provider_failure(provider, e2)
                 logger.warning(f"[LLM Fallback] Provider '{provider}' failed: {e}. Moving to next provider in cascade.")
                 continue
 
@@ -247,14 +371,8 @@ class ResilientFallbackChat(BaseChatModel):
         return ChatResult(generations=[ChatGeneration(message=fallback_msg)])
 
     def with_structured_output(self, schema: Any, **kwargs: Any) -> Runnable:
-        """Returns a copy configured with the given structured schema."""
-        return ResilientFallbackChat(
-            tier=self.tier,
-            has_personal_context=self.has_personal_context,
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
-            structured_schema=schema,
-        )
+        """Returns a StructuredFallbackRunnable configured with the given structured schema."""
+        return StructuredFallbackRunnable(self, schema)
 
     def bind_personal_context(self, has_personal: bool) -> "ResilientFallbackChat":
         """Returns a new chat instance with conversation-scoped personal context bound."""

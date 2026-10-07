@@ -665,8 +665,8 @@ def try_evaluate_fast_math(query: str) -> Tuple[bool, Optional[str], Optional[fl
         result = _safe_eval_ast(parsed_tree)
         formatted_ans = format_final_result(result, currency_symbol, style)
         return True, formatted_ans, result
-    except ZeroDivisionError as zde:
-        return True, f"**Division by zero is undefined.** ({str(zde)})", None
+    except ZeroDivisionError:
+        return False, None, None
     except OverflowError as oe:
         return True, f"**{str(oe)}**", None
     except ValueError as ve:

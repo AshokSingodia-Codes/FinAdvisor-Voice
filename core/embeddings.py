@@ -9,6 +9,11 @@ Implements LangChain's Embeddings interface with:
 - Dedicated query TTLCache (500 entries)
 - Dedicated Embedding Circuit Breaker and Exponential Backoff Retries
 - Silent fallback to keyword search if embedding API is exhausted or unavailable
+
+Rate Limits (Gemini Embedding 1 Free Tier):
+- 100 RPM
+- 30,000 TPM
+- 1,000 RPD (resets at Midnight Pacific Time)
 """
 
 import os

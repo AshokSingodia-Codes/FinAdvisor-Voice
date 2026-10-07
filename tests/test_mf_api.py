@@ -9,7 +9,11 @@ def test_mf_api():
     
     # 1. Search scheme code
     search_url = f"https://api.mfapi.in/mf/search?q={requests.utils.quote(query)}"
-    res = requests.get(search_url, timeout=5)
+    try:
+        res = requests.get(search_url, timeout=5)
+    except (requests.exceptions.ConnectTimeout, requests.exceptions.ConnectionError):
+        import pytest
+        pytest.skip("api.mfapi.in is temporarily unreachable or slow")
     t_search = time.time() - t0
     
     if res.status_code == 200:

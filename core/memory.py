@@ -2,7 +2,7 @@ import os
 import json
 import re
 from datetime import datetime, timedelta, timezone
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from contextlib import contextmanager
 
 from sqlalchemy import (
@@ -104,11 +104,10 @@ def create_db_engine(db_url: Optional[str] = None):
         )
     else:
         # PostgreSQL / Neon Serverless configuration:
-        # pool_pre_ping: Verifies connection liveness before checking out from pool
         # pool_recycle: Recycles connections periodically to align with PgBouncer
         return create_engine(
             url,
-            pool_pre_ping=True,
+            pool_pre_ping=False,
             pool_recycle=300,
             pool_size=10,
             max_overflow=20,
@@ -490,6 +489,7 @@ def create_conversation(title: str = "New Chat", user_id: str = "", conversation
             {"cid": cid, "updated_at": now}
         )
         conn.commit()
+    _CONV_RAW_CACHE[cid] = ({"id": cid, "user_id": user_id, "title": title, "created_at": now, "updated_at": now}, time.time() + _CONV_RAW_CACHE_TTL)
     return cid
 
 def get_conversations(user_id: str) -> List[Dict[str, Any]]:
@@ -512,15 +512,30 @@ def get_conversations(user_id: str) -> List[Dict[str, Any]]:
         rows = result.mappings().fetchall()
         return [dict(row) for row in rows]
 
+_CONV_RAW_CACHE: Dict[str, Tuple[Optional[Dict[str, Any]], float]] = {}
+_CONV_RAW_CACHE_TTL = 120.0
+
+_CONTINUITY_CACHE: Dict[str, Tuple[Dict[str, Any], float]] = {}
+_CONTINUITY_CACHE_TTL = 120.0
+
+
 def get_conversation_raw(conversation_id: str) -> Optional[Dict[str, Any]]:
     """Internal check to inspect conversation existence across users for access control."""
+    now = time.time()
+    if conversation_id in _CONV_RAW_CACHE:
+        val, exp = _CONV_RAW_CACHE[conversation_id]
+        if now < exp:
+            return val
+
     with get_db_connection() as conn:
         result = conn.execute(
             text("SELECT id, user_id, title, created_at, updated_at FROM conversations WHERE id = :id"),
             {"id": conversation_id}
         )
         row = result.mappings().fetchone()
-        return dict(row) if row else None
+        res = dict(row) if row else None
+        _CONV_RAW_CACHE[conversation_id] = (res, now + _CONV_RAW_CACHE_TTL)
+        return res
 
 def get_conversation(conversation_id: str, user_id: str) -> Optional[Dict[str, Any]]:
     if not user_id:
@@ -583,6 +598,14 @@ def get_conversation_continuity(conversation_id: str, user_id: str = "") -> Dict
     """
     if not conversation_id:
         return {"active_entities": {}, "conversation_topic": ""}
+
+    now = time.time()
+    cache_key = f"{user_id}:{conversation_id}" if user_id else conversation_id
+    if cache_key in _CONTINUITY_CACHE:
+        val, exp = _CONTINUITY_CACHE[cache_key]
+        if now < exp:
+            return val
+
     try:
         with get_db_connection() as conn:
             if user_id:
@@ -591,7 +614,9 @@ def get_conversation_continuity(conversation_id: str, user_id: str = "") -> Dict
                     {"id": conversation_id, "user_id": user_id}
                 ).fetchone()
                 if not conv:
-                    return {"active_entities": {}, "conversation_topic": ""}
+                    res = {"active_entities": {}, "conversation_topic": ""}
+                    _CONTINUITY_CACHE[cache_key] = (res, now + _CONTINUITY_CACHE_TTL)
+                    return res
 
             row = conn.execute(
                 text("SELECT active_entities, conversation_topic FROM conversation_memory WHERE conversation_id = :id"),
@@ -605,10 +630,14 @@ def get_conversation_continuity(conversation_id: str, user_id: str = "") -> Dict
                     entities = json.loads(raw_entities) if isinstance(raw_entities, str) else raw_entities
                 except Exception:
                     entities = {}
-                return {"active_entities": entities, "conversation_topic": topic}
+                res = {"active_entities": entities, "conversation_topic": topic}
+                _CONTINUITY_CACHE[cache_key] = (res, now + _CONTINUITY_CACHE_TTL)
+                return res
     except Exception as e:
         print(f"[memory] Error getting conversation continuity: {e}")
-    return {"active_entities": {}, "conversation_topic": ""}
+    res = {"active_entities": {}, "conversation_topic": ""}
+    _CONTINUITY_CACHE[cache_key] = (res, now + _CONTINUITY_CACHE_TTL)
+    return res
 
 def save_conversation_continuity(
     conversation_id: str,
@@ -622,6 +651,11 @@ def save_conversation_continuity(
     """
     if not conversation_id:
         return False
+    # Immediately update memory cache for sub-millisecond continuity reads
+    cache_key = f"{user_id}:{conversation_id}" if user_id else conversation_id
+    _CONTINUITY_CACHE[cache_key] = ({"active_entities": active_entities, "conversation_topic": conversation_topic}, time.time() + _CONTINUITY_CACHE_TTL)
+    if user_id:
+        _CONTINUITY_CACHE[conversation_id] = ({"active_entities": active_entities, "conversation_topic": conversation_topic}, time.time() + _CONTINUITY_CACHE_TTL)
     try:
         with get_db_connection() as conn:
             if user_id:

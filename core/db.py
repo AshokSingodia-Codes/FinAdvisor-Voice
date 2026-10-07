@@ -31,25 +31,31 @@ kg = Neo4jGraph(
     url=settings.NEO4J_URI,
     username=settings.NEO4J_USERNAME,
     password=settings.NEO4J_PASSWORD,
+    database=getattr(settings, "NEO4J_DATABASE", settings.NEO4J_USERNAME),
     refresh_schema=False,
 )
 
-# 3. Neo4j Vector Store (points to vector_markdown_v2)
-index_name = getattr(settings, "VECTOR_INDEX_NAME", "vector_markdown_v2")
-try:
-    vector_index = Neo4jVector.from_existing_graph(
-        embedding=hf,
-        url=settings.NEO4J_URI,
-        username=settings.NEO4J_USERNAME,
-        password=settings.NEO4J_PASSWORD,
-        index_name=index_name,
-        node_label="Chunk",
-        text_node_properties=["text"],
-        embedding_node_property="embedding_v2",
-    )
-except Exception as _v_err:
-    logger.warning(f"[core/db] Neo4jVector initialization deferred/warning: {_v_err}")
-    vector_index = None
+# 3. Neo4j Vector Store (points to vector_markdown_v2 if enabled)
+vector_index = None
+if getattr(settings, "VECTOR_SEARCH_ENABLED", False):
+    index_name = getattr(settings, "VECTOR_INDEX_NAME", "vector_markdown_v2")
+    try:
+        vector_index = Neo4jVector.from_existing_graph(
+            embedding=hf,
+            url=settings.NEO4J_URI,
+            username=settings.NEO4J_USERNAME,
+            password=settings.NEO4J_PASSWORD,
+            database=getattr(settings, "NEO4J_DATABASE", settings.NEO4J_USERNAME),
+            index_name=index_name,
+            node_label="Chunk",
+            text_node_properties=["text"],
+            embedding_node_property="embedding_v2",
+        )
+    except Exception as _v_err:
+        logger.warning(f"[core/db] Neo4jVector initialization deferred/warning: {_v_err}")
+        vector_index = None
+else:
+    logger.info("[core/db] VECTOR_SEARCH_ENABLED is False; operating in safe Zero-Embedding Keyword+Graph mode.")
 
 # 4. Resilient LLM Services
 # A. Fast Tier (Router, Decomposer, Entities, Verifier, Solver)

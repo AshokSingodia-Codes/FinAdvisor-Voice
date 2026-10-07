@@ -21,14 +21,16 @@ Security model:
 
 import os
 import io
+import time
 import uuid
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 
 from sqlalchemy import (
     Table, Column, String, Integer, Text, Index, MetaData
 )
 from sqlalchemy.sql import text
 
+from config.settings import settings
 from core.memory import get_db_connection, metadata as _global_metadata, engine
 
 # ---------------------------------------------------------------------------
@@ -799,11 +801,22 @@ def compress_financial_text(text_data: str) -> str:
     return result.strip()
 
 
+_ACTIVE_DOC_CACHE: Dict[str, Tuple[Optional[Dict[str, Any]], float]] = {}
+_ACTIVE_DOC_CACHE_TTL = 60.0
+
+
 def get_active_document_for_conversation(user_id: str, conversation_id: str) -> Optional[Dict[str, Any]]:
     """
     Returns the most recent ready document record associated with (user_id, conversation_id).
     Ensures session-level document memory persistence across multi-turn chats.
     """
+    cache_key = f"{user_id}:{conversation_id}"
+    now = time.time()
+    if cache_key in _ACTIVE_DOC_CACHE:
+        val, exp = _ACTIVE_DOC_CACHE[cache_key]
+        if now < exp:
+            return val
+
     with get_db_connection() as conn:
         stmt = text("""
             SELECT id, user_id, conversation_id, filename, file_size_bytes, mime_type, status, chunk_count, created_at
@@ -813,9 +826,9 @@ def get_active_document_for_conversation(user_id: str, conversation_id: str) -> 
             LIMIT 1
         """)
         row = conn.execute(stmt, {"uid": user_id, "cid": conversation_id}).fetchone()
-        if not row:
-            return None
-        return dict(row._mapping)
+        result = dict(row._mapping) if row else None
+        _ACTIVE_DOC_CACHE[cache_key] = (result, now + _ACTIVE_DOC_CACHE_TTL)
+        return result
 
 
 def delete_document(document_id: str, user_id: str, conversation_id: str) -> bool:

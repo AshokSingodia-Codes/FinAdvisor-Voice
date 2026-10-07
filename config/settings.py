@@ -12,8 +12,8 @@ class Settings(BaseSettings):
     # LLM Model Configuration
     GROQ_API_KEY: str = Field("", description="Groq API Key")
     GROQ_MODEL: str = Field("openai/gpt-oss-120b", description="Primary Groq Model")
-    ROUTER_MODEL: str = Field("openai/gpt-oss-20b", description="Fast Router Groq Model")
-    VERIFIER_MODEL: str = Field("openai/gpt-oss-20b", description="Fast Verifier Groq Model")
+    ROUTER_MODEL: str = Field("qwen/qwen3.8-27b", description="Fast Router Groq Model")
+    VERIFIER_MODEL: str = Field("qwen/qwen3.8-27b", description="Fast Verifier Groq Model")
     SYNTHESIS_MODEL: str = Field("openai/gpt-oss-120b", description="High-capacity Synthesis Groq Model")
     MAX_CHAT_HISTORY_TURNS: int = Field(6, description="Max conversation turns passed into StateGraph")
     
@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     EMBEDDING_PROVIDER: str = Field("gemini", description="Embedding Provider (gemini, fastembed, openai)")
     EMBEDDING_MODEL: str = Field("models/gemini-embedding-001", description="Hosted Embedding Model Name")
     EMBEDDING_DIM: int = Field(768, description="Vector embedding dimension (768 with L2 normalization)")
-    VECTOR_SEARCH_ENABLED: bool = Field(True, description="Enable vector similarity search (false = keyword/graph search only)")
+    VECTOR_SEARCH_ENABLED: bool = Field(False, description="Enable vector similarity search (default False until migration >= 99%)")
     KEYWORD_INDEX_NAME: str = Field("keyword_markdown", description="Keyword Index Name")
     MAX_RETRIEVAL_ITERATIONS: int = Field(3, description="Max iterative loops in the LangGraph agent")
     RRF_K: int = Field(60, description="RRF constant k")

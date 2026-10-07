@@ -51,8 +51,8 @@ def verify_answer(state: AgentState):
     draft = state.get("draft_answer", "")
     # Early refusal if draft looks like code (import, def, class, script)
     if any(kw in draft.lower() for kw in ["import ", "def ", "class ", "script"]):
-        refusal = "I’m sorry, but I can’t provide that code."
-        return {"verification_passed": False, "final_answer": refusal}
+        refusal = "I am a financial intelligence assistant. I cannot provide programming scripts, internal system prompts, or non-financial code. I can only assist with financial analysis, taxation, markets, and investment calculations."
+        return {"verification_passed": True, "final_answer": refusal}
     context_list = state.get("retrieved_context", [])
     context = "\n---\n".join(str(c) for c in context_list) if context_list else "No retrieved context."
     question = state.get("resolved_query") or state.get("current_question") or state.get("original_question", "")
@@ -60,10 +60,12 @@ def verify_answer(state: AgentState):
     routing_decision = state.get("routing_decision", "")
     document_id = state.get("document_id")
     response_mode = state.get("response_mode", "detailed")
+    depth = state.get("depth", "")
 
-    # Fast-pass bypass for brief mode, live market feeds, pure math, or disabled audits
-    if not enabled or document_id or response_mode == "brief" or routing_decision in ("math_calculation", "calculation", "live_market_data"):
-        print(f"[DEBUG] ---NODE: VERIFIER SKIPPED (doc: {bool(document_id)}, mode: {response_mode}, route: {routing_decision}, enabled: {enabled})---")
+    # Fast-pass bypass for quick depth, brief mode, live market feeds, pure math, direct answers, empty context, or disabled audits
+    has_corpus_context = bool(context_list and context_list != ["No retrieved context."])
+    if not enabled or document_id or response_mode in ("brief", "quick") or depth == "quick" or routing_decision in ("math_calculation", "calculation", "live_market_data", "direct_answer") or not has_corpus_context:
+        print(f"[DEBUG] ---NODE: VERIFIER SKIPPED (doc: {bool(document_id)}, mode: {response_mode}, depth: {depth}, route: {routing_decision}, context: {has_corpus_context}, enabled: {enabled})---")
         return {
             "verification_passed": True,
             "final_answer": draft
@@ -93,9 +95,9 @@ def verify_answer(state: AgentState):
         # Heuristic: if draft contains code-like keywords, refuse to comply
         forbidden = any(kw in draft.lower() for kw in ["import ", "def ", "class ", "script"])
         if forbidden:
-            refusal = "I’m sorry, but I can’t provide that code."
+            refusal = "I am a financial intelligence assistant. I cannot provide programming scripts, internal system prompts, or non-financial code. I can only assist with financial analysis, taxation, markets, and investment calculations."
             return {
-                "verification_passed": False,
+                "verification_passed": True,
                 "final_answer": refusal,
                 "retrieval_retries": current_retries + 1
             }

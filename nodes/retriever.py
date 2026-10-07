@@ -56,14 +56,46 @@ entity_prompt = ChatPromptTemplate.from_messages([
 ])
 entity_chain = entity_prompt | get_structured_fast_chat(Entities)
 
+FINANCIAL_SYNONYMS = {
+    r"\br&d\b": '"Research and Development" OR "R&D"',
+    r"\bresearch and development\b": '"Research and Development" OR "R&D"',
+    r"\beps\b": '"earnings per share" OR "diluted" OR "diluted earnings per share"',
+    r"\bdiluted\b": '"diluted earnings per share" OR "diluted"',
+    r"\bltcg\b": '"Long-Term Capital Gains" OR "LTCG" OR "1.25 Lakh" OR "12.5%"',
+    r"\bstcg\b": '"Short-Term Capital Gains" OR "STCG" OR "20%"',
+    r"\b80c\b": '"Section 80C" OR "80C" OR "1,50,000" OR "1.5 Lakh"',
+    r"\bsection 80c\b": '"Section 80C" OR "80C" OR "1,50,000" OR "1.5 Lakh"',
+    r"\bcash\b": '"cash and cash equivalents" OR "marketable securities"',
+    r"\bnet sales\b": '"total net sales" OR "net sales"',
+    r"\bnet income\b": '"net income" OR "consolidated statements of operations"',
+    r"\biphone\b": '"iPhone" OR "Products"',
+    r"\bservices\b": '"Services" OR "net sales"',
+}
+
+
 def _build_lucene_search_query(text: str) -> str:
-    """Extracts meaningful alphanumeric terms and constructs a Lucene OR query."""
+    """
+    Constructs an optimized Lucene BM25 query with:
+    1. Financial term & acronym expansion (R&D, 80C, LTCG, EPS, Cash)
+    2. Exact phrase boosting for multi-word financial concepts
+    3. Alphanumeric stopword filtering
+    """
+    expanded_parts = []
+    text_lower = text.lower()
+
+    for pattern, expansion in FINANCIAL_SYNONYMS.items():
+        if re.search(pattern, text_lower):
+            expanded_parts.append(expansion)
+
     words = re.findall(r'[a-zA-Z0-9_\u20B9$%\.]+', text)
-    stopwords = {"what", "were", "was", "the", "in", "of", "and", "for", "to", "a", "is", "how", "did", "does", "by", "an", "on", "from", "at"}
+    stopwords = {"what", "were", "was", "the", "in", "of", "and", "for", "to", "a", "is", "how", "did", "does", "by", "an", "on", "from", "at", "much", "total"}
     meaningful = [w for w in words if w.lower() not in stopwords and len(w) >= 2]
-    if not meaningful:
-        meaningful = words
-    return " OR ".join(meaningful) if meaningful else text
+    
+    if meaningful:
+        expanded_parts.append(" OR ".join(meaningful))
+
+    final_query = " OR ".join(expanded_parts) if expanded_parts else text
+    return final_query
 
 def structured_retriever(question: str, top_k: int = 15) -> List[str]:
     """
@@ -142,6 +174,43 @@ def structured_retriever(question: str, top_k: int = 15) -> List[str]:
 
     return results_list
 
+_VECTOR_COVERAGE_CHECKED = False
+_VECTOR_COVERAGE_PASSES = False
+
+
+def check_vector_coverage(min_coverage: float = 0.99) -> bool:
+    """
+    Checks whether vector_markdown_v2 has >= 99% coverage of the :Chunk corpus.
+    If coverage is below min_coverage, returns False to force safe keyword+graph fallback.
+    """
+    global _VECTOR_COVERAGE_CHECKED, _VECTOR_COVERAGE_PASSES
+    if _VECTOR_COVERAGE_CHECKED:
+        return _VECTOR_COVERAGE_PASSES
+
+    try:
+        res = kg.query("""
+        MATCH (c:Chunk)
+        RETURN count(c) AS total, count(c.embedding_v2) AS v2_count
+        """)
+        if res and res[0].get("total", 0) > 0:
+            total = res[0]["total"]
+            v2_count = res[0]["v2_count"]
+            cov = v2_count / total
+            if cov >= min_coverage:
+                _VECTOR_COVERAGE_PASSES = True
+            else:
+                print(f"[retriever] ⚠️ [VECTOR COVERAGE GUARD]: vector_markdown_v2 coverage is {v2_count}/{total} ({cov*100:.1f}% < {min_coverage*100:.0f}%). Falling back to keyword+graph search.")
+                _VECTOR_COVERAGE_PASSES = False
+        else:
+            _VECTOR_COVERAGE_PASSES = False
+    except Exception as e:
+        print(f"[retriever] ⚠️ Could not verify vector coverage: {e}")
+        _VECTOR_COVERAGE_PASSES = False
+
+    _VECTOR_COVERAGE_CHECKED = True
+    return _VECTOR_COVERAGE_PASSES
+
+
 def retrieve_shared_corpus_concurrent(query: str, top_k: int = 4, apply_rerank: bool = True) -> List[str]:
     """
     Executes vector, keyword/graph, and local guide retrieval in parallel using ThreadPoolExecutor,
@@ -156,7 +225,11 @@ def retrieve_shared_corpus_concurrent(query: str, top_k: int = 4, apply_rerank: 
 
     def _safe_vector_search(q: str):
         try:
-            if not getattr(settings, "VECTOR_SEARCH_ENABLED", True) or not vector_index:
+            if not getattr(settings, "VECTOR_SEARCH_ENABLED", False):
+                return []
+            if not check_vector_coverage(0.99):
+                return []
+            if not vector_index:
                 return []
             return vector_index.similarity_search(q, k=15)
         except Exception as e:

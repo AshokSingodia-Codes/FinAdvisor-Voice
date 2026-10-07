@@ -4,12 +4,18 @@ from pydantic import BaseModel, Field
 import time
 import requests
 import os
+try:
+    import yfinance as yf
+except ImportError:
+    yf = None
 
 _PRICE_CACHE = {}
 CACHE_TTL = 600
 
-def _get_yfinance_data_with_retries(ticker_symbol: str):
-    import yfinance as yf
+def _get_yfinance_data_with_retries(ticker_symbol: str, fetch_deep_history: bool = False):
+    global yf
+    if yf is None:
+        import yfinance as yf
     delays = [0.5, 1, 2]
     for attempt in range(3):
         try:
@@ -20,21 +26,22 @@ def _get_yfinance_data_with_retries(ticker_symbol: str):
             try:
                 fi = stock.fast_info
                 price = fi.get('last_price') or fi.get('lastPrice') or fi.get('previousClose')
-                if price:
+                if price and isinstance(price, (int, float)):
                     high_val = fi.get('yearHigh') or fi.get('year_high')
                     low_val = fi.get('yearLow') or fi.get('year_low')
+                    m_cap = fi.get('marketCap') or fi.get('market_cap', 'N/A')
                     info = {
                         'currentPrice': round(float(price), 2),
                         'regularMarketPrice': round(float(price), 2),
-                        'marketCap': fi.get('marketCap') or fi.get('market_cap', 'N/A'),
-                        'fiftyTwoWeekHigh': round(float(high_val), 2) if high_val else 'N/A',
-                        'fiftyTwoWeekLow': round(float(low_val), 2) if low_val else 'N/A',
+                        'marketCap': m_cap if isinstance(m_cap, (int, float, str)) else 'N/A',
+                        'fiftyTwoWeekHigh': round(float(high_val), 2) if isinstance(high_val, (int, float)) else 'N/A',
+                        'fiftyTwoWeekLow': round(float(low_val), 2) if isinstance(low_val, (int, float)) else 'N/A',
                         'trailingPE': 'N/A',
                     }
             except Exception:
                 pass
 
-            # 2. Try stock.info if available for deeper metrics
+            # 2. Try stock.info only if fast_info failed
             if not info or info.get('currentPrice') in (None, 'N/A'):
                 try:
                     full_info = stock.info
@@ -60,20 +67,20 @@ def _get_yfinance_data_with_retries(ticker_symbol: str):
                     raise ValueError(f"Incomplete data received from yfinance for {ticker_symbol}")
 
             news = []
-            try:
-                news = stock.news or []
-            except Exception:
-                news = []
-
-            # Fetch 1 year of monthly historical data
             hist_str = ""
-            try:
-                history_df = stock.history(period="1y", interval="1mo")
-                if not history_df.empty:
-                    history_df.index = history_df.index.strftime('%Y-%m')
-                    hist_str = history_df[['Close']].to_string()
-            except Exception:
-                hist_str = ""
+            if fetch_deep_history:
+                try:
+                    news = stock.news or []
+                except Exception:
+                    news = []
+
+                try:
+                    history_df = stock.history(period="1y", interval="1mo")
+                    if not history_df.empty:
+                        history_df.index = history_df.index.strftime('%Y-%m')
+                        hist_str = history_df[['Close']].to_string()
+                except Exception:
+                    hist_str = ""
 
             return info, news, hist_str
         except Exception as e:
@@ -193,6 +200,28 @@ def fetch_live_data(state: AgentState):
             return {
                 "retrieved_context": ["I couldn't identify a specific company ticker or mutual fund to fetch live data for. Please ask the user to provide a valid ticker symbol or fund name."]
             }
+
+        INDIAN_TICKERS = {
+            "RELIANCE": "RELIANCE.NS",
+            "TCS": "TCS.NS",
+            "HDFC": "HDFCBANK.NS",
+            "HDFCBANK": "HDFCBANK.NS",
+            "INFY": "INFY.NS",
+            "INFOSYS": "INFY.NS",
+            "ITC": "ITC.NS",
+            "SBIN": "SBIN.NS",
+            "WIPRO": "WIPRO.NS",
+            "ICICIBANK": "ICICIBANK.NS",
+            "BHARTIARTL": "BHARTIARTL.NS",
+            "NIFTY": "^NSEI",
+            "SENSEX": "^BSESN",
+        }
+        if ticker_symbol in INDIAN_TICKERS:
+            ticker_symbol = INDIAN_TICKERS[ticker_symbol]
+        elif not ("." in ticker_symbol or "^" in ticker_symbol):
+            company_name = ((state.get("active_entities") or {}).get("company") or "").lower()
+            if any(k in company_name for k in ["reliance", "tcs", "hdfc", "infosys", "itc", "tata", "wipro", "sbi"]):
+                ticker_symbol = f"{ticker_symbol}.NS"
             
         current_time = time.time()
         info = None
@@ -207,15 +236,24 @@ def fetch_live_data(state: AgentState):
                 hist_str = cached_data['hist']
         
         if not info:
+            needs_deep = any(k in question.lower() for k in ["chart", "trend", "history", "historical", "news", "articles"])
             try:
-                info, news_items, hist_str = _get_yfinance_data_with_retries(ticker_symbol)
+                info, news_items, hist_str = _get_yfinance_data_with_retries(ticker_symbol, fetch_deep_history=needs_deep)
             except Exception as yf_err:
-                print(f"yfinance failed: {yf_err}, trying fallback...")
-                try:
-                    info, news_items, hist_str = _get_finnhub_fallback_data(ticker_symbol)
-                except Exception as fh_err:
-                    print(f"finnhub failed: {fh_err}")
-                    raise Exception(f"unable to fetch live market data... rate limits or connection blocks. yf: {yf_err}, fh: {fh_err}")
+                if "." not in ticker_symbol and "^" not in ticker_symbol:
+                    try:
+                        ticker_symbol_ns = f"{ticker_symbol}.NS"
+                        info, news_items, hist_str = _get_yfinance_data_with_retries(ticker_symbol_ns, fetch_deep_history=needs_deep)
+                        ticker_symbol = ticker_symbol_ns
+                    except Exception:
+                        pass
+                if not info:
+                    print(f"yfinance failed: {yf_err}, trying fallback...")
+                    try:
+                        info, news_items, hist_str = _get_finnhub_fallback_data(ticker_symbol)
+                    except Exception as fh_err:
+                        print(f"finnhub failed: {fh_err}")
+                        raise Exception(f"unable to fetch live market data... rate limits or connection blocks. yf: {yf_err}, fh: {fh_err}")
             
             _PRICE_CACHE[ticker_symbol] = {
                 'timestamp': current_time,
@@ -271,9 +309,23 @@ def fetch_live_data(state: AgentState):
         
         if news_text:
             context += f"Recent News:\n{news_text}"
-            
+
+        company_name = state.get("active_entities", {}).get("company") or ticker_symbol.replace(".NS", "").replace(".BO", "")
+        formatted_answer = (
+            f"**{company_name} ({ticker_symbol}) is currently trading at ₹{current_price} per share on the {exchange_label} (as of {timestamp_str}).**\n\n"
+        )
+        if fifty_two_high != 'N/A' and fifty_two_low != 'N/A':
+            formatted_answer += f"- **52-Week Range**: ₹{fifty_two_low} - ₹{fifty_two_high}\n"
+        if market_cap != 'N/A':
+            formatted_answer += f"- **Market Cap**: ₹{market_cap}\n"
+        if pe_ratio != 'N/A':
+            formatted_answer += f"- **P/E Ratio**: {pe_ratio}\n"
+        formatted_answer += "\n[Track live NSE quote] [View financial statements]"
+
         return {
-            "retrieved_context": [context]
+            "retrieved_context": [context],
+            "draft_answer": formatted_answer,
+            "final_answer": formatted_answer
         }
     except Exception as e:
         error_msg = str(e)

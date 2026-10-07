@@ -13,6 +13,8 @@ services:
         value: "models/gemini-embedding-001"
       - key: EMBEDDING_DIM
         value: "768"
+      - key: VECTOR_SEARCH_ENABLED
+        value: "false"
       - key: RERANKER_PROVIDER
         value: "none"
       - key: PERSONAL_DOCS_EMBEDDING

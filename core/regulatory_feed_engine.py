@@ -1,5 +1,11 @@
 import os
 import sys
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
 import json
 import time
 import re
@@ -8,6 +14,7 @@ from typing import Dict, Any, List, Optional
 import urllib.request
 import xml.etree.ElementTree as ET
 
+from config.settings import settings
 from core.db import kg, hf as embeddings, fast_chat
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
@@ -83,7 +90,7 @@ def process_and_ingest_regulatory_updates() -> Dict[str, Any]:
     timestamp_str = now.strftime("%Y-%m-%d %H:%M:%S UTC")
     
     print(f"\n=======================================================")
-    print(f"🏛️ [Autonomous Regulatory Engine] Ingesting {current_month_str} Updates...")
+    print(f"[Autonomous Regulatory Engine] Ingesting {current_month_str} Updates...")
     print(f"=======================================================\n")
     
     bulletins = fetch_official_regulatory_bulletins()
@@ -117,23 +124,48 @@ def process_and_ingest_regulatory_updates() -> Dict[str, Any]:
         
     # Ingest into Neo4j Aura
     try:
-        neo4j_uri = os.environ.get("NEO4J_URI")
-        neo4j_user = os.environ.get("NEO4J_USERNAME")
-        neo4j_pwd = os.environ.get("NEO4J_PASSWORD")
+        neo4j_uri = getattr(settings, "NEO4J_URI", os.environ.get("NEO4J_URI"))
+        neo4j_user = getattr(settings, "NEO4J_USERNAME", os.environ.get("NEO4J_USERNAME"))
+        neo4j_pwd = getattr(settings, "NEO4J_PASSWORD", os.environ.get("NEO4J_PASSWORD"))
+        neo4j_db = getattr(settings, "NEO4J_DATABASE", neo4j_user)
         
         if neo4j_uri and neo4j_user and neo4j_pwd:
-            v_index = Neo4jVector.from_existing_index(
-                embeddings,
-                url=neo4j_uri,
-                username=neo4j_user,
-                password=neo4j_pwd,
-                index_name="vector_markdown",
-                keyword_index_name="keyword_markdown",
-                search_type="hybrid",
-                database=neo4j_user
-            )
-            v_index.add_documents(documents_to_ingest)
-            print(f"  [Autonomous Regulatory Engine] Ingested {len(documents_to_ingest)} validated regulatory chunks into Neo4j.")
+            if getattr(settings, "VECTOR_SEARCH_ENABLED", False):
+                v_index = Neo4jVector.from_existing_index(
+                    embeddings,
+                    url=neo4j_uri,
+                    username=neo4j_user,
+                    password=neo4j_pwd,
+                    index_name=settings.VECTOR_INDEX_NAME,
+                    keyword_index_name=settings.KEYWORD_INDEX_NAME,
+                    search_type="hybrid",
+                    database=neo4j_db
+                )
+                v_index.add_documents(documents_to_ingest)
+                print(f"  [Autonomous Regulatory Engine] Ingested {len(documents_to_ingest)} validated regulatory chunks into Neo4j vector index.")
+            else:
+                for idx, doc in enumerate(documents_to_ingest):
+                    chunk_id = f"reg_feed_{current_month_str.replace('-', '_')}_{idx}"
+                    kg.query(
+                        """
+                        MERGE (c:Chunk {id: $id})
+                        SET c.text = $text,
+                            c.source = $source,
+                            c.category = $category,
+                            c.sync_month = $sync_month,
+                            c.is_active_rule = true,
+                            c.created_at = $timestamp
+                        """,
+                        {
+                            "id": chunk_id,
+                            "text": doc.page_content,
+                            "source": doc.metadata.get("source", ""),
+                            "category": doc.metadata.get("category", "autonomous_regulatory_feed"),
+                            "sync_month": doc.metadata.get("sync_month", current_month_str),
+                            "timestamp": timestamp_str,
+                        }
+                    )
+                print(f"  [Autonomous Regulatory Engine] Ingested {len(documents_to_ingest)} validated regulatory chunks into Neo4j (Keyword/BM25 mode).")
             
         # Log to audit trail
         logs = []

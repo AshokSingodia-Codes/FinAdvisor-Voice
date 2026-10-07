@@ -2,7 +2,7 @@ import re
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from graph.state import AgentState
-from core.db import synthesis_chat, chat
+from core.db import synthesis_chat, fast_chat, chat
 from nodes.router import classify_depth
 from core.greeting_handler import is_greeting_or_chitchat, get_greeting_response
 
@@ -57,6 +57,7 @@ chat_history: {chat_history}
 
 Write only the answer. No meta-commentary about your formatting choices.""")
 
+quick_builder_chain = response_writer_prompt | fast_chat | StrOutputParser()
 builder_chain = response_writer_prompt | synthesis_chat | StrOutputParser()
 
 
@@ -101,12 +102,12 @@ def build_evidence(state: AgentState):
     question = state.get("resolved_query") or state.get("current_question") or state.get("original_question", "")
     memory_context = state.get("memory_context", "")
 
-    # Token Optimization: Deduplicate retrieved chunks and bound strictly to Top 4 chunks (<1,800 tokens total)
+    # Token Optimization: Deduplicate retrieved chunks and bound strictly to Top 3 chunks (<700 tokens total)
     raw_retrieved = state.get("retrieved_context", [])
     seen_hashes = set()
     compact_retrieved = []
     total_chars = 0
-    MAX_TOTAL_CHARS = 6000  # ~1,500 - 1,800 tokens ceiling
+    MAX_TOTAL_CHARS = 2800  # ~650 - 750 tokens ceiling (prevents Groq 8k TPM exhaustion)
     
     for item in raw_retrieved:
         txt = str(item).strip()
@@ -122,23 +123,26 @@ def build_evidence(state: AgentState):
         # Check cumulative token boundary
         if total_chars + len(txt) > MAX_TOTAL_CHARS:
             remaining_allowance = MAX_TOTAL_CHARS - total_chars
-            if remaining_allowance > 400:
+            if remaining_allowance > 300:
                 # Safe newline truncate to avoid breaking markdown tables or numbers
                 cut_idx = txt.rfind("\n", 0, remaining_allowance)
-                if cut_idx > 200:
+                if cut_idx > 150:
                     txt = txt[:cut_idx] + "\n[... Segment bounded for token efficiency ...]"
                     compact_retrieved.append(txt)
             break
 
         compact_retrieved.append(txt)
         total_chars += len(txt)
-        if len(compact_retrieved) >= 4:
+        if len(compact_retrieved) >= 3:
             break
 
     context = "\n\n---\n\n".join(compact_retrieved) if compact_retrieved else "No additional reference documents retrieved."
     document_id = state.get("document_id")
 
     if not document_id:
+        if state.get("final_answer") and state.get("routing_decision") in ("direct_answer", "live_market_data"):
+            ans = state["final_answer"]
+            return {"draft_answer": ans, "final_answer": ans}
         is_greeting, category = is_greeting_or_chitchat(question)
         if is_greeting and category:
             print(f"  [Evidence Builder: INSTANT GREETING FAST-PATH] category='{category}'")
@@ -151,7 +155,8 @@ def build_evidence(state: AgentState):
 
     try:
         print(f"  [Evidence Builder: SYNTHESIS] depth='{depth}', doc={bool(document_id)} ({len(compact_retrieved)} chunks bounded)")
-        answer = builder_chain.invoke({
+        target_chain = quick_builder_chain if depth == "quick" else builder_chain
+        answer = target_chain.invoke({
             "depth": depth,
             "query": question,
             "evidence_summary": context,

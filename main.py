@@ -501,7 +501,6 @@ async def chat_endpoint(
                     routing_decision="math_calculation",
                     user_id=user_id
                 )
-                background_tasks.add_task(extract_and_update_memory, conv_id, query, math_ans, user_id)
                 chat_title = query[:35].title() if len(query) <= 35 else query[:30].title() + "..."
                 if is_stream_requested:
                     async def event_generator():
@@ -515,8 +514,7 @@ async def chat_endpoint(
         if not document_id:
             is_greet, cat = is_greeting_or_chitchat(query)
             if is_greet and cat:
-                prior_msgs = get_conversation_context(conv_id, user_id=user_id)
-                turn_estimate = prior_msgs.count("[User]:")
+                turn_estimate = len(request.chat_history or [])
                 greet_ans = get_greeting_response(cat, query, turn_count=turn_estimate)
                 add_message(conv_id, "user", query, user_id=user_id)
                 add_message(conv_id, "assistant", greet_ans, user_id=user_id)
@@ -528,7 +526,6 @@ async def chat_endpoint(
                     routing_decision="direct_answer",
                     user_id=user_id
                 )
-                background_tasks.add_task(extract_and_update_memory, conv_id, query, greet_ans, user_id)
                 chat_title = "Greeting"
                 if is_stream_requested:
                     async def event_generator():

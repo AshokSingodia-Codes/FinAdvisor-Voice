@@ -48,8 +48,9 @@ WELLBEING_PHRASES = {
     "everything all right", "everything all right?", "all right?", "whats up", "what's up",
     "what up", "wassup", "wazzup", "whatsup", "sup",
     # Presence / liveness check phrases
-    "are you there", "you there", "you still there", "hello are you there",
-    "anyone there", "you online", "you alive", "you awake",
+    "are you there", "u there", "you there", "you still there", "hello are you there",
+    "anyone there", "you online", "you alive", "are you alive", "alive", "ping", "test", "testing",
+    "can you hear me", "you awake",
 }
 
 
@@ -79,13 +80,17 @@ APOLOGY_PHRASES = {
     "scratch that", "my mistake", "galti ho gayi", "ignore previous"
 }
 
-# CATEGORY F: Identity & Capability Questions
+# CATEGORY F: Identity & Capability Questions / Help Menu
 IDENTITY_PHRASES = {
     "who are you", "what are you", "are you a bot", "are you ai", "are you an ai",
     "what can you do", "what is finadvisor", "what is finadvisor-x", "what do you help with",
     "who made you", "what is your name", "what's your name", "whats your name",
     "tell me about yourself", "introduce yourself", "who built you", "who created you",
-    "aap kaun ho", "tum kaun ho", "tera naam kya hai", "apna naam batao", "apna parichay do"
+    "aap kaun ho", "tum kaun ho", "tera naam kya hai", "apna naam batao", "apna parichay do",
+    "help", "menu", "options", "madad", "help chahiye", "guide me",
+    "what are your capabilities", "capabilities", "what are your features", "features",
+    "what can you help me with", "how can you assist", "how can you help",
+    "what services do you offer", "what are your capabilities as a financial advisor"
 }
 
 # CATEGORY G: Off-topic Casual Banter
@@ -251,8 +256,8 @@ def is_greeting_or_chitchat(raw_text: str) -> Tuple[bool, Optional[str]]:
             return True, "meta_memory"
 
     # CATEGORY F: Identity & Capabilities
-    if norm in IDENTITY_PHRASES or any(p in norm for p in ("who are you", "what can you do", "are you a bot", "are you ai", "what is finadvisor", "aap kaun ho", "tum kaun ho")):
-        if len(words) <= 8 and not has_finance_keyword:
+    if norm in IDENTITY_PHRASES or any(p in norm for p in ("who are you", "what can you do", "what are your capabilities", "capabilities as a financial advisor", "are you a bot", "are you ai", "what is finadvisor", "aap kaun ho", "tum kaun ho")):
+        if len(words) <= 14:
             return True, "identity"
 
     # CATEGORY G: Off-topic casual banter

@@ -1,3 +1,4 @@
+import re
 import time
 import json
 from typing import Dict, Tuple, Optional, Any
@@ -96,10 +97,10 @@ ROUTING DECISIONS:
 - 'decompose': comparing multiple distinct entities or multi-part complex queries.
 - 'math_calculation': basic arithmetic (+ - * / % ^).
 - 'calculation': computes a financial formula with given numbers (WACC, CAGR, SIP, NPV, DCF, loan EMI, compounding, capital gains tax).
-- 'hybrid_search': concept definitions, textbook formulas, 10-K disclosures, or personal documents.
+- 'hybrid_search': concept definitions, statutory tax limits/acts (Section 80C, Budget 2024 capital gains, LTCG/STCG provisions, tax exemption limits), regulatory bulletins/directives, 10-K disclosures, corporate filings, or personal documents. NOTE: Statutory tax rules and enacted budgets (such as Budget 2024) belong in hybrid_search, NOT current_events.
 - 'financial_table': tabular data (balance sheet, income statement).
 - 'live_market_data': live stock prices, Indian tickers (Reliance, TCS, NIFTY 50), or market status.
-- 'current_events': questions about today's/this week's news, recent RBI/SEBI announcements, regulatory updates, or any query needing live news that the static corpus cannot answer (trigger words: 'today', 'latest', 'this week', 'recent update', 'new rules', 'what happened').
+- 'current_events': questions about breaking live news (today, this week, breaking repo rate announcements). Do NOT route statutory tax laws, enacted budgets (like Budget 2024), or general tax limits here.
 - 'direct_answer': greeting, advice, personal memory query, or chit-chat.
 
 CONTINUITY & PRONOUN RESOLUTION RULES:
@@ -178,16 +179,20 @@ def route_question(state: AgentState):
             }
 
     # --- Fast-Path 2: Instant Greetings / Casual Chit-Chat (<1ms) ---
-    is_greeting, _ = is_greeting_or_chitchat(question)
-    if is_greeting:
-        print("  [Router: FAST-PATH GREETING/CHIT-CHAT] -> 'direct_answer'")
+    is_greeting, category = is_greeting_or_chitchat(question)
+    if is_greeting and not document_id:
+        from core.greeting_handler import get_greeting_response
+        instant_reply = get_greeting_response(category or "greeting", question)
+        print(f"  [Router: FAST-PATH GREETING/CHIT-CHAT] category='{category}' -> 'direct_answer'")
         return {
             "routing_decision": "direct_answer",
             "current_question": question,
             "resolved_query": question,
             "active_entities": active_entities,
-            "conversation_topic": conversation_topic,
-            "depth": "quick"
+            "conversation_topic": conversation_topic or "Greeting",
+            "depth": "quick",
+            "draft_answer": instant_reply,
+            "final_answer": instant_reply
         }
 
     # --- Fast-Path 3: Instant Fast-Math Engine (Categories A-E, G, J, L, M) (<1ms) ---
@@ -232,11 +237,29 @@ def route_question(state: AgentState):
                 "depth": depth
             }
 
+    # --- Fast-Path 4a: Statutory Tax / Budget / Regulatory Corpus Knowledge (<1ms) ---
+    _CORPUS_KEYWORDS = [
+        "80c", "80d", "section 80", "budget 2024", "ltcg", "stcg", 
+        "capital gains tax", "tax exemption", "new tax regime", "old tax regime", 
+        "income tax slab", "regulatory bulletin", "regulatory directives", "directives for 2026",
+        "monthly financial and regulatory"
+    ]
+    if any(k in lower for k in _CORPUS_KEYWORDS) and not any(r in lower for r in ["calculate", "compute", "my tax", "my salary"]):
+        print("  [Router: FAST-PATH STATUTORY TAX/CORPUS] -> 'hybrid_search'")
+        return {
+            "routing_decision": "hybrid_search",
+            "current_question": question,
+            "resolved_query": question,
+            "active_entities": active_entities,
+            "conversation_topic": conversation_topic or "Tax & Regulatory",
+            "depth": depth
+        }
+
     # --- Fast-Path 4b: Current Events / Live News (recency signal + finance context) (<1ms) ---
     _RECENCY = {"today", "tonight", "this week", "this month", "latest", "recent",
                 "new rules", "what happened", "current", "breaking", "just announced",
                 "update", "news"}
-    _NEWS_FINANCE = {"rbi", "sebi", "repo", "inflation", "budget", "tax", "market",
+    _NEWS_FINANCE = {"rbi", "sebi", "repo", "inflation", "market",
                      "nifty", "sensex", "economy", "finance", "policy", "regulation",
                      "stock", "bank", "interest", "rate", "rupee", "crude", "ipo"}
     has_recency  = any(r in lower for r in _RECENCY)
@@ -252,9 +275,28 @@ def route_question(state: AgentState):
             "depth": depth
         }
 
+    # --- Fast-Path 4c: Pronoun Resolution to Active Market Ticker (<1ms) ---
+    if any(p in lower for p in ["its price", "its current price", "its stock", "its quote", "its stock price", "what is its price"]):
+        active_co = (active_entities or {}).get("company")
+        active_tk = (active_entities or {}).get("ticker")
+        if active_co or active_tk:
+            resolved_q = f"What is the current stock price of {active_co or active_tk}?"
+            print(f"  [Router: FAST-PATH PRONOUN RESOLUTION for {active_co}] -> 'live_market_data'")
+            return {
+                "routing_decision": "live_market_data",
+                "current_question": resolved_q,
+                "resolved_query": resolved_q,
+                "active_entities": active_entities,
+                "conversation_topic": conversation_topic or f"{active_co} Market Data",
+                "depth": depth
+            }
+
     # --- Fast-Path 5: Instant Arithmetic Keywords with Digits (<1ms) ---
     has_digits = any(char.isdigit() for char in lower)
-    if has_digits and any(op in lower for op in ["+", "-", "*", "/", "add ", "subtract ", "multiply ", "plus ", "minus "]):
+    has_math_syntax = bool(re.search(r'\d+\s*[\+\*]\s*\d+', lower) or re.search(r'\d+\s+[-/]\s+\d+', lower))
+    has_math_words = has_digits and any(op in lower for op in [" add ", " subtract ", " multiply ", " plus ", " minus ", " divided by "])
+    is_not_date_or_filing = not bool(re.search(r'\b\d{4}-\d{2,4}\b', lower) or "10-k" in lower or "10-q" in lower or "long-term" in lower)
+    if (has_math_syntax or has_math_words) and is_not_date_or_filing:
         print("  [Router: FAST-PATH ARITHMETIC KEYWORDS] -> 'math_calculation'")
         return {
             "routing_decision": "math_calculation",
@@ -263,6 +305,30 @@ def route_question(state: AgentState):
             "active_entities": active_entities,
             "conversation_topic": conversation_topic,
             "depth": depth
+        }
+
+    # --- Fast-Path 5a: SIP & Financial Compounding Formulas (<1ms) ---
+    if ("sip" in lower or ("monthly" in lower and "invest" in lower)) and any(char.isdigit() for char in lower):
+        print("  [Router: FAST-PATH SIP CALCULATION] -> 'calculation'")
+        return {
+            "routing_decision": "calculation",
+            "current_question": question,
+            "resolved_query": question,
+            "active_entities": active_entities,
+            "conversation_topic": conversation_topic or "SIP Compounding",
+            "depth": "quick"
+        }
+
+    # --- Fast-Path 5b: Personal Surplus / Savings from Memory (<1ms) ---
+    if any(w in lower for w in ["surplus", "monthly surplus", "my surplus", "disposable surplus", "how much can i save", "monthly savings"]):
+        print("  [Router: FAST-PATH PERSONAL SURPLUS] -> 'calculation'")
+        return {
+            "routing_decision": "calculation",
+            "current_question": question,
+            "resolved_query": question,
+            "active_entities": active_entities,
+            "conversation_topic": conversation_topic or "Budget Surplus",
+            "depth": "quick"
         }
 
     # --- Check 10-Minute Router TTL Cache for exact match repeated queries (only if self-contained) ---
@@ -282,12 +348,13 @@ def route_question(state: AgentState):
             }
 
     try:
-        # Build arguments for router chain dynamically based on available state keys
-        invoke_args = {"question": question, "memory_context": memory_context}
-        if "active_entities" in state:
-            invoke_args["active_entities"] = state["active_entities"]
-        if "conversation_topic" in state:
-            invoke_args["conversation_topic"] = state["conversation_topic"]
+        # Build arguments for router chain with guaranteed prompt variables
+        invoke_args = {
+            "question": question,
+            "memory_context": memory_context or "None (First interaction)",
+            "active_entities": str(active_entities or "None"),
+            "conversation_topic": str(conversation_topic or "None"),
+        }
         route = router_chain.invoke(invoke_args)
         decision = route.decision
         is_topic_change = bool(getattr(route, "is_topic_change", False))

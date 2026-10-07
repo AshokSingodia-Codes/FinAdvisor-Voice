@@ -47,6 +47,49 @@ def do_math_calculation(state: AgentState):
         print("  [Math Calculation: DETERMINISTIC FAST-PATH]")
         return {"draft_answer": pure_ans}
 
+    # 2. Contextual Surplus & Disposable Savings Fast-Path (0 LLM tokens)
+    if any(w in question.lower() for w in ["surplus", "savings", "save"]):
+        entities = state.get("active_entities") or {}
+        income_val = entities.get("monthly_income") or entities.get("income")
+        expenses_val = entities.get("monthly_expenses") or entities.get("expenses")
+        
+        inc = None
+        exp = None
+        if income_val and expenses_val:
+            try:
+                inc = float(str(income_val).replace("₹", "").replace(",", "").strip())
+                exp = float(str(expenses_val).replace("₹", "").replace(",", "").strip())
+            except Exception:
+                inc, exp = None, None
+
+        if inc is None or exp is None:
+            full_text = f"{question} {state.get('memory_context', '')}"
+            import re
+            inc_match = re.search(r'income[^\d]*₹?\s*([\d,]+)', full_text, re.IGNORECASE)
+            exp_match = re.search(r'expenses?[^\d]*₹?\s*([\d,]+)', full_text, re.IGNORECASE)
+            if inc_match and exp_match:
+                try:
+                    inc = float(inc_match.group(1).replace(",", ""))
+                    exp = float(exp_match.group(1).replace(",", ""))
+                except Exception:
+                    pass
+
+        if inc is None or exp is None:
+            mem = state.get("memory_context") or ""
+            from tools.calculator import extract_all_currency_values
+            vals = extract_all_currency_values(f"{question} {mem}")
+            sorted_vals = sorted([v for v in vals if v >= 500], reverse=True)
+            if len(sorted_vals) >= 2:
+                inc, exp = sorted_vals[0], sorted_vals[1]
+
+        if inc is not None and exp is not None:
+            surplus = inc - exp
+            draft = (
+                f"Based on your monthly income of ₹{inc:,.2f} and monthly expenses of ₹{exp:,.2f}, "
+                f"your monthly surplus (disposable savings) is **₹{surplus:,.2f}**."
+            )
+            print("  [Math Calculation: CONTEXTUAL SURPLUS SOLVED]")
+            return {"draft_answer": draft}
 
     question_cleaned = strip_currency_and_commas(question)
     

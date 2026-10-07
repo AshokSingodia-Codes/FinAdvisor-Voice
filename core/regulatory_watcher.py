@@ -1,11 +1,18 @@
 import os
 import sys
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
 import json
 import time
 import asyncio
 from datetime import datetime, timezone
 from typing import Dict, Any, List
 
+from config.settings import settings
 from core.db import kg, hf as embeddings
 from langchain_core.documents import Document
 from langchain_neo4j import Neo4jVector
@@ -35,7 +42,7 @@ def check_and_sync_financial_rules() -> Dict[str, Any]:
     current_month_str = now.strftime("%Y-%m")
     
     print(f"\n=======================================================")
-    print(f"🛡️ [Regulatory Watchdog] Checking for {current_month_str} Financial Updates...")
+    print(f"[Regulatory Watchdog] Checking for {current_month_str} Financial Updates...")
     print(f"=======================================================\n")
     
     logs = _load_sync_log()
@@ -75,23 +82,44 @@ def check_and_sync_financial_rules() -> Dict[str, Any]:
     )
     
     try:
-        neo4j_uri = os.environ.get("NEO4J_URI")
-        neo4j_user = os.environ.get("NEO4J_USERNAME")
-        neo4j_pwd = os.environ.get("NEO4J_PASSWORD")
+        neo4j_uri = getattr(settings, "NEO4J_URI", os.environ.get("NEO4J_URI"))
+        neo4j_user = getattr(settings, "NEO4J_USERNAME", os.environ.get("NEO4J_USERNAME"))
+        neo4j_pwd = getattr(settings, "NEO4J_PASSWORD", os.environ.get("NEO4J_PASSWORD"))
+        neo4j_db = getattr(settings, "NEO4J_DATABASE", neo4j_user)
         
         if neo4j_uri and neo4j_user and neo4j_pwd:
-            v_index = Neo4jVector.from_existing_index(
-                embeddings,
-                url=neo4j_uri,
-                username=neo4j_user,
-                password=neo4j_pwd,
-                index_name="vector_markdown",
-                keyword_index_name="keyword_markdown",
-                search_type="hybrid",
-                database=neo4j_user
-            )
-            v_index.add_documents([doc])
-            print(f"  [Regulatory Watchdog] Successfully ingested monthly regulatory bulletin into Neo4j Aura.")
+            if getattr(settings, "VECTOR_SEARCH_ENABLED", False):
+                v_index = Neo4jVector.from_existing_index(
+                    embeddings,
+                    url=neo4j_uri,
+                    username=neo4j_user,
+                    password=neo4j_pwd,
+                    index_name=settings.VECTOR_INDEX_NAME,
+                    keyword_index_name=settings.KEYWORD_INDEX_NAME,
+                    search_type="hybrid",
+                    database=neo4j_db
+                )
+                v_index.add_documents([doc])
+                print(f"  [Regulatory Watchdog] Successfully ingested monthly regulatory bulletin into Neo4j Aura vector index.")
+            else:
+                chunk_id = f"reg_{current_month_str.replace('-', '_')}"
+                kg.query(
+                    """
+                    MERGE (c:Chunk {id: $id})
+                    SET c.text = $text,
+                        c.source = $source,
+                        c.category = $category,
+                        c.created_at = $timestamp
+                    """,
+                    {
+                        "id": chunk_id,
+                        "text": sample_rule_content,
+                        "source": f"monthly_regulatory_bulletin_{current_month_str}",
+                        "category": "monthly_regulatory_sync",
+                        "timestamp": timestamp_str,
+                    }
+                )
+                print(f"  [Regulatory Watchdog] Successfully ingested monthly regulatory bulletin into Neo4j Aura (Keyword/BM25 mode).")
             
         record = {
             "month": current_month_str,
@@ -121,7 +149,7 @@ async def monthly_watchdog_background_loop():
     Background asynchronous loop that checks on startup and every 24 hours.
     When the 1st day of a new month arrives, it automatically triggers check_and_sync_financial_rules().
     """
-    print("🚀 [Regulatory Watchdog Scheduler] Background worker initialized.")
+    print("[Regulatory Watchdog Scheduler] Background worker initialized.")
     while True:
         try:
             now = datetime.now(timezone.utc)

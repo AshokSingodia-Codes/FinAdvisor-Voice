@@ -230,22 +230,23 @@ def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depen
     
     token = credentials.credentials
     payload = decode_access_token(token)
-    user_id = payload.get("user_id")
-    email = payload.get("sub")
     
-    if not user_id or not email:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token claims.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    sub = payload.get("sub")
+    user_id = payload.get("user_id") or (sub if sub and "@" not in str(sub) else None)
+    email = payload.get("email") or (sub if sub and "@" in str(sub) else None)
     
-    from core.memory import get_user_by_id
-    user = get_user_by_id(user_id)
+    from core.memory import get_user_by_id, get_user_by_email
+
+    user = None
+    if user_id:
+        user = get_user_by_id(user_id)
+    if not user and email:
+        user = get_user_by_email(email)
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User account no longer exists.",
+            detail="User account no longer exists or invalid token claims.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     

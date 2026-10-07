@@ -84,6 +84,40 @@ def solve_math(state):
     print("---NODE: MATH SOLVER---")
     query = state.get("resolved_query") or state.get("current_question") or state.get("original_question", "")
     try:
+        # Check for monthly surplus / savings calculation
+        if any(w in query.lower() for w in ["surplus", "savings", "save"]):
+            entities = state.get("active_entities") or {}
+            inc_val = normalize_currency(str(entities.get("monthly_income") or entities.get("income") or ""))
+            exp_val = normalize_currency(str(entities.get("monthly_expenses") or entities.get("expenses") or ""))
+            
+            if inc_val is None or exp_val is None:
+                full_text = f"{query} {state.get('memory_context', '')}"
+                import re
+                inc_match = re.search(r'income[^\d]*₹?\s*([\d,]+)', full_text, re.IGNORECASE)
+                exp_match = re.search(r'expenses?[^\d]*₹?\s*([\d,]+)', full_text, re.IGNORECASE)
+                if inc_match and exp_match:
+                    try:
+                        inc_val = float(inc_match.group(1).replace(",", ""))
+                        exp_val = float(exp_match.group(1).replace(",", ""))
+                    except Exception:
+                        pass
+
+            if inc_val is None or exp_val is None:
+                mem = state.get("memory_context") or ""
+                vals = extract_all_currency_values(f"{query} {mem}")
+                sorted_vals = sorted([v for v in vals if v >= 500], reverse=True)
+                if len(sorted_vals) >= 2:
+                    inc_val, exp_val = sorted_vals[0], sorted_vals[1]
+
+            if inc_val is not None and exp_val is not None:
+                surplus = inc_val - exp_val
+                return {
+                    "draft_answer": (
+                        f"Based on your monthly income of ₹{inc_val:,.2f} and monthly expenses of ₹{exp_val:,.2f}, "
+                        f"your monthly surplus (disposable savings) is **₹{surplus:,.2f}**."
+                    )
+                }
+
         formula = classify_formula(query)
         if formula == "sip" or ("monthly" in query.lower() and "sip" in query.lower()):
             rate = extract_percentage(query)

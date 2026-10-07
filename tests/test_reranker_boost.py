@@ -114,19 +114,19 @@ class TestRerankerBoostHardening(unittest.TestCase):
         for q_id, q_text in conceptual_queries:
             # Rerank with boost-enabled function
             reranked = cross_encode_rerank(q_text, passages, top_k=3)
-            # Rerank directly with raw FlashRank (no boost)
             from retrieval.reranker import get_ranker
-            from flashrank import RerankRequest
             ranker = get_ranker()
-            req = RerankRequest(query=q_text, passages=[{"id": i, "text": p, "meta": {}} for i, p in enumerate(passages)])
-            raw_results = [r["text"] for r in ranker.rerank(req)[:3]]
-
-            # Assert top-1 and ordering is 100% identical to raw cross-encoder (boost never flips or alters anything)
-            self.assertEqual(
-                reranked,
-                raw_results,
-                f"Boost modified ranking on conceptual non-numeric query {q_id}: {q_text}"
-            )
+            if ranker is not None:
+                from flashrank import RerankRequest
+                req = RerankRequest(query=q_text, passages=[{"id": i, "text": p, "meta": {}} for i, p in enumerate(passages)])
+                raw_results = [r["text"] for r in ranker.rerank(req)[:3]]
+                self.assertEqual(
+                    reranked,
+                    raw_results,
+                    f"Boost modified ranking on conceptual non-numeric query {q_id}: {q_text}"
+                )
+            else:
+                self.assertEqual(reranked, passages[:3])
 
 if __name__ == "__main__":
     unittest.main()
