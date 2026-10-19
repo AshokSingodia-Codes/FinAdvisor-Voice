@@ -26,14 +26,33 @@ logger = logging.getLogger("finadvisor.db")
 # 1. Hosted Embeddings Service (Zero local memory footprint)
 hf = get_embedding_service()
 
-# 2. Neo4j Graph Connection (refresh_schema=False to prevent eager connection on import)
-kg = Neo4jGraph(
-    url=settings.NEO4J_URI,
-    username=settings.NEO4J_USERNAME,
-    password=settings.NEO4J_PASSWORD,
-    database=getattr(settings, "NEO4J_DATABASE", settings.NEO4J_USERNAME),
-    refresh_schema=False,
-)
+# 2. Neo4j Graph Connection (Lazy Proxy to prevent eager connection / failure on import)
+class _LazyNeo4jGraph:
+    """
+    Lazy proxy for Neo4jGraph.
+    Prevents verify_connectivity() failure on module import if Neo4j is unreachable
+    (e.g., during scheduled background jobs, offline scripts, or unit tests).
+    """
+    _instance: Optional[Neo4jGraph] = None
+
+    def _get_graph(self) -> Neo4jGraph:
+        if self._instance is None:
+            self._instance = Neo4jGraph(
+                url=settings.NEO4J_URI,
+                username=settings.NEO4J_USERNAME,
+                password=settings.NEO4J_PASSWORD,
+                database=getattr(settings, "NEO4J_DATABASE", settings.NEO4J_USERNAME),
+                refresh_schema=False,
+            )
+        return self._instance
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._get_graph(), name)
+
+    def __repr__(self) -> str:
+        return f"<LazyNeo4jGraph (connected={self._instance is not None})>"
+
+kg: Neo4jGraph = _LazyNeo4jGraph()  # type: ignore[assignment]
 
 # 3. Neo4j Vector Store (points to vector_markdown_v2 if enabled)
 vector_index = None
