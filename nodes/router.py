@@ -39,7 +39,9 @@ DEEP_TRIGGERS = {
     "comprehensive", "detailed breakdown", "explain fully", "explain in detail",
     "step by step", "step-by-step analysis", "thorough explanation",
     "break down completely", "exhaustively", "full breakdown", "walk me through",
-    "explain thoroughly", "give me everything", "all the details",
+    "explain thoroughly", "give me everything", "all the details", "explain everything",
+    "explain properly", "explain properly everything", "expalin properlly evverything",
+    "explain properly everything", "explain all", "explain it all",
     "complete analysis", "full analysis", "detailed analysis",
     "with formulas", "show your work", "show the math", "explain the reasoning",
 }
@@ -48,7 +50,7 @@ ESCALATE_TRIGGERS = {
     "go deeper", "explain more", "elaborate on that", "more detail",
     "tell me more", "expand on that", "dig deeper", "more info",
     "can you elaborate", "explain that more", "give me more detail",
-    "what else", "go on", "continue", "more on this",
+    "what else", "go on", "continue", "more on this", "explain properly",
 }
 
 DEESCALATE_TRIGGERS = {
