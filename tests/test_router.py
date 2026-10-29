@@ -11,7 +11,12 @@ def test_route_question_live_data(mocker):
     
     assert result["routing_decision"] == "live_market_data"
     assert result["current_question"] == "What is the price of Apple?"
-    mock_chain.invoke.assert_called_once_with({"question": "What is the price of Apple?", "memory_context": ""})
+    mock_chain.invoke.assert_called_once_with({
+        "question": "What is the price of Apple?",
+        "memory_context": "None (First interaction)",
+        "active_entities": "None",
+        "conversation_topic": "None"
+    })
 
 def test_route_question_calculation(mocker):
     mock_chain = mocker.patch('nodes.router.router_chain')
@@ -23,7 +28,12 @@ def test_route_question_calculation(mocker):
     
     assert result["routing_decision"] == "calculation"
     assert result["current_question"] == "Calculate the WACC"
-    mock_chain.invoke.assert_called_once_with({"question": "Calculate the WACC", "memory_context": ""})
+    mock_chain.invoke.assert_called_once_with({
+        "question": "Calculate the WACC",
+        "memory_context": "None (First interaction)",
+        "active_entities": "None",
+        "conversation_topic": "None"
+    })
 
 def test_route_fallback_formula_definition(mocker):
     mock_chain = mocker.patch('nodes.router.router_chain')

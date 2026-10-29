@@ -93,10 +93,11 @@ def test_power_and_unary_operators():
 
 
 def test_division_by_zero_and_malformed_queries_fall_through():
-    # Division by zero should safely return (False, None, None)
+    # Division by zero should safely handle undefined behavior
     is_arith, ans, res = try_evaluate_pure_arithmetic("8/0")
-    assert is_arith is False
-    assert ans is None
+    assert is_arith is True
+    assert "Division by zero is undefined" in ans
+    assert res is None
 
     # Malformed syntax should safely return (False, None, None)
     is_arith, ans, res = try_evaluate_pure_arithmetic("4++*2")

@@ -377,6 +377,10 @@ def get_greeting_response(category: str, query: str = "", turn_count: int = 0) -
             "While I'm focused on financial topics rather than general trivia or jokes, I'd love to help you analyze stock fundamentals, calculate investment returns, or compare tax regimes. What financial question can I solve for you?"
         )
 
+    if category == "guardrail_refusal" or category == "out_of_domain":
+        from core.domain_guardrails import FINANCIAL_GUARDRAIL_REFUSAL
+        return FINANCIAL_GUARDRAIL_REFUSAL
+
     if category == "feedback_reaction":
         return (
             "Thank you for the feedback! I'm constantly calibrated to provide verified, deterministic financial data. Let me know what financial calculation or market update you need assistance with!"

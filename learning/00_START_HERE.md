@@ -17,6 +17,8 @@
 | 6 | `06_module_deep_dives.md` | Code explanations for every module | 45 min |
 | 7 | `07_learning_plan.md` | Beginner → Advanced phases with exercises | 15 min |
 | 8 | `08_debug_and_extend.md` | How to debug, test, and add new features | 20 min |
+| 9 | `09_production_rag_and_latency.md` | Production Latency, Hosted Embeddings & Zero-RAM Architecture | 25 min |
+| 10 | `10_technology_stack_and_alternatives.md` | Complete Tech Stack Rationale, Library Tradeoffs & Alternatives | 30 min |
 
 ---
 
@@ -32,6 +34,8 @@
 | Understand a specific function | `06_module_deep_dives.md` |
 | Know what to study next | `07_learning_plan.md` |
 | Run/debug/extend the project | `08_debug_and_extend.md` |
+| Understand Render <500MB RAM cap & latency speedups | `09_production_rag_and_latency.md` |
+| Know why each library/API was chosen vs all alternatives | `10_technology_stack_and_alternatives.md` |
 
 ---
 

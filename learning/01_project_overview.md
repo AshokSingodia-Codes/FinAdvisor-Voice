@@ -56,19 +56,18 @@ Built with the **Hybrid Graph-RAG** approach:
 | **FastAPI** | Python web framework, REST API server |
 | **LangGraph** | Orchestrates the AI agent as a state machine graph |
 | **LangChain** | Connects LLMs, tools, prompts, embeddings |
-| **Groq API** | Primary LLM inference (fast, cheap) |
-| **OpenRouter** | Fallback LLM provider |
-| **Google Gemini** | Second fallback LLM |
-| **Neo4j (Aura)** | Graph database: stores financial knowledge + vector index |
-| **PostgreSQL (Neon)** | Relational DB: users, conversations, messages, OTPs |
-| **FastEmbed (BAAI/bge-small)** | ONNX-based embedding model (lightweight, no GPU) |
-| **FlashRank** | Cross-encoder reranker for retrieved chunks |
-| **yfinance** | Live stock market data (Yahoo Finance) |
-| **pdfplumber / PyPDF2** | Extract text from uploaded PDFs |
-| **bcrypt** | Password hashing |
+| **Groq API** | Primary LLM inference: `qwen/qwen3.8-27b` (fast router/verifier) and `openai/gpt-oss-120b` (high-capacity synthesis) |
+| **OpenRouter** | Zero-Data-Retention (ZDR) fallback LLM (`mistralai/mistral-small-24b-instruct-2501`) with `data_collection='deny'` |
+| **Google Gemini** | Public fallback LLM (`gemini-3.5-flash-lite`) and hosted vector embeddings (`models/gemini-embedding-001`, 768-dim $L_2$ normalized) |
+| **Neo4j (Aura)** | Hosted Graph Database: stores financial knowledge, entities, relationships, Lucene fulltext keyword indexes (`keyword_markdown`), and vector index (`vector_markdown_v2`) |
+| **PostgreSQL (Neon)** | Relational DB: users, conversations, messages, OTP records, personal document metadata |
+| **Zero-RAM Strategy** | In-process ONNX/PyTorch models replaced with hosted APIs (`RERANKER_PROVIDER=none`, `VECTOR_SEARCH_ENABLED=false` until $\ge 99\%$ migration) |
+| **yfinance** | Real-time Indian stock market prices (NSE/BSE tickers) & mutual fund NAV snapshots |
+| **pdfplumber / PyPDF2** | Extract text from user-uploaded PDFs |
+| **bcrypt** | Password hashing (salt rounds) |
 | **python-jose** | JWT token creation and validation |
 | **Brevo / SMTP** | Email OTP delivery |
-| **Fernet (cryptography)** | AES-128 encryption for uploaded document content |
+| **Fernet (cryptography)** | AES-128 symmetric encryption for user-uploaded personal document content |
 
 ### Frontend
 | Technology | Purpose |

@@ -10,8 +10,11 @@ class TestGraphTraversal(unittest.TestCase):
         
     def test_injection_safety(self):
         # Count nodes before malicious query
-        with self.node.driver.session() as session:
-            initial_count = session.run("MATCH (n) RETURN count(n) as c").single()["c"]
+        try:
+            with self.node.driver.session() as session:
+                initial_count = session.run("MATCH (n) RETURN count(n) as c").single()["c"]
+        except Exception as e:
+            self.skipTest(f"Neo4j database not reachable for live injection test: {e}")
             
         # Using a maliciously crafted string to ensure parameterization protects the query
         malicious_input = "Apple Inc.\" }) MATCH (n) DETACH DELETE n //"

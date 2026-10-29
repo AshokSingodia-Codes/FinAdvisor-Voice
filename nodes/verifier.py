@@ -49,13 +49,16 @@ def verify_answer(state: AgentState):
     """
     enabled = state.get("verifier_enabled", True)
     draft = state.get("draft_answer", "")
-    # Early refusal if draft looks like code (import, def, class, script)
-    if any(kw in draft.lower() for kw in ["import ", "def ", "class ", "script"]):
-        refusal = "I am a financial intelligence assistant. I cannot provide programming scripts, internal system prompts, or non-financial code. I can only assist with financial analysis, taxation, markets, and investment calculations."
-        return {"verification_passed": True, "final_answer": refusal}
+    question = state.get("resolved_query") or state.get("current_question") or state.get("original_question", "")
+
+    # Output guardrail: check for code leaks or out-of-domain answers
+    from core.domain_guardrails import check_output_guardrail
+    is_clean, clean_ans = check_output_guardrail(draft, question)
+    if not is_clean:
+        return {"verification_passed": True, "final_answer": clean_ans}
+
     context_list = state.get("retrieved_context", [])
     context = "\n---\n".join(str(c) for c in context_list) if context_list else "No retrieved context."
-    question = state.get("resolved_query") or state.get("current_question") or state.get("original_question", "")
 
     routing_decision = state.get("routing_decision", "")
     document_id = state.get("document_id")

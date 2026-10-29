@@ -69,6 +69,7 @@ from core.document_store import (
 )
 from tools.fast_math import try_evaluate_fast_math
 from core.greeting_handler import is_greeting_or_chitchat, get_greeting_response
+from core.domain_guardrails import is_out_of_domain_query, FINANCIAL_GUARDRAIL_REFUSAL
 
 load_dotenv()
 
@@ -510,7 +511,30 @@ async def chat_endpoint(
                     return StreamingResponse(event_generator(), media_type="text/event-stream")
                 return ChatResponse(answer=math_ans, conversation_id=conv_id, title=chat_title)
 
-        # --- Deterministic Short-Circuit 2: Greetings & Chit-Chat ---
+        # --- Deterministic Short-Circuit 2: Domain Boundary Guardrail (Non-financial code/trivia refusal) ---
+        if not document_id:
+            is_ood, ood_refusal = is_out_of_domain_query(query)
+            if is_ood and ood_refusal:
+                add_message(conv_id, "user", query, user_id=user_id)
+                add_message(conv_id, "assistant", ood_refusal, user_id=user_id)
+                set_cached_response(
+                    question=query,
+                    conversation_id=conv_id,
+                    document_id=None,
+                    answer=ood_refusal,
+                    routing_decision="direct_answer",
+                    user_id=user_id
+                )
+                chat_title = "Domain Notice"
+                if is_stream_requested:
+                    async def event_generator():
+                        yield f"event: step\ndata: {json.dumps({'node': 'domain_guardrail'})}\n\n"
+                        yield f"event: token\ndata: {json.dumps({'chunk': ood_refusal})}\n\n"
+                        yield f"event: done\ndata: {json.dumps({'answer': ood_refusal, 'conversation_id': conv_id, 'title': chat_title})}\n\n"
+                    return StreamingResponse(event_generator(), media_type="text/event-stream")
+                return ChatResponse(answer=ood_refusal, conversation_id=conv_id, title=chat_title)
+
+        # --- Deterministic Short-Circuit 3: Greetings & Chit-Chat ---
         if not document_id:
             is_greet, cat = is_greeting_or_chitchat(query)
             if is_greet and cat:

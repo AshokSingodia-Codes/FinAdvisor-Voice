@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from graph.state import AgentState
 from core.db import fast_chat, get_structured_fast_chat
 from core.greeting_handler import is_greeting_or_chitchat
+from core.domain_guardrails import is_out_of_domain_query
 from tools.fast_math import try_evaluate_fast_math
 from core.memory import get_conversation_continuity, save_conversation_continuity
 
@@ -178,7 +179,22 @@ def route_question(state: AgentState):
                 "depth": depth
             }
 
-    # --- Fast-Path 2: Instant Greetings / Casual Chit-Chat (<1ms) ---
+    # --- Fast-Path 2: Domain Boundary Guardrail (Non-financial code/trivia refusal) (<1ms) ---
+    is_ood, ood_refusal = is_out_of_domain_query(question)
+    if is_ood and ood_refusal and not document_id:
+        print(f"  [Router: FAST-PATH DOMAIN GUARDRAIL] Out of domain query -> 'direct_answer'")
+        return {
+            "routing_decision": "direct_answer",
+            "current_question": question,
+            "resolved_query": question,
+            "active_entities": active_entities,
+            "conversation_topic": conversation_topic or "Domain Notice",
+            "depth": "quick",
+            "draft_answer": ood_refusal,
+            "final_answer": ood_refusal
+        }
+
+    # --- Fast-Path 3: Instant Greetings / Casual Chit-Chat (<1ms) ---
     is_greeting, category = is_greeting_or_chitchat(question)
     if is_greeting and not document_id:
         from core.greeting_handler import get_greeting_response
@@ -255,17 +271,18 @@ def route_question(state: AgentState):
             "depth": depth
         }
 
-    # --- Fast-Path 4b: Current Events / Live News (recency signal + finance context) (<1ms) ---
+    # --- Fast-Path 4b: Current Events / Live News / IPOs (<1ms) ---
     _RECENCY = {"today", "tonight", "this week", "this month", "latest", "recent",
-                "new rules", "what happened", "current", "breaking", "just announced",
+                "new", "new rules", "what happened", "current", "breaking", "just announced",
                 "update", "news"}
     _NEWS_FINANCE = {"rbi", "sebi", "repo", "inflation", "market",
                      "nifty", "sensex", "economy", "finance", "policy", "regulation",
-                     "stock", "bank", "interest", "rate", "rupee", "crude", "ipo"}
+                     "stock", "bank", "interest", "rate", "rupee", "crude", "ipo", "listing", "gmp"}
     has_recency  = any(r in lower for r in _RECENCY)
     has_fin_ctx  = any(f in lower for f in _NEWS_FINANCE)
-    if has_recency and has_fin_ctx:
-        print("  [Router: FAST-PATH CURRENT EVENTS] -> 'current_events'")
+    is_ipo_query = "ipo" in lower or "gmp" in lower or "listing" in lower
+    if is_ipo_query or (has_recency and has_fin_ctx):
+        print("  [Router: FAST-PATH CURRENT EVENTS / IPO] -> 'current_events'")
         return {
             "routing_decision": "current_events",
             "current_question": question,

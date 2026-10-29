@@ -279,6 +279,7 @@ def normalize_words_to_math_expression(text: str) -> str:
     result = " ".join(normalized_tokens)
 
     # Handle verbal binary constructs
+    result = re.sub(r'\b(?:the\s+)?sum\s+of\s+(\d+(?:\.\d+)?)\s+(?:and|\+)\s+(\d+(?:\.\d+)?)\b', r'\1 + \2', result)
     result = re.sub(r'\bmultiply\s+(\d+(?:\.\d+)?)\s+by\s+(\d+(?:\.\d+)?)\b', r'\1 * \2', result)
     result = re.sub(r'\bdivide\s+(\d+(?:\.\d+)?)\s+by\s+(\d+(?:\.\d+)?)\b', r'\1 / \2', result)
     result = re.sub(r'\badd\s+(\d+(?:\.\d+)?)\s+(?:to|and)\s+(\d+(?:\.\d+)?)\b', r'\1 + \2', result)
@@ -346,7 +347,66 @@ def evaluate_percentage_and_ratio_patterns(raw_text: str, currency_symbol: str, 
         )
         return True, ans, total_val
 
-    # 3. "X% increase on Y" / "X% hike on Y" / "X% markup on Y"
+    # 3. "X% profit on Y" / "X% gain on Y"
+    profit_match = re.search(r'(\d+(?:\.\d+)?)\s*%\s*(?:profit|gain)\s+(?:on|of)\s+(\d+(?:\.\d+)?)', text_clean)
+    if profit_match:
+        pct = float(profit_match.group(1))
+        base = float(profit_match.group(2))
+        profit_amount = (pct / 100.0) * base
+        total_val = base + profit_amount
+        base_f = format_indian_number(base, currency_symbol) if style == "indian" else format_western_number(base, currency_symbol)
+        prof_f = format_indian_number(profit_amount, currency_symbol) if style == "indian" else format_western_number(profit_amount, currency_symbol)
+        total_f = format_indian_number(total_val, currency_symbol) if style == "indian" else format_western_number(total_val, currency_symbol)
+        ans = (
+            f"**The total value with {pct:g}% profit is {total_f}.**\n\n"
+            f"* **Base Amount**: {base_f}\n"
+            f"* **Profit (+{pct:g}%)**: +{prof_f}\n"
+            f"* **Final Value**: **{total_f}**"
+        )
+        return True, ans, total_val
+
+    # 4. "X% loss on Y"
+    loss_match = re.search(r'(\d+(?:\.\d+)?)\s*%\s*loss\s+(?:on|of)\s+(\d+(?:\.\d+)?)', text_clean)
+    if loss_match:
+        pct = float(loss_match.group(1))
+        base = float(loss_match.group(2))
+        loss_amount = (pct / 100.0) * base
+        final_val = base - loss_amount
+        base_f = format_indian_number(base, currency_symbol) if style == "indian" else format_western_number(base, currency_symbol)
+        loss_f = format_indian_number(loss_amount, currency_symbol) if style == "indian" else format_western_number(loss_amount, currency_symbol)
+        final_f = format_indian_number(final_val, currency_symbol) if style == "indian" else format_western_number(final_val, currency_symbol)
+        ans = (
+            f"**The value after {pct:g}% loss is {final_f}.**\n\n"
+            f"* **Original Amount**: {base_f}\n"
+            f"* **Loss (-{pct:g}%)**: -{loss_f}\n"
+            f"* **Remaining Value**: **{final_f}**"
+        )
+        return True, ans, final_val
+
+    # 5. "percentage change from X to Y" / "growth from X to Y" / "% change from X to Y"
+    change_match = re.search(r'(?:percentage\s+change|%?\s*change|growth)\s+from\s+(\d+(?:\.\d+)?)\s+to\s+(\d+(?:\.\d+)?)', text_clean)
+    if change_match:
+        old_val = float(change_match.group(1))
+        new_val = float(change_match.group(2))
+        if old_val == 0:
+            return True, "**Base value is zero; percentage change is undefined.**", None
+        pct_chg = ((new_val - old_val) / old_val) * 100.0
+        direction = "increase" if pct_chg >= 0 else "decrease"
+        ans = f"**The percentage change is {pct_chg:+.2f}% ({direction}).**"
+        return True, ans, pct_chg
+
+    # 6. "margin on revenue X and profit Y" / "profit margin on revenue X with profit Y"
+    margin_match = re.search(r'(?:profit\s+)?margin\s+on\s+revenue\s+(\d+(?:\.\d+)?)\s+(?:and|with)\s+profit\s+(\d+(?:\.\d+)?)', text_clean)
+    if margin_match:
+        rev = float(margin_match.group(1))
+        prof = float(margin_match.group(2))
+        if rev == 0:
+            return True, "**Revenue is zero; profit margin is undefined.**", None
+        m_pct = (prof / rev) * 100.0
+        ans = f"**The profit margin is {m_pct:.2f}%.**"
+        return True, ans, m_pct
+
+    # 7. "X% increase on Y" / "X% hike on Y" / "X% markup on Y"
     hike_match = re.search(r'(\d+(?:\.\d+)?)\s*%\s*(?:increase\s+on|hike\s+on|markup\s+on)\s+(\d+(?:\.\d+)?)', text_clean)
     if hike_match:
         pct = float(hike_match.group(1))
@@ -666,7 +726,7 @@ def try_evaluate_fast_math(query: str) -> Tuple[bool, Optional[str], Optional[fl
         formatted_ans = format_final_result(result, currency_symbol, style)
         return True, formatted_ans, result
     except ZeroDivisionError:
-        return False, None, None
+        return True, "**Division by zero is undefined.**", None
     except OverflowError as oe:
         return True, f"**{str(oe)}**", None
     except ValueError as ve:

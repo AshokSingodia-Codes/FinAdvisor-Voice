@@ -28,16 +28,16 @@ model = settings.GROQ_MODEL   # reads from .env or default
 
 ---
 
-### 2. `core/db.py`
+### 2. `core/db.py` & `core/llm_manager.py`
 **What it is:** Creates all shared LLM client instances and the embedding model. Think of it as the "wiring closet" — all AI connections are made here, and all nodes import from it.
 
 **Key things to learn:**
-- **Dual-tier LLM architecture**: `fast_chat` (router/verifier) vs `synthesis_chat` (evidence builder)
-- `.with_fallbacks([...])` — LangChain's automatic retry with next provider
-- `FastEmbedWrapper` — wraps ONNX-based `fastembed` model into LangChain's `Embeddings` interface
-- `Neo4jVector` — vector store backed by Neo4j
+- **Dual-tier LLM architecture**: `fast_chat` (`qwen/qwen3.8-27b` on Groq) vs `synthesis_chat` (`openai/gpt-oss-120b` on Groq)
+- **`ResilientFallbackChat`** (`core/llm_manager.py`): In-memory circuit breakers, exponential backoff, retry-after header parsing, and strict privacy isolation
+- **Zero-RAM Hosted Embeddings** (`core/embeddings.py`): Hosted `models/gemini-embedding-001` (768-dimensional $L_2$ normalized) via REST API, replacing in-process ONNX models to preserve Render's 512 MB memory limit
+- **Neo4j Graph & Vector Index**: `keyword_markdown` (Lucene BM25 fulltext) + `vector_markdown_v2` (cosine similarity on `c.embedding_v2`)
 
-**Connections:** All `nodes/*.py` files import `from core.db import fast_chat, synthesis_chat, kg, fast_embeddings`
+**Connections:** All `nodes/*.py` files import `from core.db import fast_chat, synthesis_chat, kg, vector_index`
 
 ---
 

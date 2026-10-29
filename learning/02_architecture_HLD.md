@@ -44,18 +44,17 @@
 └──────────────────────────────────────────────────────────────────┘
            │                 │                    │
            ▼                 ▼                    ▼
-┌───────────────┐  ┌──────────────────┐  ┌───────────────────┐
-│  NEO4J AURA   │  │   NEON POSTGRES   │  │  EXTERNAL APIs    │
-│  (Graph DB)   │  │   (Relational DB) │  │                   │
-│               │  │                  │  │  Groq LLM         │
-│  - Financial  │  │  - Users         │  │  OpenRouter LLM   │
-│    knowledge  │  │  - Conversations │  │  Google Gemini    │
-│    graph      │  │  - Messages      │  │  yfinance         │
-│  - Vector     │  │  - OTP records   │  │  News API         │
-│    index      │  │  - Documents     │  │  Brevo Email      │
-│  - Personal   │  │    (metadata)    │  │  LangSmith        │
-│    chunks     │  │                  │  │                   │
-└───────────────┘  └──────────────────┘  └───────────────────┘
+┌───────────────┐  ┌──────────────────┐  ┌───────────────────────────────────┐
+│  NEO4J AURA   │  │   NEON POSTGRES   │  │  HOSTED AI & EXTERNAL APIS        │
+│  (Graph DB)   │  │   (Relational DB) │  │                                   │
+│               │  │                  │  │  Groq (qwen3.8-27b / gpt-oss-120b) │
+│  - Financial  │  │  - Users         │  │  OpenRouter (ZDR: data_collection='deny')
+│    knowledge  │  │  - Conversations │  │  Google Gemini (Public fallback only)
+│    graph      │  │  - Messages      │  │  Gemini Embeddings (768-dim L2)    │
+│  - Lucene BM25│  │  - OTP records   │  │  yfinance (Live Indian quotes)     │
+│    fulltext   │  │  - Personal docs │  │  Brevo Email (Transactional OTP)   │
+│  - Vector v2  │  │    (metadata)    │  │  LangSmith Observability           │
+└───────────────┘  └──────────────────┘  └───────────────────────────────────┘
 ```
 
 ---

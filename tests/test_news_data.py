@@ -154,12 +154,12 @@ class TestNewsDataNode:
         xml = _rss_xml_with(_SAMPLE_ITEMS)
         mock_get.return_value = _mock_response(xml)
 
-        from nodes.news_data import fetch_current_events
+        from nodes.news_data import fetch_current_events, _FEEDS
         fetch_current_events(_make_state("nifty sensex today"))
         fetch_current_events(_make_state("nifty sensex today"))
 
-        # 3 feeds, but should only be called 3 times total (first call only)
-        assert mock_get.call_count == 3
+        # Should only be called once per feed within TTL
+        assert mock_get.call_count == len(_FEEDS)
 
     @patch("nodes.news_data.requests.get")
     def test_max_five_results_returned(self, mock_get):

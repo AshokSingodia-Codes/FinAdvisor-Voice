@@ -26,9 +26,11 @@ from graph.state import AgentState
 # ---------------------------------------------------------------------------
 
 _FEEDS: List[Tuple[str, str]] = [
-    ("LiveMint Economy",  "https://www.livemint.com/rss/economy"),
     ("LiveMint Markets",  "https://www.livemint.com/rss/markets"),
     ("LiveMint Industry", "https://www.livemint.com/rss/industry"),
+    ("LiveMint Economy",  "https://www.livemint.com/rss/economy"),
+    ("Economic Times IPO", "https://economictimes.indiatimes.com/markets/ipos/fpos/rssfeeds/11041834.cms"),
+    ("Moneycontrol IPO", "https://www.moneycontrol.com/rss/iponews.xml"),
 ]
 
 _FETCH_TIMEOUT    = 8
@@ -118,7 +120,7 @@ def _fetch(name: str, url: str) -> List[Dict[str, str]]:
         return cached[1]
     try:
         r = requests.get(url, timeout=_FETCH_TIMEOUT,
-                         headers={"User-Agent": "Mozilla/5.0 (compatible; FinAdvisor-X/2.0)"})
+                         headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
         if r.status_code != 200:
             print(f"  [news] {name}: HTTP {r.status_code}")
             return []
@@ -135,10 +137,27 @@ def _fetch(name: str, url: str) -> List[Dict[str, str]]:
 # ---------------------------------------------------------------------------
 
 def _score(item: Dict[str, str], tokens: List[str]) -> int:
-    hay = (item["title"] + " " + item["snippet"]).lower()
-    s  = sum(3 for t in tokens if len(t) >= 3 and t in hay)
-    s += sum(1 for term in _FINANCE_TERMS if term in hay)
-    return s
+    title_lower = item["title"].lower()
+    snippet_lower = item["snippet"].lower()
+    hay = title_lower + " " + snippet_lower
+
+    # High weight for exact query tokens in title (10x) and snippet (5x)
+    query_match_score = 0
+    for t in tokens:
+        if len(t) >= 3:
+            if t in title_lower:
+                query_match_score += 15
+            elif t in snippet_lower:
+                query_match_score += 6
+
+    # Bonus if query keywords match together
+    if len(tokens) >= 2 and all(t in hay for t in tokens if len(t) >= 3):
+        query_match_score += 25
+
+    # Secondary background finance relevance (1x)
+    finance_score = sum(1 for term in _FINANCE_TERMS if term in hay)
+    
+    return query_match_score * 3 + finance_score
 
 
 # ---------------------------------------------------------------------------

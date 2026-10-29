@@ -143,6 +143,11 @@ def build_evidence(state: AgentState):
         if state.get("final_answer") and state.get("routing_decision") in ("direct_answer", "live_market_data"):
             ans = state["final_answer"]
             return {"draft_answer": ans, "final_answer": ans}
+        from core.domain_guardrails import is_out_of_domain_query
+        is_ood, ood_refusal = is_out_of_domain_query(question)
+        if is_ood and ood_refusal:
+            print(f"  [Evidence Builder: INSTANT DOMAIN GUARDRAIL]")
+            return {"draft_answer": ood_refusal, "final_answer": ood_refusal}
         is_greeting, category = is_greeting_or_chitchat(question)
         if is_greeting and category:
             print(f"  [Evidence Builder: INSTANT GREETING FAST-PATH] category='{category}'")

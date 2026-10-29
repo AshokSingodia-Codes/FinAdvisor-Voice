@@ -32,63 +32,48 @@ class Settings(BaseSettings):
 
 ---
 
-## Module 2: `core/db.py` — LLM Architecture
+## Module 2: `core/db.py` & `core/llm_manager.py` — Dual-Tier Resilient LLM Architecture
 
-### The Fallback Chain Pattern
+### The Circuit Breaker & Fallback Cascade Pattern
 
 ```python
-# Build primary + fallback list
-fast_primary = ChatGroq(model_name="gpt-oss-20b", timeout=4)
-fast_fallbacks = [
-    ChatGroq(model_name="qwen3.8-27b", timeout=4),
-    ChatOpenAI(model="mistral-small-24b", timeout=5),
-]
+# In core/llm_manager.py: ResilientFallbackChat
+# 1. Routes by personal context sensitivity:
+#    - Public query: Groq -> Gemini -> OpenRouter
+#    - Personal document query: Groq -> OpenRouter (with ZDR: data_collection='deny') [Gemini EXCLUDED]
+# 2. Circuit Breakers: Cooldown on 429/5xx, auto-drain short TPM token buckets (<= 5s)
+# 3. Fast Tier (qwen/qwen3.8-27b on Groq) vs Synthesis Tier (openai/gpt-oss-120b on Groq)
 
-# Wire them together with .with_fallbacks()
-fast_chat = fast_primary.with_fallbacks(fast_fallbacks)
-
-# When you call fast_chat.invoke("question"):
-# → Tries gpt-oss-20b first
-# → If it fails/times out → tries qwen3.8-27b
-# → If that fails → tries mistral-small-24b
-# All automatic. No try/except needed in node code.
+fast_chat = get_resilient_chat(tier="fast")
+synthesis_chat = get_resilient_chat(tier="synthesis")
 ```
 
-**Design decision:** Why two tiers (fast_chat vs synthesis_chat)?
-- **Fast chain** (router, verifier, decomposer): Needs < 500ms. Uses small, cheap models.
-- **Synthesis chain** (evidence builder): Needs quality, can be 2-5s. Uses large, capable models.
-- Mixing them would mean using expensive 120B model just to classify "is this a greeting?" (wasteful).
+**Design decision:** Why two tiers (`fast_chat` vs `synthesis_chat`)?
+- **Fast tier** (router, verifier, decomposer): Needs sub-second response. Uses `qwen/qwen3.8-27b` on Groq.
+- **Synthesis tier** (evidence builder): Needs deep synthesis quality. Uses `openai/gpt-oss-120b` on Groq.
+- **Privacy boundary**: Any conversation with an active user document dynamically binds `has_personal_context=True`, locking out Gemini free-tier endpoints from processing private financial statements.
 
-### FastEmbedWrapper — The Embedding Model
+---
+
+### GeminiHostedEmbeddings — Zero-RAM Hosted Vector Embeddings
 
 ```python
-class FastEmbedWrapper(Embeddings):
-    """Wraps fastembed (ONNX) to work with LangChain's Embeddings interface."""
-
-    def __init__(self, model_name="BAAI/bge-small-en-v1.5"):
-        self._model = None  # Lazy loading — don't load until first use
-
-    def _get_model(self):
-        if self._model is None:
-            from fastembed import TextEmbedding
-            self._model = TextEmbedding(model_name=self.model_name)
-        return self._model
-
+# In core/embeddings.py: GeminiHostedEmbeddings
+class GeminiHostedEmbeddings(Embeddings):
+    """
+    Hosted REST API embeddings using models/gemini-embedding-001 (768-dim L2 normalized).
+    Preserves 0MB local RAM footprint by offloading vector calculation to Google's cloud.
+    """
     def embed_query(self, text: str) -> List[float]:
-        model = self._get_model()
-        # fastembed returns generator — convert to list
-        return list(model.embed([text]))[0].tolist()
-
-    def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        model = self._get_model()
-        return [list(vec) for vec in model.embed(texts)]
+        # REST POST to https://generativelanguage.googleapis.com/v1beta/models/...
+        # Normalized with math.sqrt(sum(x*x))
+        return self._call_gemini_single(text)
 ```
 
-**Design decision:** Why BAAI/bge-small-en-v1.5 (ONNX)?
-- Runs on CPU (no GPU needed) — works on Render free tier
-- 33MB model, loads in ~2 seconds
-- 384-dimensional vectors (good quality/speed tradeoff)
-- ONNX = optimized inference format (2-3x faster than PyTorch)
+**Design decision:** Why hosted Gemini REST API instead of local PyTorch/ONNX?
+- In-process embedding models (PyTorch/sentence-transformers) consume 250MB–400MB of RAM.
+- Render's free tier has a strict **512MB RAM cap**. In-process models caused Out-Of-Memory (OOM) crashes.
+- Offloading embeddings to Google's REST API leaves **~394MB of free headroom (77% free)** on the server.
 
 ---
 
