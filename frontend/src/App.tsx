@@ -239,8 +239,21 @@ function App() {
     }
   }, [authFetch]);
 
+  const isManualAbortRef = useRef<boolean>(false);
+
+  const handleStop = useCallback(() => {
+    if (abortControllerRef.current) {
+      isManualAbortRef.current = true;
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    isSendingRef.current = false;
+    setLoading(false);
+  }, []);
+
   const handleNewChat = useCallback(() => {
     if (abortControllerRef.current) {
+      isManualAbortRef.current = true;
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
@@ -391,6 +404,7 @@ function App() {
     setMessages(newMessages);
     setLoading(true);
 
+    isManualAbortRef.current = false;
     const controller = new AbortController();
     abortControllerRef.current = controller;
     const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
@@ -443,10 +457,17 @@ function App() {
     } catch (error: any) {
       clearTimeout(timeoutId);
       if (error.name === 'AbortError') {
-        setMessages([
-          ...newMessages,
-          { role: 'assistant', content: '⏱️ Request timed out. The server is taking longer than usual to respond. Please try asking again.', isError: true }
-        ]);
+        if (isManualAbortRef.current) {
+          setMessages([
+            ...newMessages,
+            { role: 'assistant', content: '⏹️ Generation stopped.', isError: false }
+          ]);
+        } else {
+          setMessages([
+            ...newMessages,
+            { role: 'assistant', content: '⏱️ Request timed out. The server is taking longer than usual to respond. Please try asking again.', isError: true }
+          ]);
+        }
       } else {
         console.error('Error fetching chat response:', error);
         setMessages([
@@ -863,6 +884,7 @@ function App() {
         {/* Input Bar (Isolated Memoized Component) */}
         <ChatInputBar
           onSend={handleSend}
+          onStop={handleStop}
           loading={loading}
           uploadLoading={uploadLoading}
           activeDoc={activeDoc}

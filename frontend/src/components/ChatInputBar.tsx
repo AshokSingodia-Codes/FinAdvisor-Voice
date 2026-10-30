@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Paperclip, Upload, X, AlertTriangle, FileText } from 'lucide-react';
+import { Send, Paperclip, Upload, X, AlertTriangle, FileText, Square } from 'lucide-react';
 import { VoiceInputButton } from './VoiceInputButton';
 
 export interface ActiveDocument {
@@ -11,6 +11,7 @@ export interface ActiveDocument {
 
 interface ChatInputBarProps {
   onSend: (text: string) => void;
+  onStop?: () => void;
   loading: boolean;
   uploadLoading: boolean;
   activeDoc: ActiveDocument | null;
@@ -23,6 +24,7 @@ interface ChatInputBarProps {
 
 export const ChatInputBar = React.memo(function ChatInputBar({
   onSend,
+  onStop,
   loading,
   uploadLoading,
   activeDoc,
@@ -158,11 +160,12 @@ export const ChatInputBar = React.memo(function ChatInputBar({
           value={displayValue}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          disabled={loading}
           placeholder={
-            isAuthenticated
-              ? 'Ask for financial advice, stock updates, budgeting, or return calculations...'
-              : 'Please sign in to start asking questions...'
+            !isAuthenticated
+              ? 'Please sign in to start asking questions...'
+              : loading
+              ? 'Generating answer... (feel free to draft your next question)'
+              : 'Ask for financial advice, stock updates, budgeting, or return calculations...'
           }
           className="flex-1 bg-transparent pl-3 pr-2 py-2 text-slate-900 text-sm focus:outline-none placeholder:text-slate-400 disabled:opacity-50 resize-none min-h-[38px] max-h-36 overflow-y-auto leading-relaxed"
         />
@@ -207,14 +210,25 @@ export const ChatInputBar = React.memo(function ChatInputBar({
             onFinalResult={handleVoiceFinal}
           />
 
-          <button
-            onClick={handleSubmit}
-            disabled={isSendDisabled}
-            className="p-2 rounded-lg bg-[#0f274a] hover:bg-[#163a6f] text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm cursor-pointer z-10 relative flex items-center justify-center"
-            title="Send Message"
-          >
-            <Send size={16} />
-          </button>
+          {loading ? (
+            <button
+              type="button"
+              onClick={onStop}
+              className="p-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-all shadow-sm cursor-pointer z-10 relative flex items-center justify-center animate-pulse"
+              title="Stop generating"
+            >
+              <Square size={15} className="fill-current" />
+            </button>
+          ) : (
+            <button
+              onClick={handleSubmit}
+              disabled={isSendDisabled}
+              className="p-2 rounded-lg bg-[#0f274a] hover:bg-[#163a6f] text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm cursor-pointer z-10 relative flex items-center justify-center"
+              title="Send Message"
+            >
+              <Send size={16} />
+            </button>
+          )}
         </div>
       </div>
       <div className="text-center mt-2 text-[11px] text-slate-500">
