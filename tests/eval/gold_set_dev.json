@@ -11,7 +11,8 @@
       "three years ended september 28, 2024"
     ],
     "category": "10k_factual",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
   },
   {
     "id": "q003",
@@ -24,7 +25,8 @@
       "net sales"
     ],
     "category": "10k_factual",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
   },
   {
     "id": "q005",
@@ -37,7 +39,8 @@
       "6.08"
     ],
     "category": "10k_factual",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
   },
   {
     "id": "q007",
@@ -50,7 +53,8 @@
       "operating activities"
     ],
     "category": "10k_factual",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
   },
   {
     "id": "q009",
@@ -63,7 +67,8 @@
       "46.2%"
     ],
     "category": "10k_factual",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
   },
   {
     "id": "q011",
@@ -75,7 +80,8 @@
       "37,005"
     ],
     "category": "10k_factual",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
   },
   {
     "id": "q013",
@@ -91,7 +97,8 @@
       "inflation"
     ],
     "category": "finance_textbook",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/Ultimate_Finance_Knowledge_Base.md"
   },
   {
     "id": "q015",
@@ -107,7 +114,8 @@
       "Financial Leverage"
     ],
     "category": "finance_textbook",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/Ultimate_Finance_Knowledge_Base.md"
   },
   {
     "id": "q017",
@@ -123,7 +131,8 @@
       "Working Capital"
     ],
     "category": "finance_textbook",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/Ultimate_Finance_Knowledge_Base.md"
   },
   {
     "id": "q019",
@@ -138,7 +147,8 @@
       "Market Risk Premium"
     ],
     "category": "finance_textbook",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/Ultimate_Finance_Knowledge_Base.md"
   },
   {
     "id": "q021",
@@ -154,7 +164,8 @@
       "working capital"
     ],
     "category": "finance_textbook",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/Ultimate_Finance_Knowledge_Base.md"
   },
   {
     "id": "q023",
@@ -169,7 +180,8 @@
       "covariance"
     ],
     "category": "finance_textbook",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/Ultimate_Finance_Knowledge_Base.md"
   },
   {
     "id": "q025",
@@ -185,7 +197,8 @@
       "active managers"
     ],
     "category": "investment_literature",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/Ultimate_Finance_Knowledge_Base.md"
   },
   {
     "id": "q027",
@@ -200,7 +213,8 @@
       "savings"
     ],
     "category": "investment_literature",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/Ultimate_Finance_Knowledge_Base.md"
   },
   {
     "id": "q029",
@@ -216,7 +230,8 @@
       "income"
     ],
     "category": "investment_literature",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/Ultimate_Finance_Knowledge_Base.md"
   },
   {
     "id": "q031",
@@ -231,7 +246,8 @@
       "disciplined"
     ],
     "category": "investment_literature",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/Ultimate_Finance_Knowledge_Base.md"
   },
   {
     "id": "q033",
@@ -246,7 +262,8 @@
       "market downturn"
     ],
     "category": "investment_literature",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/Ultimate_Finance_Knowledge_Base.md"
   },
   {
     "id": "q035",
@@ -260,7 +277,8 @@
       "unable to find"
     ],
     "category": "trap_out_of_corpus",
-    "is_out_of_corpus": true
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
   },
   {
     "id": "q037",
@@ -274,7 +292,8 @@
       "cannot confirm"
     ],
     "category": "trap_out_of_corpus",
-    "is_out_of_corpus": true
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
   },
   {
     "id": "q039",
@@ -288,7 +307,8 @@
       "does not exist"
     ],
     "category": "trap_out_of_corpus",
-    "is_out_of_corpus": true
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
   },
   {
     "id": "q041",
@@ -302,7 +322,8 @@
       "do not have"
     ],
     "category": "trap_out_of_corpus",
-    "is_out_of_corpus": true
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
   },
   {
     "id": "q043",
@@ -315,7 +336,8 @@
       "do not have records"
     ],
     "category": "trap_out_of_corpus",
-    "is_out_of_corpus": true
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
   },
   {
     "id": "q045",
@@ -330,7 +352,8 @@
       "12,00,000"
     ],
     "category": "computational_market",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "computational_engine"
   },
   {
     "id": "q047",
@@ -345,7 +368,8 @@
       "cess"
     ],
     "category": "computational_market",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "computational_engine"
   },
   {
     "id": "q049",
@@ -359,7 +383,8 @@
       "NSE"
     ],
     "category": "computational_market",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "computational_engine"
   },
   {
     "id": "q_ret_051",
@@ -371,7 +396,8 @@
       "sales"
     ],
     "category": "10k_factual",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
   },
   {
     "id": "q_ret_053",
@@ -385,7 +411,8 @@
       "sales"
     ],
     "category": "10k_factual",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
   },
   {
     "id": "q_ret_055",
@@ -397,7 +424,8 @@
       "Revenue"
     ],
     "category": "10k_factual",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
   },
   {
     "id": "q_ret_057",
@@ -411,7 +439,8 @@
       "Revenue"
     ],
     "category": "10k_factual",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
   },
   {
     "id": "q_ret_059",
@@ -423,7 +452,8 @@
       "sales"
     ],
     "category": "10k_factual",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
   },
   {
     "id": "q_ret_061",
@@ -437,7 +467,8 @@
       "sales"
     ],
     "category": "10k_factual",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
   },
   {
     "id": "q_ret_063",
@@ -450,7 +481,8 @@
       "margin"
     ],
     "category": "10k_factual",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
   },
   {
     "id": "q_ret_065",
@@ -464,7 +496,8 @@
       "Gross"
     ],
     "category": "10k_factual",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
   },
   {
     "id": "q_ret_067",
@@ -478,7 +511,8 @@
       "percentage"
     ],
     "category": "10k_factual",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
   },
   {
     "id": "q_ret_069",
@@ -492,7 +526,8 @@
       "Gross"
     ],
     "category": "10k_factual",
-    "is_out_of_corpus": false
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
   },
   {
     "id": "q_trap_071",
@@ -505,7 +540,8 @@
       "not present"
     ],
     "category": "trap_out_of_corpus",
-    "is_out_of_corpus": true
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
   },
   {
     "id": "q_trap_073",
@@ -518,7 +554,8 @@
       "not present"
     ],
     "category": "trap_out_of_corpus",
-    "is_out_of_corpus": true
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
   },
   {
     "id": "q_trap_075",
@@ -531,7 +568,8 @@
       "not present"
     ],
     "category": "trap_out_of_corpus",
-    "is_out_of_corpus": true
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
   },
   {
     "id": "q_trap_077",
@@ -544,7 +582,8 @@
       "not present"
     ],
     "category": "trap_out_of_corpus",
-    "is_out_of_corpus": true
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
   },
   {
     "id": "q_trap_079",
@@ -557,7 +596,8 @@
       "not present"
     ],
     "category": "trap_out_of_corpus",
-    "is_out_of_corpus": true
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
   },
   {
     "id": "q_trap_081",
@@ -570,7 +610,8 @@
       "not present"
     ],
     "category": "trap_out_of_corpus",
-    "is_out_of_corpus": true
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
   },
   {
     "id": "q_trap_083",
@@ -583,7 +624,8 @@
       "not present"
     ],
     "category": "trap_out_of_corpus",
-    "is_out_of_corpus": true
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
   },
   {
     "id": "q_trap_085",
@@ -596,7 +638,8 @@
       "not present"
     ],
     "category": "trap_out_of_corpus",
-    "is_out_of_corpus": true
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
   },
   {
     "id": "q_trap_087",
@@ -609,7 +652,8 @@
       "not present"
     ],
     "category": "trap_out_of_corpus",
-    "is_out_of_corpus": true
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
   },
   {
     "id": "q_trap_089",
@@ -622,6 +666,7 @@
       "not present"
     ],
     "category": "trap_out_of_corpus",
-    "is_out_of_corpus": true
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
   }
 ]
