@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from graph.state import AgentState
 from core.db import fast_chat, get_structured_fast_chat
 from utils.retry import with_retry
+from config.settings import settings
 import time
 
 class Verification(BaseModel):
@@ -47,7 +48,7 @@ def verify_answer(state: AgentState):
     - This skip logic is distinct from the audit-failure retry path, which only triggers when an actual
       hallucination or contradiction is discovered in detailed corporate retrieval synthesis.
     """
-    enabled = state.get("verifier_enabled", True)
+    enabled = state.get("verifier_enabled", settings.VERIFIER_ENABLED)
     draft = state.get("draft_answer", "")
     question = state.get("resolved_query") or state.get("current_question") or state.get("original_question", "")
 

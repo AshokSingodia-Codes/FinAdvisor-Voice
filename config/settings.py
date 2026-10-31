@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     PERSONAL_CONTEXT_PROVIDERS: str = Field("groq,openrouter", description="Allowed LLM providers for requests containing personal document context")
     PERSONAL_CONTEXT_EMBEDDING: str = Field("off", description="Whether to embed user queries when personal document context is active (off = BM25 fallback)")
     RERANKER_PROVIDER: str = Field("none", description="Reranker Provider (none | flashrank)")
+    VERIFIER_ENABLED: bool = Field(False, description='Enable Self-RAG verification')
     
     # LangSmith Observability
     LANGCHAIN_TRACING_V2: str = Field("false", description="Enable LangSmith Tracing")
@@ -47,7 +48,8 @@ class Settings(BaseSettings):
     LANGCHAIN_ENDPOINT: str = Field("https://api.smith.langchain.com", description="LangSmith Endpoint")
     
     # Auth & Security Settings
-    ENVIRONMENT: str = Field("development", description="Runtime environment (development, test, production)")
+    ENVIRONMENT: str = Field("development", description="Runtime environment (development, test, production)")
+
     JWT_SECRET: str = Field("finadvisor-secure-jwt-secret-key-2026-x", description="JWT Secret Key")
     JWT_SECRET_KEY: Optional[str] = Field(None, description="Alternative JWT Secret Key alias")
     JWT_ALGORITHM: str = Field("HS256", description="JWT Algorithm")
