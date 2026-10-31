@@ -360,5 +360,268 @@
     ],
     "category": "computational_market",
     "is_out_of_corpus": false
+  },
+  {
+    "id": "q_ret_051",
+    "question": "What was Apple's Net sales in 2023?",
+    "expected_answer": "Retrieve and state the exact number for Net sales in 2023.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Apple's",
+      "sales"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false
+  },
+  {
+    "id": "q_ret_053",
+    "question": "Calculate the percentage change in Net sales from 2023 to 2024.",
+    "expected_answer": "Retrieve both years and calculate correct % change.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Calculate",
+      "percentage",
+      "change",
+      "sales"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false
+  },
+  {
+    "id": "q_ret_055",
+    "question": "What was Apple's Revenue in 2023?",
+    "expected_answer": "Retrieve and state the exact number for Revenue in 2023.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Apple's",
+      "Revenue"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false
+  },
+  {
+    "id": "q_ret_057",
+    "question": "Calculate the percentage change in Revenue from 2023 to 2024.",
+    "expected_answer": "Retrieve both years and calculate correct % change.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Calculate",
+      "percentage",
+      "change",
+      "Revenue"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false
+  },
+  {
+    "id": "q_ret_059",
+    "question": "What was Apple's Cost of sales in 2023?",
+    "expected_answer": "Retrieve and state the exact number for Cost of sales in 2023.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Apple's",
+      "sales"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false
+  },
+  {
+    "id": "q_ret_061",
+    "question": "Calculate the percentage change in Cost of sales from 2023 to 2024.",
+    "expected_answer": "Retrieve both years and calculate correct % change.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Calculate",
+      "percentage",
+      "change",
+      "sales"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false
+  },
+  {
+    "id": "q_ret_063",
+    "question": "What was Apple's Gross margin in 2023?",
+    "expected_answer": "Retrieve and state the exact number for Gross margin in 2023.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Apple's",
+      "Gross",
+      "margin"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false
+  },
+  {
+    "id": "q_ret_065",
+    "question": "Calculate the percentage change in Gross margin from 2023 to 2024.",
+    "expected_answer": "Retrieve both years and calculate correct % change.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Calculate",
+      "percentage",
+      "change",
+      "Gross"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false
+  },
+  {
+    "id": "q_ret_067",
+    "question": "What was Apple's Gross margin percentage in 2023?",
+    "expected_answer": "Retrieve and state the exact number for Gross margin percentage in 2023.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Apple's",
+      "Gross",
+      "margin",
+      "percentage"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false
+  },
+  {
+    "id": "q_ret_069",
+    "question": "Calculate the percentage change in Gross margin percentage from 2023 to 2024.",
+    "expected_answer": "Retrieve both years and calculate correct % change.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Calculate",
+      "percentage",
+      "change",
+      "Gross"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false
+  },
+  {
+    "id": "q_trap_071",
+    "question": "What was the dividend yield of QuantumLeap Therapeutics in 1999?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true
+  },
+  {
+    "id": "q_trap_073",
+    "question": "What was the net profit margin of Enron Corporation in 2023?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true
+  },
+  {
+    "id": "q_trap_075",
+    "question": "How much did Pets.com spend on TV advertising during Super Bowl 2023?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true
+  },
+  {
+    "id": "q_trap_077",
+    "question": "What was the total Bitcoin reserve held on balance sheet by Theranos in 2015?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true
+  },
+  {
+    "id": "q_trap_079",
+    "question": "What was the 10-K reported research spend of Wirecard AG in 2023?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true
+  },
+  {
+    "id": "q_trap_081",
+    "question": "What was the dividend payout ratio for Silicon Valley Bank in fiscal year 2024?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true
+  },
+  {
+    "id": "q_trap_083",
+    "question": "What was the R&D expenditure for Concorde flights reported by British Airways in 2024?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true
+  },
+  {
+    "id": "q_trap_085",
+    "question": "What was the net sales reported by Standard Oil of New Jersey in 2023?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true
+  },
+  {
+    "id": "q_trap_087",
+    "question": "What was the market capitalization of FTX Derivatives Exchange listed on NYSE in 2024?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true
+  },
+  {
+    "id": "q_trap_089",
+    "question": "What was the gross margin on Apple iCar sales in the fourth quarter of 2024?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true
   }
 ]

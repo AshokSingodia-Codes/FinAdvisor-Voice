@@ -358,5 +358,268 @@
     ],
     "category": "computational_market",
     "is_out_of_corpus": false
+  },
+  {
+    "id": "q_ret_052",
+    "question": "What was Apple's Net sales in 2024?",
+    "expected_answer": "Retrieve and state the exact number for Net sales in 2024.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Apple's",
+      "sales"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false
+  },
+  {
+    "id": "q_ret_054",
+    "question": "How did Net sales change year-over-year from the prior year to current year?",
+    "expected_answer": "Explain the absolute change and reasons if provided.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "sales",
+      "change",
+      "year-over-year",
+      "prior"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false
+  },
+  {
+    "id": "q_ret_056",
+    "question": "What was Apple's Revenue in 2024?",
+    "expected_answer": "Retrieve and state the exact number for Revenue in 2024.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Apple's",
+      "Revenue"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false
+  },
+  {
+    "id": "q_ret_058",
+    "question": "How did Revenue change year-over-year from the prior year to current year?",
+    "expected_answer": "Explain the absolute change and reasons if provided.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Revenue",
+      "change",
+      "year-over-year",
+      "prior"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false
+  },
+  {
+    "id": "q_ret_060",
+    "question": "What was Apple's Cost of sales in 2024?",
+    "expected_answer": "Retrieve and state the exact number for Cost of sales in 2024.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Apple's",
+      "sales"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false
+  },
+  {
+    "id": "q_ret_062",
+    "question": "How did Cost of sales change year-over-year from the prior year to current year?",
+    "expected_answer": "Explain the absolute change and reasons if provided.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "sales",
+      "change",
+      "year-over-year",
+      "prior"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false
+  },
+  {
+    "id": "q_ret_064",
+    "question": "What was Apple's Gross margin in 2024?",
+    "expected_answer": "Retrieve and state the exact number for Gross margin in 2024.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Apple's",
+      "Gross",
+      "margin"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false
+  },
+  {
+    "id": "q_ret_066",
+    "question": "How did Gross margin change year-over-year from the prior year to current year?",
+    "expected_answer": "Explain the absolute change and reasons if provided.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Gross",
+      "margin",
+      "change",
+      "year-over-year"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false
+  },
+  {
+    "id": "q_ret_068",
+    "question": "What was Apple's Gross margin percentage in 2024?",
+    "expected_answer": "Retrieve and state the exact number for Gross margin percentage in 2024.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Apple's",
+      "Gross",
+      "margin",
+      "percentage"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false
+  },
+  {
+    "id": "q_ret_070",
+    "question": "How did Gross margin percentage change year-over-year from the prior year to current year?",
+    "expected_answer": "Explain the absolute change and reasons if provided.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Gross",
+      "margin",
+      "percentage",
+      "change"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false
+  },
+  {
+    "id": "q_trap_072",
+    "question": "Who was appointed Chief AI Officer of Lehman Brothers in 2024?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true
+  },
+  {
+    "id": "q_trap_074",
+    "question": "What was the gross revenue of Pan American World Airways in fiscal year 2022?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true
+  },
+  {
+    "id": "q_trap_076",
+    "question": "What were Apple titanium manufacturing subsidies from Atlantis in 2024?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true
+  },
+  {
+    "id": "q_trap_078",
+    "question": "What was the average subscriber churn rate for Blockbuster Video streaming in 2023?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true
+  },
+  {
+    "id": "q_trap_080",
+    "question": "How many autonomous flying vehicles did Apple deliver in Q3 2024?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true
+  },
+  {
+    "id": "q_trap_082",
+    "question": "Who is the current Head of Lunar Operations at General Electric in 2024 filing?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true
+  },
+  {
+    "id": "q_trap_084",
+    "question": "How much did Kodak spend on digital cryptocurrency mining rigs in 1995?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true
+  },
+  {
+    "id": "q_trap_086",
+    "question": "What was the carbon credit offset revenue earned by Bear Stearns in fiscal 2023?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true
+  },
+  {
+    "id": "q_trap_088",
+    "question": "How many quantum teleportation patents were filed by Apple in their 2023 10-K filing?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true
+  },
+  {
+    "id": "q_trap_090",
+    "question": "Who was named Chief Metaverse Officer of Apple Inc in the 2024 proxy statement?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true
   }
 ]
