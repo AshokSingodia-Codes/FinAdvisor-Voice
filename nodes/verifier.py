@@ -1,10 +1,12 @@
+
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
-from graph.state import AgentState
-from core.db import fast_chat, get_structured_fast_chat
-from utils.retry import with_retry
+
 from config.settings import settings
-import time
+from core.db import get_structured_fast_chat
+from graph.state import AgentState
+from utils.retry import with_retry
+
 
 class Verification(BaseModel):
     is_supported: bool = Field(description="True if the draft answer is fully supported by the context.")

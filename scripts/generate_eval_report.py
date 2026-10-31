@@ -13,13 +13,13 @@ Follows strict reporting guidelines:
 - Missing data prints 'not measured' with the reproduction command.
 - No resume summary or promotional claims.
 """
-import os
-import sys
-import json
-import time
 import argparse
+import json
+import os
 import subprocess
-from typing import Dict, Any
+import sys
+import time
+from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -45,11 +45,11 @@ def format_delta(val: float, suffix: str = '%') -> str:
 
 
 def generate_markdown_report(
-    retrieval_data: Dict[str, Any],
-    router_data: Dict[str, Any],
-    faithfulness_data: Dict[str, Any],
-    trap_data: Dict[str, Any],
-    git_commit: str = None
+    retrieval_data: dict[str, Any],
+    router_data: dict[str, Any],
+    faithfulness_data: dict[str, Any],
+    trap_data: dict[str, Any],
+    git_commit: str | None = None
 ) -> str:
     timestamp = time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())
     commit_str = git_commit or get_git_commit()
