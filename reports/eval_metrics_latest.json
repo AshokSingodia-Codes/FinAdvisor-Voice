@@ -519,7 +519,16 @@
         "is_correct": true,
         "latency_sec": 0.0
       }
-    ]
+    ],
+    "confusion_matrix": {
+      "calculation -> calculation": 3,
+      "calculation -> hybrid_search": 1,
+      "hybrid_search -> calculation": 6,
+      "hybrid_search -> direct_answer": 18,
+      "hybrid_search -> hybrid_search": 19,
+      "hybrid_search -> live_market_data": 1,
+      "live_market_data -> live_market_data": 2
+    }
   },
   "faithfulness": {
     "timestamp": "2026-10-01 00:34:58",
@@ -735,5 +744,19 @@
         "latency_sec": 19.4153
       }
     ]
+  },
+  "git_commit": "68c0413ad895da0609a622a196d823503c90feb0",
+  "embedding_model": "BAAI/bge-small-en-v1.5 (384-dim, FastEmbed)",
+  "llm": "qwen/qwen3.8-27b (Fast Router/Verifier) / openai/gpt-oss-120b (Synthesis)",
+  "metadata": {
+    "date": "2026-10-31",
+    "git_commit": "68c0413ad895da0609a622a196d823503c90feb0",
+    "embedding_model": "BAAI/bge-small-en-v1.5 (384-dim, FastEmbed)",
+    "llm": "qwen/qwen3.8-27b / openai/gpt-oss-120b",
+    "reranker": "flashrank (ms-marco-TinyBERT-L-2-v2)",
+    "retrieval_n": 34,
+    "router_n": 50,
+    "faithfulness_n": 5,
+    "trap_n": 10
   }
 }
