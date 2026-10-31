@@ -35,7 +35,14 @@
       "precision_lift_vs_vector_pct": 18.19,
       "recall_lift_vs_vector_pct": -4.17,
       "precision_lift_from_flashrank_pct": 16.42
-    }
+    },
+    "source_run_date": "2026-10-01 00:32:20 UTC",
+    "git_commit_of_original_run": "eda0d2f",
+    "n": 34,
+    "split": "legacy_pre_split",
+    "embedding_model": "BAAI/bge-small-en-v1.5",
+    "llm": "none (retrieval only)",
+    "status": "measured"
   },
   "router": {
     "timestamp": "2026-10-01 00:32:20",
@@ -528,7 +535,15 @@
       "hybrid_search -> hybrid_search": 19,
       "hybrid_search -> live_market_data": 1,
       "live_market_data -> live_market_data": 2
-    }
+    },
+    "source_run_date": "2026-10-01 00:32:20 UTC",
+    "git_commit_of_original_run": "eda0d2f",
+    "n": 50,
+    "split": "legacy_pre_split",
+    "embedding_model": "none",
+    "llm": "qwen/qwen3.8-27b",
+    "router_path": "fallback_heuristic",
+    "status": "measured"
   },
   "faithfulness": {
     "timestamp": "2026-10-01 00:34:58",
@@ -608,7 +623,14 @@
         "verified_is_grounded": false,
         "latency_sec": 15.5973
       }
-    ]
+    ],
+    "source_run_date": "2026-10-01 00:34:58 UTC",
+    "git_commit_of_original_run": "eda0d2f",
+    "n": 5,
+    "split": "legacy_pre_split",
+    "embedding_model": "BAAI/bge-small-en-v1.5",
+    "llm": "qwen/qwen3.8-27b (judge) / openai/gpt-oss-120b (synthesis)",
+    "status": "measured"
   },
   "trap_questions": {
     "timestamp": "2026-10-01 00:33:15",
@@ -743,20 +765,29 @@
         "reasoning": "Judge failed due to LLM error: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organization `org_01m3j0eqz5e58rg4eck1t86sxk` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7258, Requested 880. Please try again in 1.035s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
         "latency_sec": 19.4153
       }
-    ]
+    ],
+    "source_run_date": "2026-10-01 00:33:15 UTC",
+    "git_commit_of_original_run": "eda0d2f",
+    "n": 10,
+    "split": "legacy_pre_split",
+    "embedding_model": "BAAI/bge-small-en-v1.5",
+    "llm": "openai/gpt-oss-120b",
+    "status": "measured"
   },
   "git_commit": "68c0413ad895da0609a622a196d823503c90feb0",
   "embedding_model": "BAAI/bge-small-en-v1.5 (384-dim, FastEmbed)",
   "llm": "qwen/qwen3.8-27b (Fast Router/Verifier) / openai/gpt-oss-120b (Synthesis)",
   "metadata": {
-    "date": "2026-10-31",
-    "git_commit": "68c0413ad895da0609a622a196d823503c90feb0",
+    "description": "Historical legacy evaluation benchmark",
+    "source_run_date": "2026-10-01 00:32:20 UTC",
+    "git_commit_of_original_run": "eda0d2f",
+    "split": "legacy_pre_split",
     "embedding_model": "BAAI/bge-small-en-v1.5 (384-dim, FastEmbed)",
     "llm": "qwen/qwen3.8-27b / openai/gpt-oss-120b",
-    "reranker": "flashrank (ms-marco-TinyBERT-L-2-v2)",
-    "retrieval_n": 34,
-    "router_n": 50,
-    "faithfulness_n": 5,
-    "trap_n": 10
-  }
+    "status": "historical_baseline"
+  },
+  "source_run_date": "2026-10-01 00:32:20 UTC",
+  "git_commit_of_original_run": "eda0d2f",
+  "split": "legacy_pre_split",
+  "status": "historical_baseline"
 }

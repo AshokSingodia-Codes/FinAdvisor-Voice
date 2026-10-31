@@ -1,7 +1,7 @@
 # FinAdvisor-X Empirical Evaluation & Benchmark Report
 
-**Generated:** `2026-10-31 23:45:48 UTC`  
-**Git Commit:** `68c0413ad895da0609a622a196d823503c90feb0`  
+**Generated:** `2026-10-31 23:55:24 UTC`  
+**Git Commit:** `eda0d2f`  
 **Embedding Model:** `BAAI/bge-small-en-v1.5` (384-dim, FastEmbed)  
 **Architecture:** Hybrid RAG: Neo4j vector + Lucene fulltext, RRF fusion, FlashRank rerank  
 
@@ -18,18 +18,21 @@ Evaluated on in-corpus SEC 10-K filings and corporate finance textbook queries (
 | **3. Hybrid Search (RRF Fusion, k=60)** | 34 | `0.3941` | `0.6088` | `0.6765` | `903.1 ms` |
 | **4. Hybrid + FlashRank Cross-Encoder** | 34 | `0.4588` | `0.6088` | `0.5735` | `3955.6 ms` |
 
-### Retrieval Observations
-- **RRF vs Vector-Only Recall:** Recall shifted from 0.6353 to 0.6088 (-4.17% drop).
-- **FlashRank Precision vs Latency & MRR Trade-Off:** Adding FlashRank lifted Precision@5 from 0.3941 to 0.4588 (+16.42% gain), but increased latency from 0.90s to 3.96s (a +3.05s / 338% increase) and dropped MRR from 0.676 to 0.574 (a -0.103 / 15.2% drop).
+### Retrieval Deltas (Computed from Unrounded JSON Values)
+- **Hybrid RRF vs Vector-Only Recall:** abs change = `-0.0265`, rel change = `-4.17%` (-0.0265 (-4.17%) drop).
+- **Hybrid RRF vs Vector-Only MRR:** abs change = `+0.0236`, rel change = `+3.61%` (+0.0236 (+3.61%) gain).
+- **FlashRank Precision vs Hybrid:** abs change = `+0.0647`, rel change = `+16.42%` (+0.0647 (+16.42%) gain).
+- **FlashRank MRR vs Hybrid:** abs change = `-0.1030`, rel change = `-15.23%` (-0.1030 (-15.23%) drop).
+- **FlashRank Latency vs Hybrid:** abs change = `+3.0525s`, rel change = `+338.00%` (+3.0525s (+338.00%) gain).
 
 ---
 
 ## 2. Semantic Intent Router Performance
 
-Evaluated on multi-class intent classification (sample size $n=50$).
+Evaluated on multi-class intent classification (sample size $n=50$, path: `fallback_heuristic`).
 
 - **Overall Routing Accuracy:** `48.0%`
-- **Mean Router Latency:** `3.5 ms`
+- **Mean Router Latency:** `3.5 ms` (measured on `fallback_heuristic` path)
 
 | Intent Class | Support (n) | Precision | Recall | F1-Score |
 |---|---|---|---|---|
@@ -57,12 +60,13 @@ Evaluated via LLM auditor measuring factual grounding against retrieved evidence
 
 | Configuration | n | Mean Faithfulness (1-5 Scale) | Factually Grounded Rate (%) |
 |---|---|---|---|
-| **Draft Answer (Verifier OFF)** | 5 | `4.2 / 5.0` | `80.0%` |
-| **Verified Answer (Verifier ON)** | 5 | `3.4 / 5.0` | `60.0%` |
+| **Draft Answer (Verifier OFF)** | 5 | `4.20 / 5.0` | `80.0%` |
+| **Verified Answer (Verifier ON)** | 5 | `3.40 / 5.0` | `60.0%` |
 
-### Verifier Empirical Findings
-- Enabling the Self-RAG verifier resulted in an empirical drop: faithfulness fell from 4.2 to 3.4 (-19.05% drop), and grounding rate dropped from 80.0% to 60.0% (-20.00% pts drop).
-- Following these measurements, the verifier is disabled by default (`VERIFIER_ENABLED=False`) in `config/settings.py`.
+### Verifier Empirical Deltas
+- **Faithfulness Score:** abs change = `-0.80`, rel change = `-19.05%` (-0.8000 (-19.05%) drop).
+- **Grounded Rate:** abs change = `-20.00% pts` (drop).
+- **Decision:** On the recorded n=5 run, faithfulness went 4.2 to 3.4 and grounded rate 80% to 60%. n=5 is too small to conclude. Disabled by default pending re-measurement on >=30 questions. Run: `python scripts/run_all_evals.py --split test`.
 
 ---
 
