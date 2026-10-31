@@ -155,3 +155,24 @@ def test_forgot_password_flow():
     new_login = client.post("/api/auth/login", json={"email": reset_email, "password": new_pwd})
     assert new_login.status_code == 200
     assert "access_token" in new_login.json()
+
+
+def test_effective_jwt_secret_in_production():
+    from config.settings import Settings
+    # Production with insecure default or empty secret must raise ValueError
+    s_prod_insecure = Settings(ENVIRONMENT="production", JWT_SECRET="secret", JWT_SECRET_KEY="")
+    with pytest.raises(ValueError, match="Insecure or missing JWT secret in production"):
+        _ = s_prod_insecure.effective_jwt_secret
+
+    s_prod_default = Settings(ENVIRONMENT="production", JWT_SECRET="finadvisor-secure-jwt-secret-key-2026-x", JWT_SECRET_KEY="")
+    with pytest.raises(ValueError, match="Insecure or missing JWT secret in production"):
+        _ = s_prod_default.effective_jwt_secret
+
+    # Production with a valid 32+ char secret should succeed
+    strong_secret = "a" * 32
+    s_prod_secure = Settings(ENVIRONMENT="production", JWT_SECRET=strong_secret, JWT_SECRET_KEY="")
+    assert s_prod_secure.effective_jwt_secret == strong_secret
+
+    # Development allows default secret
+    s_dev = Settings(ENVIRONMENT="development", JWT_SECRET="secret", JWT_SECRET_KEY="")
+    assert s_dev.effective_jwt_secret == "secret"

@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     LANGCHAIN_ENDPOINT: str = Field("https://api.smith.langchain.com", description="LangSmith Endpoint")
     
     # Auth & Security Settings
+    ENVIRONMENT: str = Field("development", description="Runtime environment (development, test, production)")
     JWT_SECRET: str = Field("finadvisor-secure-jwt-secret-key-2026-x", description="JWT Secret Key")
     JWT_SECRET_KEY: Optional[str] = Field(None, description="Alternative JWT Secret Key alias")
     JWT_ALGORITHM: str = Field("HS256", description="JWT Algorithm")
@@ -81,7 +82,21 @@ class Settings(BaseSettings):
 
     @property
     def effective_jwt_secret(self) -> str:
-        return self.JWT_SECRET_KEY or self.JWT_SECRET
+        secret = self.JWT_SECRET_KEY or self.JWT_SECRET
+        insecure_defaults = {
+            "",
+            "secret",
+            "changeme",
+            "finadvisor-secure-jwt-secret-key-2026-x",
+            "default_insecure_secret",
+        }
+        if self.ENVIRONMENT.lower() == "production":
+            if not secret or secret.strip() in insecure_defaults or len(secret) < 32:
+                raise ValueError(
+                    "Insecure or missing JWT secret in production! Set a cryptographically "
+                    "secure JWT_SECRET or JWT_SECRET_KEY of at least 32 characters."
+                )
+        return secret
 
     @property
     def effective_smtp_host(self) -> Optional[str]:
