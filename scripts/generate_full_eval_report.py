@@ -48,8 +48,8 @@ TEST_GROUPS = {
         "tests/test_calculator.py",
         "tests/test_calculator_extraction.py",
     ],
-    "Phase 4 — Knowledge Graph": [
-        "tests/test_graph_traversal.py",
+    "Phase 4 — Hybrid Search & Retrieval": [
+        "experiments/test_graph_traversal.py",
     ],
     "Phase 5 — Cross-Cutting Testing": [
         "tests/test_router.py",
