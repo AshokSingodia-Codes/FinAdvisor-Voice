@@ -32,7 +32,7 @@ jobs:
           JWT_SECRET: "ci-test-jwt-secret-key-32-chars-long"
           GROQ_API_KEY: "gsk_dummy_test_key_for_ci_env"
         run: |
-          pytest tests/test_auth.py tests/test_verifier.py -v
+          pytest -m "not requires_neo4j and not requires_llm" -v
 
   frontend-build:
     name: Build & Verify Frontend

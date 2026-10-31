@@ -47,6 +47,7 @@ def test_jwt_token_generation_and_decoding():
     assert payload["user_id"] == "user-123"
     assert "exp" in payload
 
+@pytest.mark.requires_llm
 def test_full_auth_flow():
     test_email = f"testuser_{int(time.time())}@example.com"
     test_password = "MyStrongPassword2026!"
@@ -120,6 +121,7 @@ def test_full_auth_flow():
     convs = conv_list_res.json()
     assert any(c["id"] == conv_id for c in convs)
 
+@pytest.mark.requires_llm
 def test_forgot_password_flow():
     reset_email = f"resetuser_{int(time.time())}@example.com"
     initial_pwd = "OldPassword123!"

@@ -1,3 +1,5 @@
+import pytest
+pytestmark = pytest.mark.requires_llm
 from fastapi.testclient import TestClient
 from main import app
 import uuid

@@ -1,3 +1,5 @@
+import pytest
+pytestmark = pytest.mark.requires_neo4j
 import os, sys
 import pytest
 

@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.requires_neo4j
+import pytest
 import io
 from core.document_store import (
     _format_table_as_markdown,
