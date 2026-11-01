@@ -153,7 +153,7 @@ def audit_gold_sources():
                 record["classification"] = "failed (numeric proximity)"
                 failed_list.append(record)
 
-    print(f"\nAudit completed under strict rules:")
+    print("\nAudit completed under strict rules:")
     print(f"  • Verified items:              {len(verified_list)}")
     print(f"  • Unverified (conceptual):     {len(unverified_list)}")
     print(f"  • Failed (numeric proximity):  {len(failed_list)}")
