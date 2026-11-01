@@ -8,26 +8,29 @@ This document tracks all modifications made to `tests/eval/gold_set*.json` after
 
 ### Commit `580c5ff8ce908ed8456e75c86ea2046adfd53e1b`
 - **Date:** Sun Nov 1 05:42:46 2026 +05:30
+- **Modified Files:** `tests/eval/gold_set.json`, `tests/eval/gold_set_dev.json` (Note: `tests/eval/gold_set_test.json` remains frozen).
+- **`q015` (Dev)**: Adjusted topic to general financial ratio analysis to align with indexed textbook chapters.
+- **`q025` (Dev)**: Replaced references to Burton Malkiel's *A Random Walk Down Wall Street* with modern portfolio theory passive diversification.
+
+### Task 2 Update: Strict Value & Passage Grounding Audit
+- **Date:** Sun Nov 1 06:33:00 2026 +05:30
 - **Modified Files:** `tests/eval/gold_set.json`, `tests/eval/gold_set_dev.json` (Note: `tests/eval/gold_set_test.json` was NOT modified and remains frozen under `gold_set_test.sha256`).
 
-#### Item 1: `q015` (Split: `dev`)
-- **Category:** `finance_textbook`
-- **Old Question:** `"Explain the 3-step DuPont Analysis decomposition of Return on Equity (ROE)."`
-- **Old Expected Answer:** `"ROE = Net Profit Margin (Net Income / Revenue) * Asset Turnover (Revenue / Total Assets) * Financial Leverage (Total Assets / Shareholders' Equity)."`
-- **New Question:** `"What are the main components and objectives of financial ratio analysis in corporate finance?"`
-- **New Expected Answer:** `"Financial ratios evaluate profitability, liquidity, and operational efficiency across accounting statements."`
-- **Reason:** In programmatic audit of `Annual Report/Ultimate_Finance_Knowledge_Base.md`, the synthetic corpus contained exhaustive chapters on financial ratio analysis, profitability ratios, liquidity, and solvency, but did not have the exact token "DuPont". The query and gold answer were updated on the dev split to ensure verifiable programmatic textual grounding against the indexed synthetic knowledge base.
+#### 1. `q_ret_057` (Split: `dev`)
+- **Old Expected Answer:** `"Revenue increased by 2.0% (from $383,285 million to $391,035 million)"`
+- **New Expected Answer:** `"Total net sales increased by 2% from $383,285 million in 2023 to $391,035 million in 2024"`
+- **Reason:** In Apple's FY 2024 10-K, Item 7 specifically reports the audited figure as `"Total net sales $ 391,035 2 % $ 383,285 (3)%"`. The answer and gold keywords were aligned to the audited table text.
 
-#### Item 2: `q025` (Split: `dev`)
-- **Category:** `investment_literature`
-- **Old Question:** `"According to Burton Malkiel in A Random Walk Down Wall Street, why do low-cost index funds outperform active managers over long horizons?"`
-- **Old Expected Answer:** `"Because financial markets are largely efficient in incorporating public information, and active manager fees, trading commissions, and turnover costs drag down compounding returns below low-cost broad index benchmarks."`
-- **New Question:** `"Why are low-cost index investing and passive asset allocation favored in modern portfolio theory?"`
-- **New Expected Answer:** `"Passive index investing minimizes transaction costs and management fees while maintaining broad diversification."`
-- **Reason:** Copyrighted book content (*A Random Walk Down Wall Street* by Burton Malkiel) was purged from the repository in Phase 1 (Stage 4). The question on the dev split was realigned to the indexed portfolio theory and asset allocation section in `Annual Report/Ultimate_Finance_Knowledge_Base.md`, where passive indexing and diversification benefits are explicitly grounded.
+#### 2. `q015` (Split: `dev`)
+- **Old Expected Answer:** `"Financial ratios evaluate profitability, liquidity, and operational efficiency across accounting statements."`
+- **New Expected Answer:** `"Perform ratio analysis, cash-flow analysis, and risk-capacity assessment using Net Worth, Liquidity Ratios, and Debt-Service Coverage Ratio (DSCR)."`
+- **Reason:** Aligned to the exact verbatim financial analysis methodology block in Chapter 1 of `Ultimate_Finance_Knowledge_Base.md`.
+
+#### 3. `q009`, `q_ret_053`, `q_ret_061`, `q_ret_065`, `q_ret_067`, `q_ret_069` (Split: `dev`)
+- **Reason:** Removed parenthetical redundant phrases (such as `($... billion)`) to require exact adherence to audited 10-K millions/percentages tables.
 
 ---
 
 ## Test Split Freeze Verification
 - `tests/eval/gold_set_test.json` SHA-256 hash: `cd3c4aae4760ad05c39d512752df43c41d25f921a1266f3045ee77c696d25126`
-- Zero commits have modified `tests/eval/gold_set_test.json` since freeze commit `04aeb1f`.
+- **Integrity Rule**: As instructed, zero changes were made to `tests/eval/gold_set_test.json`. Test split items that failed strict proximity matching (`q002`, `q004`, `q006`, `q008`, `q012`, `q028`, `q030`, `q_ret_052`, `q_ret_054`, `q_ret_056`, `q_ret_058`, `q_ret_060`, `q_ret_062`, `q_ret_064`, `q_ret_066`, `q_ret_068`, `q_ret_070`) are recorded as unverified / failed in `reports/latest/gold_source_audit.json` rather than editing the frozen test split.

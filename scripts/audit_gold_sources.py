@@ -16,7 +16,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def audit_gold_sources():
     print("=" * 60)
-    print("🔍 AUDITING GOLD SOURCES (VALUE & PHRASE PROXIMITY CHECK)")
+    print("🔍 AUDITING GOLD SOURCES (STRICT VALUE & PHRASE PROXIMITY CHECK)")
     print("=" * 60)
 
     # 1. Load corpus texts into memory
@@ -41,24 +41,27 @@ def audit_gold_sources():
         gold = json.load(f)
 
     retrieval_items = [q for q in gold if not q.get("is_out_of_corpus") and q.get("expected_route") == "hybrid_search"]
-    print(f"Auditing {len(retrieval_items)} retrieval items for expected answer VALUE near topic...")
+    print(f"Auditing {len(retrieval_items)} retrieval items under strict numeric & conceptual rules...")
 
-    audit_failures = []
-    audited_examples = []
+    verified_list = []
+    unverified_list = []
+    failed_list = []
 
     stopwords = {
         "where", "which", "their", "there", "about", "these", "those", "after",
         "before", "under", "between", "through", "across", "because", "during",
         "without", "rather", "stated", "state", "retrieve", "exact", "number",
         "calculate", "explain", "from", "with", "over", "into", "than", "more",
-        "less", "both", "years"
+        "less", "both", "years", "total", "what", "were", "when", "that", "this",
+        "have", "been", "using", "perform", "used"
     }
 
     for item in retrieval_items:
+        qid = item["id"]
         src = item.get("gold_source")
         if not src or src not in corpus_texts:
-            audit_failures.append({
-                "id": item["id"],
+            failed_list.append({
+                "id": qid,
                 "question": item["question"],
                 "reason": f"Source {src} not found in indexed corpus."
             })
@@ -68,77 +71,132 @@ def audit_gold_sources():
         ans = item.get("expected_answer", "")
         topics = [kw.lower() for kw in item.get("gold_keywords", []) if len(kw) >= 3]
 
+        # Extract numeric values
         ans_nums = re.findall(r"[\$₹]?\d+(?:,\d+)*(?:\.\d+)?%?", ans)
-        ans_terms = [
-            t.lower() for t in re.findall(r"[a-zA-Z0-9_\-\+]{4,}", ans)
-            if t.lower() not in stopwords
-        ]
+        key_numbers = [n.replace("$", "").replace("₹", "").strip() for n in ans_nums if len(n.strip()) >= 2]
 
-        matched_value = None
-        matched_excerpt = None
+        is_verified = False
+        audit_note = ""
+        matched_excerpt = ""
 
-        candidates = ans_nums + ans_terms
-        for cand in candidates:
-            cand_clean = cand.replace("$", "").replace("₹", "").replace("%", "").strip()
-            if not cand_clean or len(cand_clean) < 3:
-                continue
+        if key_numbers:
+            # RULE 1: Numeric answers - every key number must appear within 300 characters of a topic term
+            numeric_passes = []
+            for num in key_numbers:
+                num_matched = False
+                for m in re.finditer(re.escape(num), doc, re.IGNORECASE):
+                    idx = m.start()
+                    window = doc[max(0, idx - 300): min(len(doc), idx + 300)].lower()
+                    if any(top in window for top in topics):
+                        num_matched = True
+                        if not matched_excerpt:
+                            matched_excerpt = doc[max(0, idx - 60): min(len(doc), idx + 140)].replace("\n", " ").strip()
+                        break
+                numeric_passes.append(num_matched)
 
-            for m in re.finditer(re.escape(cand_clean), doc, re.IGNORECASE):
-                idx = m.start()
-                # Check proximity: topic keyword within 500 characters
-                window = doc[max(0, idx - 500): min(len(doc), idx + 500)].lower()
-                if any(top in window for top in topics):
-                    matched_value = cand
-                    s = max(0, idx - 60)
-                    e = min(len(doc), idx + 120)
-                    matched_excerpt = doc[s:e].replace("\n", " ").strip()
-                    break
-            if matched_value:
-                break
-
-        if matched_value:
-            audited_examples.append({
-                "id": item["id"],
-                "question": item["question"],
-                "expected_answer": ans,
-                "matched_value": matched_value,
-                "excerpt": f"...{matched_excerpt}..."
-            })
+            if all(numeric_passes):
+                is_verified = True
+                audit_note = f"All {len(key_numbers)} key numbers matched within 300 chars of topic."
+            else:
+                audit_note = f"Only {sum(numeric_passes)} of {len(key_numbers)} numbers matched within 300 chars."
         else:
-            audit_failures.append({
-                "id": item["id"],
-                "question": item["question"],
-                "expected_answer": ans,
-                "gold_source": src,
-                "reason": "Expected answer value or key phrase not found near question topics in gold source."
-            })
+            # RULE 2: Conceptual answers - require at least 3 distinct content terms inside one 500-char window
+            content_terms = [
+                t.lower() for t in re.findall(r"[a-zA-Z]{4,}", ans)
+                if t.lower() not in stopwords
+            ]
+            unique_terms = list(dict.fromkeys(content_terms))
 
-    print(f"Audit completed: {len(audited_examples)} verified, {len(audit_failures)} failed.")
+            if len(unique_terms) >= 3:
+                # Find a 500-char window containing at least 3 unique content terms
+                # We can iterate through positions of the first term
+                found_window = False
+                for t1 in unique_terms:
+                    for m in re.finditer(r"\b" + re.escape(t1) + r"\b", doc, re.IGNORECASE):
+                        idx = m.start()
+                        w_start = max(0, idx - 100)
+                        w_end = min(len(doc), idx + 400)
+                        window = doc[w_start:w_end].lower()
 
-    # Save audit report
+                        matched_in_win = [term for term in unique_terms if re.search(r"\b" + re.escape(term) + r"\b", window)]
+                        if len(matched_in_win) >= 3:
+                            found_window = True
+                            matched_excerpt = doc[w_start:w_end].replace("\n", " ").strip()
+                            audit_note = f"Matched {len(matched_in_win)} terms ({matched_in_win[:4]}) in 500-char window."
+                            break
+                    if found_window:
+                        break
+
+                if found_window:
+                    is_verified = True
+                else:
+                    audit_note = "Could not find 3 distinct content terms within a 500-char window."
+            else:
+                audit_note = f"Too few unique content terms ({len(unique_terms)}) for 3-term conceptual verification."
+
+        record = {
+            "id": qid,
+            "question": item["question"],
+            "expected_answer": ans,
+            "gold_source": src,
+            "audit_note": audit_note,
+            "excerpt": f"...{matched_excerpt}..." if matched_excerpt else None
+        }
+
+        if is_verified:
+            verified_list.append(record)
+        else:
+            if not key_numbers:
+                record["classification"] = "unverified (conceptual)"
+                unverified_list.append(record)
+            else:
+                record["classification"] = "failed (numeric proximity)"
+                failed_list.append(record)
+
+    print(f"\nAudit completed under strict rules:")
+    print(f"  • Verified items:              {len(verified_list)}")
+    print(f"  • Unverified (conceptual):     {len(unverified_list)}")
+    print(f"  • Failed (numeric proximity):  {len(failed_list)}")
+
     out_path = os.path.join(ROOT, "reports", "latest", "gold_source_audit.json")
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump({
             "total_retrieval_items_audited": len(retrieval_items),
-            "verified_count": len(audited_examples),
-            "failure_count": len(audit_failures),
-            "failures": audit_failures,
-            "verified_items": audited_examples
+            "verified_count": len(verified_list),
+            "unverified_conceptual_count": len(unverified_list),
+            "failed_count": len(failed_list),
+            "verified_items": verified_list,
+            "unverified_conceptual_items": unverified_list,
+            "failed_items": failed_list
         }, f, indent=2)
-    print(f"Saved audit results to {out_path}")
+    print(f"Saved strict audit results to {out_path}")
 
-    # Print 10 review items (seed fixed for reproducible display)
+    # Print sample verified items
     print("\n" + "=" * 60)
-    print("📋 10 AUDITED RETRIEVAL ITEMS WITH GROUNDED VALUE EXCERPTS")
+    print("📋 SAMPLE VERIFIED RETRIEVAL ITEMS WITH GROUNDED PASSAGES")
     print("=" * 60)
     rng = random.Random(42)
-    sample_10 = rng.sample(audited_examples, 10)
-    for i, ex in enumerate(sample_10, 1):
+    sample_items = rng.sample(verified_list, min(10, len(verified_list)))
+    for i, ex in enumerate(sample_items, 1):
         print(f"\n[{i}] ID: {ex['id']}")
         print(f"    Question: {ex['question']}")
         print(f"    Expected Answer: {ex['expected_answer']}")
-        print(f"    Matched Value in Source: '{ex['matched_value']}'")
+        print(f"    Verification Note: {ex['audit_note']}")
         print(f"    Corpus Excerpt: {ex['excerpt']}")
+
+    if unverified_list:
+        print("\n" + "=" * 60)
+        print("⚠️ UNVERIFIED (CONCEPTUAL) ITEMS")
+        print("=" * 60)
+        for u in unverified_list:
+            print(f"  • {u['id']}: {u['question']} -> {u['audit_note']}")
+
+    if failed_list:
+        print("\n" + "=" * 60)
+        print("❌ FAILED (NUMERIC PROXIMITY) ITEMS")
+        print("=" * 60)
+        for fl in failed_list:
+            print(f"  • {fl['id']}: {fl['question']} -> {fl['audit_note']}")
 
 
 if __name__ == "__main__":
