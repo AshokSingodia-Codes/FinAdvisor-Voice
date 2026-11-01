@@ -122,8 +122,11 @@
         "n": 30,
         "correct": 28,
         "accuracy": 0.9333
-      }
-    }
+      },
+      "description": "30 questions written by the agent after the fallback rules were designed; not tuned on; calculation route 2/5 correct.",
+      "calculation_route_accuracy": "2/5 correct (40.0%)"
+    },
+    "split_test_no_traps_status": "contaminated, not a clean held-out result (9 tuned queries in test split)"
   },
   "faithfulness": {
     "timestamp": "2026-10-01 00:34:58",

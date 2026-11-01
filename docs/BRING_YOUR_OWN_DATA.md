@@ -46,30 +46,47 @@ python scripts/verify_index.py
 
 ---
 
-## 3. Purging Copyrighted Books from Git History
+## 3. Purging Copyrighted Books & Serialized Blobs from Git History
 
-If you maintain a fork or repository that previously had copyrighted PDF files committed in history, run `git-filter-repo` to completely remove them from your commit tree.
+If you maintain a fork or clone of the repository that previously had copyrighted PDF files or binary `.pkl` files committed in history, run `git-filter-repo` to permanently remove them from the entire commit tree.
 
-> **Caution**: `git-filter-repo` rewrites your local git commit hashes. Coordinate with your team before pushing rewritten branches.
+> **Caution**:
+> 1. `git-filter-repo` rewrites git commit history and changes all commit hashes.
+> 2. By design, `git-filter-repo` **removes the `origin` remote** to prevent accidental pushes to production before inspection. You will re-add your remote after verifying the filter.
+> 3. Always run `git-filter-repo` on a **fresh clone** of your repository. Do not use `--force` unless `git-filter-repo` explicitly requests it.
 
-### Install `git-filter-repo`
+### Step 1: Install `git-filter-repo`
 ```bash
 pip install git-filter-repo
 ```
 
-### Execute Purge Commands (Run by repository owner)
-Run these commands from the root of your repository:
+### Step 2: Make a Fresh Clone
 ```bash
-# Analyze and verify the files to delete
-git filter-repo --invert-paths --path "data/A-random-walk-down-Wall-Street-the-time-tested-strategy-for-successful-investing.-Malkiel-Burton-G.-W.W.-Norton-2006.-ISBN-9780470593219-SA7-Unit-10.pdf" --path "data/personal-finance-for-dummies.pdf"
-
-# Clean up reflogs and prune expired objects
-git reflog expire --expire=now --all
-git gc --prune=now --aggressive
+git clone https://github.com/AshokSingodia-Codes/FinAdvisor-Voice.git finadvisor-clean
+cd finadvisor-clean
+git checkout stage4-fixes
 ```
 
-To update the remote repository (requires explicit repository owner action):
+### Step 3: Execute History Purge
+Purge the specific files removed on this branch (copyrighted book PDFs) and historical binary `.pkl` dumps (`graph_documents.pkl`):
 ```bash
-# Replace <remote> and <branch> with your destination (e.g., origin stage4-fixes)
+git filter-repo --invert-paths \
+  --path "data/A-random-walk-down-Wall-Street-the-time-tested-strategy-for-successful-investing.-Malkiel-Burton-G.-W.W.-Norton-2006.-ISBN-9780470593219-SA7-Unit-10.pdf" \
+  --path "data/personal-finance-for-dummies.pdf" \
+  --path "graph_documents.pkl"
+```
+
+### Step 4: Re-add Origin Remote & Verify
+```bash
+# Re-link your remote repository (removed by git-filter-repo for safety)
+git remote add origin https://github.com/AshokSingodia-Codes/FinAdvisor-Voice.git
+
+# Verify no copyrighted or pkl files remain in any revision
+git log --all --full-history -- "**.pdf" "**.pkl"
+```
+
+### Step 5: Force Push Rewritten Tree (Owner Action)
+```bash
+# Push rewritten branch to origin (requires repository owner access)
 git push origin stage4-fixes --force
 ```

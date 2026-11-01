@@ -116,10 +116,12 @@ All metrics below are drawn directly from `reports/latest/eval_metrics_latest.js
 
 ## Known Limitations
 
-1. **Router Misclassification**: The semantic router achieves only 48.0% accuracy on the 50-query benchmark. The primary weakness is that 18 out of 44 `hybrid_search` queries are misclassified as `direct_answer`, leading to answers generated from parametric memory rather than grounded retrieved context.
-2. **Self-RAG Verifier Regression**: On the evaluated sample ($n=5$), verifier rewrites reduced factual grounding (60.0% vs 80.0%) and lowered faithfulness scores (3.4 vs 4.2). It remains disabled by default until prompt calibration and few-shot grounding examples are implemented.
+1. **Router Misclassification & Tuning Contamination**: The fallback heuristic achieved 95.6% on the full 45-item test split and 93.3% on the 30-item test split (traps excluded); however, both results are **contaminated** because 9 of the 18 queries inspected during heuristic tuning overlapped with the test split. On the clean, uninspected holdout_v2 dataset (30 questions written by the agent after the fallback rules were designed; not tuned on), overall accuracy was **83.3%** (25/30), with the **calculation route scoring only 2/5 correct (40.0%)** (often misrouted to hybrid_search).
+2. **Self-RAG Verifier Regression**: On the evaluated sample (=5$), verifier rewrites reduced factual grounding (60.0% vs 80.0%) and lowered faithfulness scores (3.4 vs 4.2). It remains disabled by default until prompt calibration and few-shot grounding examples are implemented.
 3. **Free-Tier Cold Starts & Rate Limits**: Serverless PostgreSQL (Neon) and cloud container hosts (Render) experience cold starts of 30-60 seconds on initial spin-up after inactivity. Provider LLM APIs on free tiers (Groq) are subject to intermittent per-minute rate limits.
 4. **FlashRank Latency Cost**: While cross-encoder reranking yields a 16.42% precision gain on top-5 results, it increases total query latency by over 3 seconds (0.9s to 4.0s).
+5. **Codebase Linting Debt**: Legacy utility and test scripts retain ~1,054 historical formatting and unused import warnings (
+uff), while CI lints only the maintained core and evaluation pipelines.
 
 ---
 
