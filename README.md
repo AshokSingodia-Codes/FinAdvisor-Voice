@@ -104,7 +104,7 @@ All metrics below are drawn directly from `reports/latest/eval_metrics_latest.js
 | **Draft Answer (Verifier OFF)** | 5 | `4.20 / 5.0` | `80.0%` |
 | **Verified Answer (Verifier ON)** | 5 | `3.40 / 5.0` | `60.0%` |
 
-- **Empirical Observation:** On the recorded n=5 run, faithfulness went 4.2 to 3.4 and grounded rate 80% to 60%. n=5 is too small to conclude. Disabled by default pending re-measurement on >=30 questions. Run: python scripts/run_all_evals.py --split test.
+- **Empirical Observation:** On the recorded n=5 run, faithfulness went 4.2 to 3.4 and grounded rate 80% to 60%. n=5 is too small to conclude. Disabled by default pending re-measurement on >=30 questions. Run: python -m tests.eval.eval_faithfulness.
 - **Default State:** Following this empirical regression, the verifier is **disabled by default** (`VERIFIER_ENABLED=False`) in `config/settings.py`.
 
 ### 4. Hallucination Resistance & Adversarial Trap Benchmark ($n=10$)

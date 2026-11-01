@@ -1,14 +1,15 @@
 """
 scripts/run_all_evals.py
 ========================
-Master evaluation runner for FinAdvisor-X supporting --split dev|test.
-Supports per-evaluation flags:
-  --retrieval: Run retrieval-only benchmark (Vector, Keyword, Hybrid RRF, FlashRank)
-  --router: Run semantic router benchmark
-  --faithfulness: Run faithfulness & self-RAG verifier ablation
-  --trap: Run adversarial trap questions benchmark
+Evaluation runner for FinAdvisor-X supporting --split dev|test.
+Currently implements the Semantic Router benchmark:
+  --router: Run semantic router benchmark on specified split (dev or test)
 
-If no per-evaluation flag is specified, all 4 benchmarks are executed sequentially.
+Note: Retrieval, faithfulness, and trap benchmarks are not implemented in this runner.
+To run those evaluations, execute their dedicated test modules:
+  python -m tests.eval.eval_retrieval
+  python -m tests.eval.eval_faithfulness
+  python -m tests.eval.eval_trap_questions
 """
 from __future__ import annotations
 
@@ -137,20 +138,44 @@ def run_router_benchmark(questions: list[dict[str, Any]], split: str) -> dict[st
 
 
 def main():
-    parser = argparse.ArgumentParser(description="FinAdvisor-X One-Command Evaluation Runner")
+    parser = argparse.ArgumentParser(
+        description="FinAdvisor-X Evaluation Runner. Only --router is implemented in this runner. "
+                    "For other benchmarks, run python -m tests.eval.eval_retrieval / eval_faithfulness / eval_trap_questions."
+    )
     parser.add_argument("--split", choices=["dev", "test"], required=True, help="Evaluation split (dev or test)")
-    parser.add_argument("--retrieval", action="store_true", help="Run retrieval-only benchmark")
     parser.add_argument("--router", action="store_true", help="Run semantic router benchmark")
-    parser.add_argument("--faithfulness", action="store_true", help="Run faithfulness & verifier benchmark")
-    parser.add_argument("--trap", action="store_true", help="Run adversarial trap benchmark")
+    parser.add_argument(
+        "--retrieval",
+        action="store_true",
+        help="Not implemented in this runner; run: python -m tests.eval.eval_retrieval"
+    )
+    parser.add_argument(
+        "--faithfulness",
+        action="store_true",
+        help="Not implemented in this runner; run: python -m tests.eval.eval_faithfulness"
+    )
+    parser.add_argument(
+        "--trap",
+        action="store_true",
+        help="Not implemented in this runner; run: python -m tests.eval.eval_trap_questions"
+    )
     args = parser.parse_args()
 
-    # If no specific flags selected, run all 4
-    run_all = not (args.retrieval or args.router or args.faithfulness or args.trap)
-    do_retrieval = run_all or args.retrieval
-    do_router = run_all or args.router
-    do_faithfulness = run_all or args.faithfulness
-    do_trap = run_all or args.trap
+    # Check for unimplementable flags
+    if args.retrieval:
+        print("not implemented in this runner; run: python -m tests.eval.eval_retrieval")
+        sys.exit(1)
+    if args.faithfulness:
+        print("not implemented in this runner; run: python -m tests.eval.eval_faithfulness")
+        sys.exit(1)
+    if args.trap:
+        print("not implemented in this runner; run: python -m tests.eval.eval_trap_questions")
+        sys.exit(1)
+
+    if not args.router:
+        print("No runnable benchmark selected. To run the router evaluation, use --router --split dev|test.")
+        print("For other evaluations, run: python -m tests.eval.eval_retrieval / eval_faithfulness / eval_trap_questions")
+        sys.exit(1)
 
     split_file = os.path.join(ROOT, "tests", "eval", f"gold_set_{args.split}.json")
     if not os.path.exists(split_file):
@@ -161,8 +186,8 @@ def main():
         questions = json.load(f)
 
     print("=" * 60)
-    print(f"🚀 FINADVISOR-X MASTER EVALUATION: SPLIT = {args.split.upper()} (n={len(questions)})")
-    print(f"   Selected pipelines: retrieval={do_retrieval}, router={do_router}, faithfulness={do_faithfulness}, trap={do_trap}")
+    print(f"🚀 FINADVISOR-X EVALUATION: SPLIT = {args.split.upper()} (n={len(questions)})")
+    print("   Pipeline: router")
     print("=" * 60)
 
     metrics_path = os.path.join(ROOT, "reports", "latest", "eval_metrics_latest.json")
@@ -172,40 +197,9 @@ def main():
     else:
         data = {}
 
-    # 1. Router Benchmark
-    if do_router:
-        router_results = run_router_benchmark(questions, args.split)
-        data["router"] = router_results
-        print(f"   Router accuracy on {args.split}: {router_results['overall_accuracy']*100:.1f}%")
-
-    # 2. Retrieval Benchmark (live Neo4j required)
-    if do_retrieval:
-        print("\n[RETRIEVAL BENCHMARK] Executing retrieval benchmark...")
-        try:
-            # evaluate in-corpus hybrid_search questions
-            ret_questions = [q for q in questions if not q.get("is_out_of_corpus") and q.get("expected_route") == "hybrid_search"]
-            print(f"   Found {len(ret_questions)} retrieval candidate queries in {args.split} split.")
-            # If live DB succeeds, record; otherwise log error
-        except Exception as e:
-            print(f"   Retrieval benchmark offline or blocked: {e}")
-
-    # 3. Faithfulness Benchmark (live Neo4j & Groq required)
-    if do_faithfulness:
-        print("\n[FAITHFULNESS BENCHMARK] Executing answer faithfulness benchmark...")
-        try:
-            pass
-            # execute with split file
-        except Exception as e:
-            print(f"   Faithfulness benchmark offline or blocked: {e}")
-
-    # 4. Trap Benchmark (live Groq required)
-    if do_trap:
-        print("\n[TRAP BENCHMARK] Executing adversarial trap benchmark...")
-        try:
-            pass
-            # execute with split file
-        except Exception as e:
-            print(f"   Trap benchmark offline or blocked: {e}")
+    router_results = run_router_benchmark(questions, args.split)
+    data["router"] = router_results
+    print(f"   Router accuracy on {args.split}: {router_results['overall_accuracy']*100:.1f}%")
 
     with open(metrics_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)

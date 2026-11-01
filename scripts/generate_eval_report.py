@@ -190,7 +190,7 @@ Evaluated via LLM auditor measuring factual grounding against retrieved evidence
 ### Verifier Empirical Deltas
 - **Faithfulness Score:** abs change = `{abs_faith:+.2f}`, rel change = `{rel_faith:+.2f}%` ({format_signed_delta(abs_faith, rel_faith)}).
 - **Grounded Rate:** abs change = `{abs_ground:+.2f}% pts` ({'gain' if abs_ground > 0 else ('drop' if abs_ground < 0 else 'unchanged')}).
-- **Decision:** On the recorded n={n_faith} run, faithfulness went {v_off_faith:.1f} to {v_on_faith:.1f} and grounded rate {v_off_ground:.0f}% to {v_on_ground:.0f}%. n={n_faith} is too small to conclude. Disabled by default pending re-measurement on >=30 questions. Run: `python scripts/run_all_evals.py --split test`.
+- **Decision:** On the recorded n={n_faith} run, faithfulness went {v_off_faith:.1f} to {v_on_faith:.1f} and grounded rate {v_off_ground:.0f}% to {v_on_ground:.0f}%. n={n_faith} is too small to conclude. Disabled by default pending re-measurement on >=30 questions. Run: `python -m tests.eval.eval_faithfulness`.
 
 ---
 

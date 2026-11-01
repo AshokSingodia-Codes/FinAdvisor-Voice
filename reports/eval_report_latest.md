@@ -61,7 +61,7 @@ Evaluated via LLM auditor measuring factual grounding against retrieved evidence
 ### Verifier Empirical Deltas
 - **Faithfulness Score:** abs change = `-0.80`, rel change = `-19.05%` (-0.8000 (-19.05%) drop).
 - **Grounded Rate:** abs change = `-20.00% pts` (drop).
-- **Decision:** On the recorded n=5 run, faithfulness went 4.2 to 3.4 and grounded rate 80% to 60%. n=5 is too small to conclude. Disabled by default pending re-measurement on >=30 questions. Run: `python scripts/run_all_evals.py --split test`.
+- **Decision:** On the recorded n=5 run, faithfulness went 4.2 to 3.4 and grounded rate 80% to 60%. n=5 is too small to conclude. Disabled by default pending re-measurement on >=30 questions. Run: `python -m tests.eval.eval_faithfulness`.
 
 ---
 
