@@ -423,7 +423,7 @@ def route_question(state: AgentState):
             decision = "math_calculation"
         elif has_digits and is_calculation_query and any(term in lower for term in ["wacc", "npv", "cagr", "dcf", "yoy", "growth", "margin", "interest", "sip", "emi", "irr"]):
             decision = "calculation"
-        elif any(term in lower for term in ["what is", "define", "explain", "how does", "formula for", "definition", "rule", "rules", "tax", "budget", "finance", "regulation", "guideline", "rbi", "sebi"]):
+        elif any(term in lower for term in ["what is", "what were", "what was", "how much", "who was", "why ", "define", "explain", "how does", "formula for", "definition", "rule", "rules", "tax", "budget", "finance", "regulation", "guideline", "rbi", "sebi", "revenue", "sales", "income", "profit", "debt", "expense", "expenses", "dividend", "margin", "cash", "shares", "filing", "10-k", "annual report", "fy20", "fy 20", "fiscal", "quarter", "apple", "iphone", "services", "segment", "fund", "portfolio", "asset"]):
             decision = "hybrid_search"
         elif any(term in lower for term in ["wacc", "npv", "cagr", "dcf", "yoy", "growth", "margin"]):
             decision = "calculation"
