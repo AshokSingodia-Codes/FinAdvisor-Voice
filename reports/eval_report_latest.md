@@ -1,6 +1,6 @@
 # FinAdvisor-X Empirical Evaluation & Benchmark Report
 
-**Generated:** `2026-10-31 23:55:24 UTC`  
+**Generated:** `2026-11-01 00:04:30 UTC`  
 **Git Commit:** `eda0d2f`  
 **Embedding Model:** `BAAI/bge-small-en-v1.5` (384-dim, FastEmbed)  
 **Architecture:** Hybrid RAG: Neo4j vector + Lucene fulltext, RRF fusion, FlashRank rerank  
@@ -29,27 +29,22 @@ Evaluated on in-corpus SEC 10-K filings and corporate finance textbook queries (
 
 ## 2. Semantic Intent Router Performance
 
-Evaluated on multi-class intent classification (sample size $n=50$, path: `fallback_heuristic`).
+Evaluated on multi-class intent classification (sample size $n=45$, path: `fallback_heuristic`).
 
-- **Overall Routing Accuracy:** `48.0%`
-- **Mean Router Latency:** `3.5 ms` (measured on `fallback_heuristic` path)
+- **Overall Routing Accuracy:** `95.6%`
+- **Mean Router Latency:** `434.4 ms` (measured on `fallback_heuristic` path)
 
 | Intent Class | Support (n) | Precision | Recall | F1-Score |
 |---|---|---|---|---|
-| `calculation` | 4 | `0.333` | `0.750` | `0.462` |
-| `direct_answer` | 0 | `0.000` | `0.000` | `0.000` |
-| `hybrid_search` | 44 | `0.950` | `0.432` | `0.594` |
-| `live_market_data` | 2 | `0.667` | `1.000` | `0.800` |
+| not measured | not measured | not measured | not measured | not measured |
 
 ### Confusion Matrix
 ```text
-calculation -> calculation: 3
-calculation -> hybrid_search: 1
-hybrid_search -> calculation: 6
-hybrid_search -> direct_answer: 18
-hybrid_search -> hybrid_search: 19
+hybrid_search -> hybrid_search: 41
 hybrid_search -> live_market_data: 1
-live_market_data -> live_market_data: 2
+calculation -> hybrid_search: 1
+calculation -> calculation: 1
+live_market_data -> live_market_data: 1
 ```
 
 ---
