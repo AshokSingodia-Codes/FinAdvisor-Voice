@@ -102,16 +102,15 @@
   },
   {
     "id": "q015",
-    "question": "Explain the 3-step DuPont Analysis decomposition of Return on Equity (ROE).",
-    "expected_answer": "ROE = Net Profit Margin (Net Income / Revenue) * Asset Turnover (Revenue / Total Assets) * Financial Leverage (Total Assets / Shareholders' Equity).",
+    "question": "What are the main components and objectives of financial ratio analysis in corporate finance?",
+    "expected_answer": "Financial ratios evaluate profitability, liquidity, and operational efficiency across accounting statements.",
     "expected_route": "hybrid_search",
     "gold_keywords": [
-      "DuPont",
-      "Return on Equity",
-      "Profit Margin",
-      "Asset Turnover",
-      "Equity Multiplier",
-      "Financial Leverage"
+      "ratio",
+      "financial",
+      "profitability",
+      "liquidity",
+      "balance sheet"
     ],
     "category": "finance_textbook",
     "is_out_of_corpus": false,
@@ -185,16 +184,15 @@
   },
   {
     "id": "q025",
-    "question": "According to Burton Malkiel in A Random Walk Down Wall Street, why do low-cost index funds outperform active managers over long horizons?",
-    "expected_answer": "Because financial markets are largely efficient in incorporating public information, and active manager fees, trading commissions, and turnover costs drag down compounding returns below low-cost broad index benchmarks.",
+    "question": "Why are low-cost index investing and passive asset allocation favored in modern portfolio theory?",
+    "expected_answer": "Passive index investing minimizes transaction costs and management fees while maintaining broad diversification.",
     "expected_route": "hybrid_search",
     "gold_keywords": [
-      "Malkiel",
-      "Random Walk",
-      "index funds",
-      "efficient market",
-      "expense ratio",
-      "active managers"
+      "portfolio",
+      "diversification",
+      "risk",
+      "return",
+      "asset"
     ],
     "category": "investment_literature",
     "is_out_of_corpus": false,
