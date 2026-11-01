@@ -23,7 +23,7 @@ if hasattr(sys.stdout, 'reconfigure'):
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config.settings import settings
-from core.embeddings import get_embeddings_service
+from core.embeddings import get_embedding_service
 from neo4j import GraphDatabase
 
 
@@ -147,7 +147,7 @@ def main():
     print("  FinAdvisor-X — 384-dim Vector Migration & Index Setup")
     print("=======================================================\n")
 
-    emb_service = get_embeddings_service()
+    emb_service = get_embedding_service()
     driver = GraphDatabase.driver(
         settings.NEO4J_URI,
         auth=(settings.NEO4J_USERNAME, settings.NEO4J_PASSWORD)

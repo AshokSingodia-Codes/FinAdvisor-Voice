@@ -15,3 +15,4 @@ def test_run_all_evals_flags():
     assert "--router" in help_text
     assert "--faithfulness" in help_text
     assert "--trap" in help_text
+
