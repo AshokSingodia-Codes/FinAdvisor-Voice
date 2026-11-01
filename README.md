@@ -53,9 +53,9 @@ flowchart TD
 | **Keyword-Only (Lucene Fulltext)** | `legacy_pre_split` | 34 | `0.4412` | `0.598` | `0.6382` | `976.5 ms` |
 | **Hybrid Search (RRF $k=60$)** | `legacy_pre_split` | 34 | `0.3941` | `0.6088` | `0.6765` | `903.1 ms` |
 | **Hybrid + FlashRank Cross-Encoder** | `legacy_pre_split` | 34 | `0.4588` | `0.6088` | `0.5735` | `3955.6 ms` |
-| **Semantic Router (Clean Holdout V2)** | `holdout_v2` | 30 | `Accuracy: 83.3%` | `N/A` | `N/A` | `< 1.0 ms` |
-| **Semantic Router (Full Test Split)** | `contaminated` | 45 | `Accuracy: 95.6%` | `N/A` | `N/A` | `322.97 ms` |
-| **Semantic Router (Test Split, No Traps)** | `contaminated` | 30 | `Accuracy: 93.3%` | `N/A` | `N/A` | `322.97 ms` |
+| **Semantic Router (Clean Holdout V2)** | `holdout_v2` | 30 | `Accuracy: 83.3%` | `N/A` | `N/A` | `N/A` |
+| **Semantic Router (Full Test Split)** | `contaminated` | 45 | `Accuracy: 95.6%` | `N/A` | `N/A` | `434.36 ms` |
+| **Semantic Router (Test Split, No Traps)** | `contaminated` | 30 | `Accuracy: 93.3%` | `N/A` | `N/A` | `434.36 ms` |
 | **Draft Answer (Verifier OFF)** | `legacy_pre_split` | 5 | `Faith: 4.20/5.0` | `Grounded: 80.0%` | `N/A` | `N/A` |
 | **Verified Answer (Verifier ON)** | `legacy_pre_split` | 5 | `Faith: 3.40/5.0` | `Grounded: 60.0%` | `N/A` | `N/A` |
 | **Adversarial Trap Abstention** | `legacy_pre_split` | 10 | `Abstain: 100.0%` | `Halluc: 0.0%` | `N/A` | `N/A` |

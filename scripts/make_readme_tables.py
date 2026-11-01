@@ -21,20 +21,23 @@ def build_readme_table(metrics: dict) -> str:
     rrf = r_cfg.get("hybrid_rrf", {})
     flash = r_cfg.get("hybrid_rrf_flashrank", {})
 
-    metrics.get("retrieval", {}).get("split", "legacy_pre_split")
     ret_n = metrics.get("retrieval", {}).get("n", 34)
 
     router = metrics.get("router", {})
+    router_lat = router.get("avg_router_latency_ms")
+    router_lat_str = f"`{router_lat:.2f} ms`" if router_lat is not None else "`N/A`"
+
     h2 = router.get("clean_holdout_v2", {})
     h2_n = h2.get("n", 30)
     h2_acc = h2.get("overall_accuracy", 0.8333) * 100.0
+    h2_lat = h2.get("avg_router_latency_ms")
+    h2_lat_str = f"`{h2_lat:.2f} ms`" if h2_lat is not None else "`N/A`"
 
     test_split_n = router.get("n", 45)
     test_split_acc = router.get("split_test_accuracy_pct", 95.6)
     test_no_traps_acc = router.get("split_test_no_traps_accuracy_pct", 93.3)
 
     faith = metrics.get("faithfulness", {})
-    faith.get("split", "legacy_pre_split")
     faith_n = faith.get("n", 5)
     v_off_faith = faith.get("verifier_off", {}).get("mean_faithfulness_score", 4.2)
     v_off_ground = faith.get("verifier_off", {}).get("grounding_rate_pct", 80.0)
@@ -42,7 +45,6 @@ def build_readme_table(metrics: dict) -> str:
     v_on_ground = faith.get("verifier_on", {}).get("grounding_rate_pct", 60.0)
 
     trap = metrics.get("trap_questions", {})
-    trap.get("split", "legacy_pre_split")
     trap_n = trap.get("n", 10)
     trap_abstain = trap.get("abstention_rate_pct", 100.0)
     trap_halluc = trap.get("hallucination_rate_pct", 0.0)
@@ -53,9 +55,9 @@ def build_readme_table(metrics: dict) -> str:
 | **Keyword-Only (Lucene Fulltext)** | `legacy_pre_split` | {ret_n} | `{kw.get('avg_precision_at_k', 'N/A')}` | `{kw.get('avg_recall_at_k', 'N/A')}` | `{kw.get('avg_mrr', 'N/A')}` | `{kw.get('avg_latency_sec', 0.0)*1000:.1f} ms` |
 | **Hybrid Search (RRF $k=60$)** | `legacy_pre_split` | {ret_n} | `{rrf.get('avg_precision_at_k', 'N/A')}` | `{rrf.get('avg_recall_at_k', 'N/A')}` | `{rrf.get('avg_mrr', 'N/A')}` | `{rrf.get('avg_latency_sec', 0.0)*1000:.1f} ms` |
 | **Hybrid + FlashRank Cross-Encoder** | `legacy_pre_split` | {ret_n} | `{flash.get('avg_precision_at_k', 'N/A')}` | `{flash.get('avg_recall_at_k', 'N/A')}` | `{flash.get('avg_mrr', 'N/A')}` | `{flash.get('avg_latency_sec', 0.0)*1000:.1f} ms` |
-| **Semantic Router (Clean Holdout V2)** | `holdout_v2` | {h2_n} | `Accuracy: {h2_acc:.1f}%` | `N/A` | `N/A` | `< 1.0 ms` |
-| **Semantic Router (Full Test Split)** | `contaminated` | {test_split_n} | `Accuracy: {test_split_acc:.1f}%` | `N/A` | `N/A` | `322.97 ms` |
-| **Semantic Router (Test Split, No Traps)** | `contaminated` | 30 | `Accuracy: {test_no_traps_acc:.1f}%` | `N/A` | `N/A` | `322.97 ms` |
+| **Semantic Router (Clean Holdout V2)** | `holdout_v2` | {h2_n} | `Accuracy: {h2_acc:.1f}%` | `N/A` | `N/A` | {h2_lat_str} |
+| **Semantic Router (Full Test Split)** | `contaminated` | {test_split_n} | `Accuracy: {test_split_acc:.1f}%` | `N/A` | `N/A` | {router_lat_str} |
+| **Semantic Router (Test Split, No Traps)** | `contaminated` | 30 | `Accuracy: {test_no_traps_acc:.1f}%` | `N/A` | `N/A` | {router_lat_str} |
 | **Draft Answer (Verifier OFF)** | `legacy_pre_split` | {faith_n} | `Faith: {v_off_faith:.2f}/5.0` | `Grounded: {v_off_ground:.1f}%` | `N/A` | `N/A` |
 | **Verified Answer (Verifier ON)** | `legacy_pre_split` | {faith_n} | `Faith: {v_on_faith:.2f}/5.0` | `Grounded: {v_on_ground:.1f}%` | `N/A` | `N/A` |
 | **Adversarial Trap Abstention** | `legacy_pre_split` | {trap_n} | `Abstain: {trap_abstain:.1f}%` | `Halluc: {trap_halluc:.1f}%` | `N/A` | `N/A` |"""
@@ -75,19 +77,14 @@ def update_readme():
     start_marker = "<!-- BENCHMARK_TABLE_START -->"
     end_marker = "<!-- BENCHMARK_TABLE_END -->"
 
-    table_content = build_readme_table(metrics)
-    replacement = f"{start_marker}\n{table_content}\n{end_marker}"
+    if start_marker not in readme or end_marker not in readme:
+        raise ValueError(f"Markers {start_marker} and {end_marker} not found in {readme_path}")
 
-    if start_marker in readme and end_marker in readme:
-        parts = readme.split(start_marker)
-        rest = parts[1].split(end_marker)
-        new_readme = parts[0] + replacement + rest[1]
-    else:
-        target_section = "## Empirical Benchmark Results"
-        assert target_section in readme, "Target section missing in README"
-        idx = readme.find(target_section)
-        nl_idx = readme.find("\n\n", idx)
-        new_readme = readme[: nl_idx + 2] + replacement + "\n\n" + readme[nl_idx + 2 :]
+    start_idx = readme.index(start_marker) + len(start_marker)
+    end_idx = readme.index(end_marker)
+
+    table_content = "\n" + build_readme_table(metrics) + "\n"
+    new_readme = readme[:start_idx] + table_content + readme[end_idx:]
 
     with open(readme_path, "w", encoding="utf-8") as f:
         f.write(new_readme)
