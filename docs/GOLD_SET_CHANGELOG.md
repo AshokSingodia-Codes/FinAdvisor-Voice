@@ -31,6 +31,11 @@ This document tracks all modifications made to `tests/eval/gold_set*.json` after
 
 ---
 
-## Test Split Freeze Verification
+## Test Split Freeze Verification & Grounding Audit Summary
 - `tests/eval/gold_set_test.json` SHA-256 hash: `cd3c4aae4760ad05c39d512752df43c41d25f921a1266f3045ee77c696d25126`
-- **Integrity Rule**: As instructed, zero changes were made to `tests/eval/gold_set_test.json`. Test split items that failed strict proximity matching (`q002`, `q004`, `q006`, `q008`, `q012`, `q028`, `q030`, `q_ret_052`, `q_ret_054`, `q_ret_056`, `q_ret_058`, `q_ret_060`, `q_ret_062`, `q_ret_064`, `q_ret_066`, `q_ret_068`, `q_ret_070`) are recorded as unverified / failed in `reports/latest/gold_source_audit.json` rather than editing the frozen test split.
+- **Integrity Rule**: As instructed, zero changes were made to `tests/eval/gold_set_test.json`.
+- **Audit Outcomes (from `reports/latest/gold_source_audit.json` across 54 retrieval items)**:
+  - **Verified items**: 33
+  - **Unverified (conceptual)**: 1 (`q025`)
+  - **Failed (numeric proximity)**: 20
+- **Crucial Caveat**: All 20 failed items reside in the frozen test split (because the test set expected answers include parenthetical conversions such as `($... billion)` that do not appear verbatim within 300 characters of the segment topic in the raw 10-K tables). Because the test split was intentionally left unchanged to preserve frozen SHA-256 integrity, retrieval results on the test split are **NOT reliable** until a new test split (`gold_set_test_v2.json`) is authored, audited, and frozen. Never state that 54/54 items are verified.
