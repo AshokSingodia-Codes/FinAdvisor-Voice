@@ -1,13 +1,13 @@
 import json
-import time
-from collections import Counter
 import os
 import sys
+from collections import Counter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from nodes.router import route_question
+
 
 def evaluate_holdout_v2():
     v2_path = os.path.join(ROOT, "tests", "eval", "router_holdout_v2.json")

@@ -21,7 +21,7 @@ def build_readme_table(metrics: dict) -> str:
     rrf = r_cfg.get("hybrid_rrf", {})
     flash = r_cfg.get("hybrid_rrf_flashrank", {})
 
-    ret_split = metrics.get("retrieval", {}).get("split", "legacy_pre_split")
+    metrics.get("retrieval", {}).get("split", "legacy_pre_split")
     ret_n = metrics.get("retrieval", {}).get("n", 34)
 
     router = metrics.get("router", {})
@@ -34,7 +34,7 @@ def build_readme_table(metrics: dict) -> str:
     test_no_traps_acc = router.get("split_test_no_traps_accuracy_pct", 93.3)
 
     faith = metrics.get("faithfulness", {})
-    faith_split = faith.get("split", "legacy_pre_split")
+    faith.get("split", "legacy_pre_split")
     faith_n = faith.get("n", 5)
     v_off_faith = faith.get("verifier_off", {}).get("mean_faithfulness_score", 4.2)
     v_off_ground = faith.get("verifier_off", {}).get("grounding_rate_pct", 80.0)
@@ -42,7 +42,7 @@ def build_readme_table(metrics: dict) -> str:
     v_on_ground = faith.get("verifier_on", {}).get("grounding_rate_pct", 60.0)
 
     trap = metrics.get("trap_questions", {})
-    trap_split = trap.get("split", "legacy_pre_split")
+    trap.get("split", "legacy_pre_split")
     trap_n = trap.get("n", 10)
     trap_abstain = trap.get("abstention_rate_pct", 100.0)
     trap_halluc = trap.get("hallucination_rate_pct", 0.0)

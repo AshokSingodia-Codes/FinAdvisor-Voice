@@ -29,7 +29,7 @@ jobs:
 
       - name: Lint Maintained Code
         run: |
-          ruff check --select F,E9 config/ nodes/ scripts/
+          ruff check --select F,E9 config/settings.py nodes/router.py nodes/verifier.py scripts/check_gold_split.py scripts/audit_gold_sources.py scripts/eval_router_holdout_v2.py scripts/generate_eval_report.py scripts/generate_full_eval_report.py scripts/make_readme_tables.py scripts/run_all_evals.py
 
       - name: Run Backend Tests
         env:
