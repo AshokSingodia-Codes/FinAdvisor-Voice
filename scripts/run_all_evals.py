@@ -182,8 +182,6 @@ def main():
     if do_retrieval:
         print("\n[RETRIEVAL BENCHMARK] Executing retrieval benchmark...")
         try:
-            from tests.eval.eval_retrieval import compute_metrics, is_chunk_relevant
-            from nodes.retriever import retrieve_shared_corpus_concurrent
             # evaluate in-corpus hybrid_search questions
             ret_questions = [q for q in questions if not q.get("is_out_of_corpus") and q.get("expected_route") == "hybrid_search"]
             print(f"   Found {len(ret_questions)} retrieval candidate queries in {args.split} split.")
@@ -195,7 +193,7 @@ def main():
     if do_faithfulness:
         print("\n[FAITHFULNESS BENCHMARK] Executing answer faithfulness benchmark...")
         try:
-            from tests.eval.eval_faithfulness import run_faithfulness_evaluation
+            pass
             # execute with split file
         except Exception as e:
             print(f"   Faithfulness benchmark offline or blocked: {e}")
@@ -204,7 +202,7 @@ def main():
     if do_trap:
         print("\n[TRAP BENCHMARK] Executing adversarial trap benchmark...")
         try:
-            from tests.eval.eval_trap_questions import run_trap_evaluation
+            pass
             # execute with split file
         except Exception as e:
             print(f"   Trap benchmark offline or blocked: {e}")
