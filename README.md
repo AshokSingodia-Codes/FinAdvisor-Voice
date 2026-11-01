@@ -46,6 +46,19 @@ flowchart TD
 
 ## Empirical Benchmark Results
 
+<!-- BENCHMARK_TABLE_START -->
+| Pipeline Stage / Subsystem | Run | n | Precision@5 | Recall@5 | MRR | Avg Latency |
+|---|---|---|---|---|---|---|
+| **Vector-Only (`bge-small-en-v1.5`)** | `legacy_pre_split` | 34 | `0.3882` | `0.6353` | `0.6529` | `3043.1 ms` |
+| **Keyword-Only (Lucene Fulltext)** | `legacy_pre_split` | 34 | `0.4412` | `0.598` | `0.6382` | `976.5 ms` |
+| **Hybrid Search (RRF $k=60$)** | `legacy_pre_split` | 34 | `0.3941` | `0.6088` | `0.6765` | `903.1 ms` |
+| **Hybrid + FlashRank Cross-Encoder** | `legacy_pre_split` | 34 | `0.4588` | `0.6088` | `0.5735` | `3955.6 ms` |
+| **Semantic Intent Router** | `split_test` | 45 | `Accuracy: 95.6%` | `N/A` | `N/A` | `434.4 ms` |
+| **Draft Answer (Verifier OFF)** | `legacy_pre_split` | 5 | `Faith: 4.20/5.0` | `Grounded: 80.0%` | `N/A` | `N/A` |
+| **Verified Answer (Verifier ON)** | `legacy_pre_split` | 5 | `Faith: 3.40/5.0` | `Grounded: 60.0%` | `N/A` | `N/A` |
+| **Adversarial Trap Abstention** | `legacy_pre_split` | 10 | `Abstain: 100.0%` | `Halluc: 0.0%` | `N/A` | `N/A` |
+<!-- BENCHMARK_TABLE_END -->
+
 All metrics below are drawn directly from `reports/latest/eval_metrics_latest.json` recorded on commit `89b5e93`. No numbers are estimated or rounded up.
 
 ### 1. Retrieval & Reranker Benchmark ($n=34$)
@@ -89,7 +102,7 @@ All metrics below are drawn directly from `reports/latest/eval_metrics_latest.js
 | **Draft Answer (Verifier OFF)** | 5 | `4.20 / 5.0` | `80.0%` |
 | **Verified Answer (Verifier ON)** | 5 | `3.40 / 5.0` | `60.0%` |
 
-- **Empirical Regression:** Enabling the Self-RAG verifier dropped mean faithfulness from `4.20` to `3.40` (-19.05% drop) and reduced grounded rate from `80.0%` to `60.0%` (-20.0% pts drop).
+- **Empirical Observation:** On the recorded n=5 run, faithfulness went 4.2 to 3.4 and grounded rate 80% to 60%. n=5 is too small to conclude. Disabled by default pending re-measurement on >=30 questions. Run: python scripts/run_all_evals.py --split test.
 - **Default State:** Following this empirical regression, the verifier is **disabled by default** (`VERIFIER_ENABLED=False`) in `config/settings.py`.
 
 ### 4. Hallucination Resistance & Adversarial Trap Benchmark ($n=10$)
