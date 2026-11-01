@@ -1,6 +1,6 @@
 # FinAdvisor-X Empirical Evaluation & Benchmark Report
 
-**Generated:** `2026-11-01 00:04:30 UTC`  
+**Generated:** `2026-11-01 00:15:37 UTC`  
 **Git Commit:** `eda0d2f`  
 **Embedding Model:** `BAAI/bge-small-en-v1.5` (384-dim, FastEmbed)  
 **Architecture:** Hybrid RAG: Neo4j vector + Lucene fulltext, RRF fusion, FlashRank rerank  

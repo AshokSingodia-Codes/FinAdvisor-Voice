@@ -1,12 +1,13 @@
 import sys
+
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 if hasattr(sys.stderr, 'reconfigure'):
     sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 import json
 import os
+
 import pypdf
-import random
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -55,7 +56,7 @@ def audit_gold_sources():
 
         c_text = corpus_texts[src].lower()
         # Find match for answer or keywords
-        ans = item.get("expected_answer", "")
+        item.get("expected_answer", "")
         keywords = item.get("gold_keywords", [])
 
         # Check which keywords or numbers appear

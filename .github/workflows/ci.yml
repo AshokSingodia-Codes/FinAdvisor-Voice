@@ -27,6 +27,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install --no-cache-dir -r requirements.txt
 
+      - name: Lint Maintained Code
+        run: |
+          ruff check --select F,E9 config/ nodes/ scripts/
+
       - name: Run Backend Tests
         env:
           JWT_SECRET: "ci-test-jwt-secret-key-32-chars-long"
