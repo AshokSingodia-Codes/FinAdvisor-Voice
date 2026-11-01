@@ -1,0 +1,182 @@
+[
+  {
+    "id": "h2_calc_01",
+    "question": "Calculate the post-tax return of an FD earning 7.2% for an investor in the 30% tax bracket.",
+    "expected_route": "calculation",
+    "route_class": "calculation"
+  },
+  {
+    "id": "h2_calc_02",
+    "question": "What is the monthly EMI for a 20-year home loan of Rs 45,00,000 at 8.5% interest?",
+    "expected_route": "calculation",
+    "route_class": "calculation"
+  },
+  {
+    "id": "h2_calc_03",
+    "question": "Compute the CAGR if my portfolio grew from Rs 2,50,000 to Rs 6,80,000 in 5 years.",
+    "expected_route": "calculation",
+    "route_class": "calculation"
+  },
+  {
+    "id": "h2_calc_04",
+    "question": "What will be the maturity amount of a monthly SIP of Rs 15,000 at 12% annual return after 15 years?",
+    "expected_route": "calculation",
+    "route_class": "calculation"
+  },
+  {
+    "id": "h2_calc_05",
+    "question": "Calculate the effective capital gains tax on selling mutual fund units with 3,00,000 long-term profit under Budget 2024 rules.",
+    "expected_route": "calculation",
+    "route_class": "calculation"
+  },
+  {
+    "id": "h2_math_01",
+    "question": "145000 * 0.18 + 25000",
+    "expected_route": "math_calculation",
+    "route_class": "math_calculation"
+  },
+  {
+    "id": "h2_math_02",
+    "question": "500000 / 12 - 8500",
+    "expected_route": "math_calculation",
+    "route_class": "math_calculation"
+  },
+  {
+    "id": "h2_math_03",
+    "question": "(2500000 - 1800000) / 1800000 * 100",
+    "expected_route": "math_calculation",
+    "route_class": "math_calculation"
+  },
+  {
+    "id": "h2_math_04",
+    "question": "120000 * (1 + 0.10)^3",
+    "expected_route": "math_calculation",
+    "route_class": "math_calculation"
+  },
+  {
+    "id": "h2_math_05",
+    "question": "75000 + 42000 + 18500 - 9200",
+    "expected_route": "math_calculation",
+    "route_class": "math_calculation"
+  },
+  {
+    "id": "h2_live_01",
+    "question": "What is the live stock price of Reliance Industries on NSE right now?",
+    "expected_route": "live_market_data",
+    "route_class": "live_market_data"
+  },
+  {
+    "id": "h2_live_02",
+    "question": "Show me the current market quote and day change for TCS.",
+    "expected_route": "live_market_data",
+    "route_class": "live_market_data"
+  },
+  {
+    "id": "h2_live_03",
+    "question": "At what level is the NIFTY 50 trading today?",
+    "expected_route": "live_market_data",
+    "route_class": "live_market_data"
+  },
+  {
+    "id": "h2_live_04",
+    "question": "What is the latest share price of Infosys on BSE?",
+    "expected_route": "live_market_data",
+    "route_class": "live_market_data"
+  },
+  {
+    "id": "h2_live_05",
+    "question": "Fetch the live quote and trading volume for HDFC Bank.",
+    "expected_route": "live_market_data",
+    "route_class": "live_market_data"
+  },
+  {
+    "id": "h2_curr_01",
+    "question": "What is the latest repo rate decision announced by RBI in the monetary policy meeting this week?",
+    "expected_route": "current_events",
+    "route_class": "current_events"
+  },
+  {
+    "id": "h2_curr_02",
+    "question": "What is the grey market premium (GMP) and subscription status of the mainboard IPO open today?",
+    "expected_route": "current_events",
+    "route_class": "current_events"
+  },
+  {
+    "id": "h2_curr_03",
+    "question": "What recent regulations did SEBI issue regarding index derivatives trading tenures this month?",
+    "expected_route": "current_events",
+    "route_class": "current_events"
+  },
+  {
+    "id": "h2_curr_04",
+    "question": "What are the latest inflation numbers for the Indian economy released yesterday?",
+    "expected_route": "current_events",
+    "route_class": "current_events"
+  },
+  {
+    "id": "h2_curr_05",
+    "question": "Are there any breaking market directives from the banking regulator today?",
+    "expected_route": "current_events",
+    "route_class": "current_events"
+  },
+  {
+    "id": "h2_dir_01",
+    "question": "Good morning FinAdvisor, can you introduce yourself and tell me your capabilities?",
+    "expected_route": "direct_answer",
+    "route_class": "direct_answer"
+  },
+  {
+    "id": "h2_dir_02",
+    "question": "Thank you so much for the assistance, that was very clear!",
+    "expected_route": "direct_answer",
+    "route_class": "direct_answer"
+  },
+  {
+    "id": "h2_dir_03",
+    "question": "Can you write a Python script to sort a list of numbers?",
+    "expected_route": "direct_answer",
+    "route_class": "direct_answer"
+  },
+  {
+    "id": "h2_dir_04",
+    "question": "Who was the first president of the United States?",
+    "expected_route": "direct_answer",
+    "route_class": "direct_answer"
+  },
+  {
+    "id": "h2_dir_05",
+    "question": "Hello, I want some general guidance on how to start organizing my personal budget.",
+    "expected_route": "direct_answer",
+    "route_class": "direct_answer"
+  },
+  {
+    "id": "h2_hyb_01",
+    "question": "What are the specific tax slab thresholds under the revised New Tax Regime enacted in Budget 2024?",
+    "expected_route": "hybrid_search",
+    "route_class": "hybrid_search"
+  },
+  {
+    "id": "h2_hyb_02",
+    "question": "According to corporate finance theory, how does the Modigliani-Miller theorem address capital structure irrelevance?",
+    "expected_route": "hybrid_search",
+    "route_class": "hybrid_search"
+  },
+  {
+    "id": "h2_hyb_03",
+    "question": "Explain the concept of liquidity trap in macroeconomic monetary policy.",
+    "expected_route": "hybrid_search",
+    "route_class": "hybrid_search"
+  },
+  {
+    "id": "h2_hyb_04",
+    "question": "What deductions are legally permissible under Section 80D for medical insurance premiums of senior citizen parents?",
+    "expected_route": "hybrid_search",
+    "route_class": "hybrid_search"
+  },
+  {
+    "id": "h2_hyb_05",
+    "question": "What criteria distinguish operating leases from finance leases under modern corporate accounting standards?",
+    "expected_route": "hybrid_search",
+    "route_class": "hybrid_search"
+  }
+]
