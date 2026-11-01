@@ -1,208 +1,243 @@
 """
 Master Evaluation Suite & Report Generator for FinAdvisor-X
-Orchestrates:
+Evaluates:
   1. Retrieval Benchmark (Vector vs Keyword vs Hybrid RRF vs FlashRank Reranker)
   2. Semantic Router Accuracy Benchmark
   3. Answer Faithfulness & Self-RAG Verifier Ablation
   4. Trap / Out-of-Corpus Hallucination Benchmark
 
-Generates `reports/eval_report_latest.md` and `reports/eval_metrics_latest.json`.
+Strict reporting rules:
+- Compute every delta (absolute and relative) from the unrounded values in the JSON.
+- Print the absolute change and relative change, each with its sign.
+- Wording follows the sign: a drop is a drop.
+- Latency and MRR sit next to precision gain.
+- Every metric row includes sample size n.
+- Missing data prints 'not measured'.
+- No promotional claims.
 """
-import os
-import sys
-import json
-import time
-import argparse
-from typing import Dict, Any
+from __future__ import annotations
 
-# Ensure project root is in sys.path
+import argparse
+import json
+import os
+import subprocess
+import sys
+import time
+from typing import Any
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-if hasattr(sys.stdout, 'reconfigure'):
-    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-if hasattr(sys.stderr, 'reconfigure'):
-    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-from tests.eval.eval_retrieval import run_retrieval_evaluation
-from tests.eval.eval_router import run_router_evaluation
-from tests.eval.eval_trap_questions import run_trap_evaluation
-from tests.eval.eval_faithfulness import run_faithfulness_evaluation
+
+def get_git_commit() -> str:
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL
+        ).decode().strip()
+    except Exception:
+        return "unknown"
+
+
+def compute_delta(val: float, base: float) -> tuple[float, float]:
+    abs_change = val - base
+    rel_change = (abs_change / base * 100.0) if base != 0 else 0.0
+    return abs_change, rel_change
+
+
+def format_signed_delta(
+    abs_val: float, rel_val: float, unit: str = "", rel_unit: str = "%"
+) -> str:
+    sign_str = "gain" if abs_val > 0 else ("drop" if abs_val < 0 else "unchanged")
+    return f"{abs_val:+.4f}{unit} ({rel_val:+.2f}{rel_unit}) {sign_str}"
+
 
 def generate_markdown_report(
-    retrieval_data: Dict[str, Any],
-    router_data: Dict[str, Any],
-    faithfulness_data: Dict[str, Any],
-    trap_data: Dict[str, Any]
+    retrieval_data: dict[str, Any],
+    router_data: dict[str, Any],
+    faithfulness_data: dict[str, Any],
+    trap_data: dict[str, Any],
+    git_commit: str | None = None,
 ) -> str:
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
-    
-    # Extract retrieval metrics
-    r_cfg = retrieval_data.get("configurations", {})
+    commit_str = git_commit or get_git_commit()
+
+    # Retrieval metrics
+    r_cfg = retrieval_data.get("configurations", {}) if retrieval_data else {}
     vec = r_cfg.get("vector_only", {})
     kw = r_cfg.get("keyword_only", {})
     rrf = r_cfg.get("hybrid_rrf", {})
     flash = r_cfg.get("hybrid_rrf_flashrank", {})
-    lift = retrieval_data.get("empirical_lift", {})
-    
-    # Extract router metrics
-    router_acc = router_data.get("overall_accuracy", 0.0) * 100
-    router_lat = router_data.get("avg_router_latency_ms", 0.0)
-    per_class = router_data.get("per_class_metrics", {})
-    
-    # Extract faithfulness metrics
-    v_off = faithfulness_data.get("verifier_off", {})
-    v_on = faithfulness_data.get("verifier_on", {})
-    v_lift = faithfulness_data.get("verifier_lift", {})
-    
-    # Extract trap metrics
-    trap_abstain = trap_data.get("abstention_rate_pct", 0.0)
-    trap_halluc = trap_data.get("hallucination_rate_pct", 0.0)
-    
+    n_ret = retrieval_data.get("total_queries_evaluated", "not measured") if retrieval_data else "not measured"
+
+    # Compute unrounded retrieval deltas
+    # Hybrid vs Vector Recall
+    v_rec = vec.get("avg_recall_at_k", 0.0)
+    h_rec = rrf.get("avg_recall_at_k", 0.0)
+    abs_h_rec, rel_h_rec = compute_delta(h_rec, v_rec)
+
+    # Hybrid vs Vector MRR
+    v_mrr = vec.get("avg_mrr", 0.0)
+    h_mrr = rrf.get("avg_mrr", 0.0)
+    abs_h_mrr, rel_h_mrr = compute_delta(h_mrr, v_mrr)
+
+    # FlashRank vs Hybrid Precision
+    h_prec = rrf.get("avg_precision_at_k", 0.0)
+    f_prec = flash.get("avg_precision_at_k", 0.0)
+    abs_f_p, rel_f_p = compute_delta(f_prec, h_prec)
+
+    # FlashRank vs Hybrid MRR
+    f_mrr = flash.get("avg_mrr", 0.0)
+    abs_f_mrr, rel_f_mrr = compute_delta(f_mrr, h_mrr)
+
+    # FlashRank vs Hybrid Latency
+    h_lat = rrf.get("avg_latency_sec", 0.0)
+    f_lat = flash.get("avg_latency_sec", 0.0)
+    abs_f_lat, rel_f_lat = compute_delta(f_lat, h_lat)
+
+    # Router metrics
+    n_router = router_data.get("total_queries", "not measured") if router_data else "not measured"
+    router_acc = router_data.get("overall_accuracy") if router_data else None
+    router_lat = router_data.get("avg_router_latency_ms", 0.0) if router_data else 0.0
+    router_path = router_data.get("router_path", "fallback_heuristic")
+    per_class = router_data.get("per_class_metrics", {}) if router_data else {}
+    cm = router_data.get("confusion_matrix", {}) if router_data else {}
+
+    # Faithfulness metrics
+    n_faith = faithfulness_data.get("total_queries_evaluated", "not measured") if faithfulness_data else "not measured"
+    v_off = faithfulness_data.get("verifier_off", {}) if faithfulness_data else {}
+    v_on = faithfulness_data.get("verifier_on", {}) if faithfulness_data else {}
+
+    v_off_faith = v_off.get("mean_faithfulness_score", 0.0)
+    v_on_faith = v_on.get("mean_faithfulness_score", 0.0)
+    abs_faith, rel_faith = compute_delta(v_on_faith, v_off_faith)
+
+    v_off_ground = v_off.get("grounding_rate_pct", 0.0)
+    v_on_ground = v_on.get("grounding_rate_pct", 0.0)
+    abs_ground = v_on_ground - v_off_ground
+
+    # Trap metrics
+    n_trap = trap_data.get("total_trap_questions", "not measured") if trap_data else "not measured"
+    trap_abstain = trap_data.get("abstention_rate_pct") if trap_data else None
+    trap_halluc = trap_data.get("hallucination_rate_pct") if trap_data else None
+
     md = f"""# FinAdvisor-X Empirical Evaluation & Benchmark Report
 
 **Generated:** `{timestamp}`  
-**Architecture:** Hybrid Graph-RAG (Neo4j Aura + FastEmbed) + FlashRank Cross-Encoder + LangGraph Agentic Routing + Self-RAG Fact-Checking Verifier
+**Git Commit:** `{commit_str}`  
+**Embedding Model:** `BAAI/bge-small-en-v1.5` (384-dim, FastEmbed)  
+**Architecture:** Hybrid RAG: Neo4j vector + Lucene fulltext, RRF fusion, FlashRank rerank  
 
 ---
 
-## Executive Summary & Key Highlights
+## 1. Retrieval & Reranking Benchmark
 
-This report quantifies the empirical performance of each core subsystem in the FinAdvisor-X architecture using a standardized 50-query financial benchmark spanning 10-K filings, corporate finance textbooks, market computations, and adversarial out-of-corpus queries.
+Evaluated on in-corpus SEC 10-K filings and corporate finance textbook queries (sample size $n={n_ret}$).
 
-| Component / Subsystem | Benchmark Metric | Result | Impact / Value |
-|---|---|---|---|
-| **Hybrid Search (RRF)** | Recall@5 Lift vs Vector-Only | **+{lift.get('recall_lift_vs_vector_pct', 0.0)}%** | Bridges lexical entity gaps and graph connectivity |
-| **FlashRank Cross-Encoder** | Precision@5 Lift vs Hybrid RRF | **+{lift.get('precision_lift_from_flashrank_pct', 0.0)}%** | Elevates exact numerical chunks to top-1 rank |
-| **Self-RAG Verifier** | Grounding Rate Improvement | **+{v_lift.get('grounding_rate_lift_pct_pts', 0.0)}% pts** | Catches ungrounded numerical claims before user output |
-| **Semantic Intent Router** | Multi-Class Routing Accuracy | **{router_acc:.1f}%** | 0-overhead dynamic query routing in <{router_lat:.0f}ms |
-| **Hallucination Resistance** | Trap / Out-of-Corpus Abstention | **{trap_abstain:.1f}%** | Safe refusal on non-existent corporate entities |
+| Pipeline Stage | n | Precision@5 | Recall@5 | MRR | Latency |
+|---|---|---|---|---|---|
+| **1. Vector-Only (FastEmbed bge-small)** | {n_ret} | `{vec.get('avg_precision_at_k', 'not measured')}` | `{vec.get('avg_recall_at_k', 'not measured')}` | `{vec.get('avg_mrr', 'not measured')}` | `{vec.get('avg_latency_sec', 0.0)*1000:.1f} ms` |
+| **2. Keyword-Only (Lucene Fulltext)** | {n_ret} | `{kw.get('avg_precision_at_k', 'not measured')}` | `{kw.get('avg_recall_at_k', 'not measured')}` | `{kw.get('avg_mrr', 'not measured')}` | `{kw.get('avg_latency_sec', 0.0)*1000:.1f} ms` |
+| **3. Hybrid Search (RRF Fusion, k=60)** | {n_ret} | `{rrf.get('avg_precision_at_k', 'not measured')}` | `{rrf.get('avg_recall_at_k', 'not measured')}` | `{rrf.get('avg_mrr', 'not measured')}` | `{rrf.get('avg_latency_sec', 0.0)*1000:.1f} ms` |
+| **4. Hybrid + FlashRank Cross-Encoder** | {n_ret} | `{flash.get('avg_precision_at_k', 'not measured')}` | `{flash.get('avg_recall_at_k', 'not measured')}` | `{flash.get('avg_mrr', 'not measured')}` | `{flash.get('avg_latency_sec', 0.0)*1000:.1f} ms` |
 
----
-
-## 1. Retrieval & Reranker Benchmark (k=5)
-
-Evaluated on in-corpus SEC 10-K filings and corporate finance textbook queries.
-
-| Pipeline Stage | Precision@5 | Recall@5 | Mean Reciprocal Rank (MRR) | Avg Latency |
-|---|---|---|---|---|
-| **1. Vector-Only (Dense FastEmbed)** | `{vec.get('avg_precision_at_k', 0.0):.3f}` | `{vec.get('avg_recall_at_k', 0.0):.3f}` | `{vec.get('avg_mrr', 0.0):.3f}` | `{vec.get('avg_latency_sec', 0.0)*1000:.1f} ms` |
-| **2. Keyword / Graph-Only** | `{kw.get('avg_precision_at_k', 0.0):.3f}` | `{kw.get('avg_recall_at_k', 0.0):.3f}` | `{kw.get('avg_mrr', 0.0):.3f}` | `{kw.get('avg_latency_sec', 0.0)*1000:.1f} ms` |
-| **3. Hybrid Search (RRF Fusion)** | `{rrf.get('avg_precision_at_k', 0.0):.3f}` | `{rrf.get('avg_recall_at_k', 0.0):.3f}` | `{rrf.get('avg_mrr', 0.0):.3f}` | `{rrf.get('avg_latency_sec', 0.0)*1000:.1f} ms` |
-| **4. Hybrid + FlashRank Cross-Encoder** | **`{flash.get('avg_precision_at_k', 0.0):.3f}`** | **`{flash.get('avg_recall_at_k', 0.0):.3f}`** | **`{flash.get('avg_mrr', 0.0):.3f}`** | `{flash.get('avg_latency_sec', 0.0)*1000:.1f} ms` |
-
-### Key Retrieval Takeaways
-- **Hybrid RRF Fusion** solves the vocabulary mismatch problem for complex financial line items, lifting Recall@5 by **{lift.get('recall_lift_vs_vector_pct', 0.0)}%**.
-- **FlashRank Reranking** re-orders fused candidates with cross-attention scoring, lifting Precision@5 by **{lift.get('precision_lift_from_flashrank_pct', 0.0)}%** while adding minimal latency overhead.
+### Retrieval Deltas (Computed from Unrounded JSON Values)
+- **Hybrid RRF vs Vector-Only Recall:** abs change = `{abs_h_rec:+.4f}`, rel change = `{rel_h_rec:+.2f}%` ({format_signed_delta(abs_h_rec, rel_h_rec)}).
+- **Hybrid RRF vs Vector-Only MRR:** abs change = `{abs_h_mrr:+.4f}`, rel change = `{rel_h_mrr:+.2f}%` ({format_signed_delta(abs_h_mrr, rel_h_mrr)}).
+- **FlashRank Precision vs Hybrid:** abs change = `{abs_f_p:+.4f}`, rel change = `{rel_f_p:+.2f}%` ({format_signed_delta(abs_f_p, rel_f_p)}).
+- **FlashRank MRR vs Hybrid:** abs change = `{abs_f_mrr:+.4f}`, rel change = `{rel_f_mrr:+.2f}%` ({format_signed_delta(abs_f_mrr, rel_f_mrr)}).
+- **FlashRank Latency vs Hybrid:** abs change = `{abs_f_lat:+.4f}s`, rel change = `{rel_f_lat:+.2f}%` ({format_signed_delta(abs_f_lat, rel_f_lat, unit='s')}).
 
 ---
 
 ## 2. Semantic Intent Router Performance
 
-Evaluated across all 5 routing intents: `hybrid_search`, `decompose`, `calculation`, `live_market_data`, and `direct_answer`.
+Evaluated on multi-class intent classification (sample size $n={n_router}$, path: `{router_path}`).
 
-- **Overall Routing Accuracy:** `{router_acc:.1f}%`
-- **Mean Router Latency:** `{router_lat:.1f} ms`
+- **Overall Routing Accuracy:** `{f'{router_acc*100:.1f}%' if router_acc is not None else 'not measured'}`
+- **Mean Router Latency:** `{router_lat:.1f} ms` (measured on `{router_path}` path)
 
-| Intent Class | Support | Precision | Recall | F1-Score |
+| Intent Class | Support (n) | Precision | Recall | F1-Score |
 |---|---|---|---|---|
 """
-    for c, m in per_class.items():
-        md += f"| `{c}` | {m.get('support', 0)} | `{m.get('precision', 0.0):.3f}` | `{m.get('recall', 0.0):.3f}` | `{m.get('f1_score', 0.0):.3f}` |\n"
+    if per_class:
+        for c, m in per_class.items():
+            md += f"| `{c}` | {m.get('support', 0)} | `{m.get('precision', 0.0):.3f}` | `{m.get('recall', 0.0):.3f}` | `{m.get('f1_score', 0.0):.3f}` |\n"
+    else:
+        md += "| not measured | not measured | not measured | not measured | not measured |\n"
+
+    if cm:
+        md += "\n### Confusion Matrix\n```text\n"
+        for k_cm, count in cm.items():
+            md += f"{k_cm}: {count}\n"
+        md += "```\n"
 
     md += f"""
 ---
 
-## 3. Answer Faithfulness & Self-RAG Verifier Ablation
+## 3. Answer Faithfulness & Verifier Ablation
 
-Evaluated via LLM-as-a-Judge (Qwen-2.5-32B/70B strict financial auditor prompt) measuring factual grounding and hallucination prevention against retrieved evidence chunks.
+Evaluated via LLM auditor measuring factual grounding against retrieved evidence (sample size $n={n_faith}$).
 
-| Configuration | Mean Faithfulness (1 - 5 Scale) | Factually Grounded Rate (%) |
-|---|---|---|
-| **Draft Answer (Verifier OFF)** | `{v_off.get('mean_faithfulness_score', 0.0):.2f} / 5.0` | `{v_off.get('grounding_rate_pct', 0.0):.1f}%` |
-| **Verified Answer (Self-RAG Verifier ON)** | **`{v_on.get('mean_faithfulness_score', 0.0):.2f} / 5.0`** | **`{v_on.get('grounding_rate_pct', 0.0):.1f}%`** |
+| Configuration | n | Mean Faithfulness (1-5 Scale) | Factually Grounded Rate (%) |
+|---|---|---|---|
+| **Draft Answer (Verifier OFF)** | {n_faith} | `{v_off_faith:.2f} / 5.0` | `{v_off_ground:.1f}%` |
+| **Verified Answer (Verifier ON)** | {n_faith} | `{v_on_faith:.2f} / 5.0` | `{v_on_ground:.1f}%` |
 
-- **Grounding Rate Improvement:** `+{v_lift.get('grounding_rate_lift_pct_pts', 0.0)}% pts`
+### Verifier Empirical Deltas
+- **Faithfulness Score:** abs change = `{abs_faith:+.2f}`, rel change = `{rel_faith:+.2f}%` ({format_signed_delta(abs_faith, rel_faith)}).
+- **Grounded Rate:** abs change = `{abs_ground:+.2f}% pts` ({'gain' if abs_ground > 0 else ('drop' if abs_ground < 0 else 'unchanged')}).
+- **Decision:** On the recorded n={n_faith} run, faithfulness went {v_off_faith:.1f} to {v_on_faith:.1f} and grounded rate {v_off_ground:.0f}% to {v_on_ground:.0f}%. n={n_faith} is too small to conclude. Disabled by default pending re-measurement on >=30 questions. Run: `python -m tests.eval.eval_faithfulness`.
 
 ---
 
 ## 4. Hallucination Resistance & Adversarial Trap Benchmark
 
-Evaluated on 10 out-of-corpus adversarial queries (fictional corporations, non-existent executive positions, unindexed quarters).
+Evaluated on adversarial out-of-corpus queries (sample size $n={n_trap}$).
 
-- **Safe Abstention Rate:** `{trap_abstain:.1f}%`
-- **Hallucination Incident Rate:** `{trap_halluc:.1f}%`
-
----
-
-## 5. Resume & Interview Summary Points
-
-```markdown
-- Built an enterprise-grade Hybrid Graph-RAG financial intelligence agent combining Neo4j graph traversal with FastEmbed dense vectors via Reciprocal Rank Fusion (RRF).
-- Implemented a FlashRank cross-encoder reranker delivering a +{lift.get('precision_lift_from_flashrank_pct', 0.0)}% Precision@5 lift and +{lift.get('recall_lift_vs_vector_pct', 0.0)}% Recall lift over standalone dense retrieval.
-- Engineered a LangGraph multi-agent orchestration layer with a {router_acc:.1f}% accurate semantic intent router (<{router_lat:.0f}ms latency).
-- Implemented an automated Self-RAG verification harness lifting factually grounded answers to {v_on.get('grounding_rate_pct', 0.0):.1f}% and achieving {trap_abstain:.1f}% safe abstention on out-of-corpus adversarial queries.
-```
+- **Safe Abstention Rate:** `{f'{trap_abstain:.1f}%' if trap_abstain is not None else 'not measured'}`
+- **Hallucination Incident Rate:** `{f'{trap_halluc:.1f}%' if trap_halluc is not None else 'not measured'}`
 """
     return md
 
+
 def main():
     parser = argparse.ArgumentParser(description="FinAdvisor-X Evaluation Report Generator")
-    parser.add_argument("--skip-slow", action="store_true", help="Use small sample sizes for fast evaluation")
-    args = parser.parse_args()
-    
-    sample_faith = 10 if args.skip_slow else 15
-    
-    print("\n" + "="*60)
-    print("🚀 STARTING FINADVISOR-X QUANTITATIVE EVALUATION HARNESS")
-    print("="*60 + "\n")
-    
-    t_start = time.time()
-    
-    # 1. Retrieval Benchmark
-    retrieval_results = run_retrieval_evaluation()
-    
-    # 2. Router Benchmark
-    router_results = run_router_evaluation()
-    
-    # 3. Trap Questions Benchmark
-    trap_results = run_trap_evaluation()
-    
-    # 4. Faithfulness Benchmark
-    faithfulness_results = run_faithfulness_evaluation(sample_size=sample_faith)
-    
-    total_elapsed = time.time() - t_start
-    
-    # Generate Consolidated Markdown and JSON
-    reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "reports")
-    os.makedirs(reports_dir, exist_ok=True)
-    
-    md_content = generate_markdown_report(
-        retrieval_data=retrieval_results,
-        router_data=router_results,
-        faithfulness_data=faithfulness_results,
-        trap_data=trap_results
+    parser.add_argument(
+        "--from-cached-metrics",
+        action="store_true",
+        help="Generate markdown report from existing reports/latest/eval_metrics_latest.json",
     )
-    
-    md_path = os.path.join(reports_dir, "eval_report_latest.md")
-    with open(md_path, "w", encoding="utf-8") as f:
-        f.write(md_content)
-        
-    consolidated_json_path = os.path.join(reports_dir, "eval_metrics_latest.json")
-    with open(consolidated_json_path, "w", encoding="utf-8") as f:
-        json.dump({
-            "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "total_eval_duration_sec": round(total_elapsed, 2),
-            "retrieval": retrieval_results,
-            "router": router_results,
-            "faithfulness": faithfulness_results,
-            "trap_questions": trap_results
-        }, f, indent=2)
-        
-    print("\n" + "="*60)
-    print(f"🎉 EVALUATION COMPLETE (Total Duration: {total_elapsed:.1f}s)")
-    print(f"📄 Markdown Report saved: {md_path}")
-    print(f"📊 JSON Metrics saved:    {consolidated_json_path}")
-    print("="*60 + "\n")
+    args = parser.parse_args()
+
+    reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "reports")
+    latest_metrics_path = os.path.join(reports_dir, "latest", "eval_metrics_latest.json")
+    if not os.path.exists(latest_metrics_path):
+        latest_metrics_path = os.path.join(reports_dir, "eval_metrics_latest.json")
+
+    if args.from_cached_metrics and os.path.exists(latest_metrics_path):
+        with open(latest_metrics_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        md_content = generate_markdown_report(
+            retrieval_data=data.get("retrieval", {}),
+            router_data=data.get("router", {}),
+            faithfulness_data=data.get("faithfulness", {}),
+            trap_data=data.get("trap_questions", {}),
+            git_commit=data.get("git_commit_of_original_run", data.get("git_commit")),
+        )
+        out_path = os.path.join(reports_dir, "latest", "eval_report_latest.md")
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(md_content)
+        with open(os.path.join(reports_dir, "eval_report_latest.md"), "w", encoding="utf-8") as f:
+            f.write(md_content)
+        print(f"Generated {out_path} and reports/eval_report_latest.md from cached metrics.")
+        return
+
+    print("To regenerate from recorded metrics run with --from-cached-metrics.")
+
 
 if __name__ == "__main__":
     main()

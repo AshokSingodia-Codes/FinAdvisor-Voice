@@ -1,0 +1,80 @@
+{
+  "timestamp": "2026-10-01 00:34:58",
+  "total_queries_evaluated": 5,
+  "verifier_off": {
+    "mean_faithfulness_score": 4.2,
+    "grounding_rate_pct": 80.0
+  },
+  "verifier_on": {
+    "mean_faithfulness_score": 3.4,
+    "grounding_rate_pct": 60.0
+  },
+  "verifier_lift": {
+    "faithfulness_score_lift_pct": -19.05,
+    "grounding_rate_lift_pct_pts": -20.0
+  },
+  "evaluations": [
+    {
+      "id": "q001",
+      "question": "What were Apple's total net sales in fiscal year 2024?",
+      "category": "10k_factual",
+      "draft_answer": "**Apple\u2019s total net sales for fiscal year\u202f2024 are not available in the provided evidence.**  \n\n[Search for Apple FY2024 financial statements]",
+      "draft_faithfulness_score": 5,
+      "draft_is_grounded": true,
+      "draft_unsupported_claims": [],
+      "verified_faithfulness_score": 5,
+      "verified_is_grounded": true,
+      "latency_sec": 16.384
+    },
+    {
+      "id": "q002",
+      "question": "How much net sales did Apple generate from iPhone products in FY 2024?",
+      "category": "10k_factual",
+      "draft_answer": "**The net sales figure for Apple\u2019s iPhone products in FY\u202f2024 is not available in the provided evidence.**  \n\n[Check Apple\u2019s FY\u202f2024 Form\u202f10\u2011K for detailed segment sales]",
+      "draft_faithfulness_score": 5,
+      "draft_is_grounded": true,
+      "draft_unsupported_claims": [],
+      "verified_faithfulness_score": 5,
+      "verified_is_grounded": true,
+      "latency_sec": 16.1782
+    },
+    {
+      "id": "q016",
+      "question": "What is the difference between Current Ratio and Quick Ratio (Acid-Test Ratio)?",
+      "category": "finance_textbook",
+      "draft_answer": "**The provided evidence does not contain definitions or details for the Current Ratio or the Quick (Acid\u2011Test) Ratio, so a factual comparison cannot be given without introducing information not present in the source.**  \n\n[Request additional source material]",
+      "draft_faithfulness_score": 5,
+      "draft_is_grounded": true,
+      "draft_unsupported_claims": [],
+      "verified_faithfulness_score": 5,
+      "verified_is_grounded": true,
+      "latency_sec": 29.3064
+    },
+    {
+      "id": "q025",
+      "question": "According to Burton Malkiel in A Random Walk Down Wall Street, why do low-cost index funds outperform active managers over long horizons?",
+      "category": "investment_literature",
+      "draft_answer": "**Insufficient verified evidence to provide an answer.**",
+      "draft_faithfulness_score": 5,
+      "draft_is_grounded": true,
+      "draft_unsupported_claims": [],
+      "verified_faithfulness_score": 1,
+      "verified_is_grounded": false,
+      "latency_sec": 26.0756
+    },
+    {
+      "id": "q029",
+      "question": "What is the 50/30/20 budgeting rule popular in personal finance planning?",
+      "category": "investment_literature",
+      "draft_answer": "I could not extract the exact numbers required to perform this basic calculation.",
+      "draft_faithfulness_score": 1,
+      "draft_is_grounded": false,
+      "draft_unsupported_claims": [
+        "The entire response is an irrelevant error message that does not answer the question about the 50/30/20 budgeting rule."
+      ],
+      "verified_faithfulness_score": 1,
+      "verified_is_grounded": false,
+      "latency_sec": 15.5973
+    }
+  ]
+}

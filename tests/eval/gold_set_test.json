@@ -1,0 +1,670 @@
+[
+  {
+    "id": "q002",
+    "question": "How much net sales did Apple generate from iPhone products in FY 2024?",
+    "expected_answer": "$201,183 million ($201.183 billion)",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "iPhone",
+      "201,183",
+      "net sales by product category"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
+  },
+  {
+    "id": "q004",
+    "question": "What was Apple's net income for fiscal year 2024?",
+    "expected_answer": "$93,736 million ($93.736 billion)",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Net income",
+      "93,736",
+      "consolidated statements of operations"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
+  },
+  {
+    "id": "q006",
+    "question": "How much did Apple spend on Research and Development (R&D) in fiscal 2024?",
+    "expected_answer": "$31,370 million ($31.370 billion)",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Research and development",
+      "31,370",
+      "operating expenses"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
+  },
+  {
+    "id": "q008",
+    "question": "What was the total net sales from the Greater China segment in Apple's FY 2024?",
+    "expected_answer": "$66,952 million ($66.952 billion)",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Greater China",
+      "66,952",
+      "segment net sales"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
+  },
+  {
+    "id": "q010",
+    "question": "How much did Apple spend on repurchases of common stock in FY2024?",
+    "expected_answer": "$94,949 million (~$95 billion)",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Repurchases of common stock",
+      "94,949",
+      "financing activities"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
+  },
+  {
+    "id": "q012",
+    "question": "What were Apple's total cash, cash equivalents and marketable securities at the end of FY2024?",
+    "expected_answer": "$156,652 million (~$156.65 billion)",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Cash and cash equivalents",
+      "Marketable securities",
+      "156,652",
+      "29,943",
+      "126,709"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
+  },
+  {
+    "id": "q014",
+    "question": "What is the formula and definition for Weighted Average Cost of Capital (WACC)?",
+    "expected_answer": "WACC = (E/V * Re) + (D/V * Rd * (1 - Tc)), where E is market value of equity, D is market value of debt, V is E+D, Re is cost of equity, Rd is cost of debt, and Tc is the corporate tax rate.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "WACC",
+      "cost of equity",
+      "cost of debt",
+      "capital structure",
+      "tax shield"
+    ],
+    "category": "finance_textbook",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/Ultimate_Finance_Knowledge_Base.md"
+  },
+  {
+    "id": "q016",
+    "question": "What is the difference between Current Ratio and Quick Ratio (Acid-Test Ratio)?",
+    "expected_answer": "Current Ratio is Current Assets / Current Liabilities. Quick Ratio excludes less liquid inventory and prepaid expenses: (Cash + Marketable Securities + Accounts Receivable) / Current Liabilities.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Current Ratio",
+      "Quick Ratio",
+      "Acid-test",
+      "liquidity",
+      "inventory",
+      "current assets"
+    ],
+    "category": "finance_textbook",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/Ultimate_Finance_Knowledge_Base.md"
+  },
+  {
+    "id": "q018",
+    "question": "What is Operating Leverage and how is the Degree of Operating Leverage (DOL) defined?",
+    "expected_answer": "Operating leverage is the proportion of fixed costs versus variable costs in a firm's cost structure. DOL = % change in Operating Income (EBIT) / % change in Sales (or Contribution Margin / EBIT).",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Operating Leverage",
+      "DOL",
+      "Fixed Costs",
+      "EBIT",
+      "Contribution Margin"
+    ],
+    "category": "finance_textbook",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/Ultimate_Finance_Knowledge_Base.md"
+  },
+  {
+    "id": "q020",
+    "question": "What is the Net Present Value (NPV) decision rule in corporate capital budgeting?",
+    "expected_answer": "Accept projects with NPV > 0 (as they add economic value to equity holders) and reject projects with NPV < 0. For mutually exclusive projects, select the project with the highest positive NPV.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Net Present Value",
+      "NPV",
+      "capital budgeting",
+      "discount rate",
+      "cash flows"
+    ],
+    "category": "finance_textbook",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/Ultimate_Finance_Knowledge_Base.md"
+  },
+  {
+    "id": "q022",
+    "question": "What is Enterprise Value (EV) and how does it differ from Equity Value (Market Cap)?",
+    "expected_answer": "Enterprise Value = Market Cap + Total Debt + Preferred Equity + Minority Interest - Cash and Cash Equivalents. It represents total theoretical takeover cost of the entire business.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Enterprise Value",
+      "Market Cap",
+      "Debt",
+      "Cash",
+      "valuation",
+      "takeover"
+    ],
+    "category": "finance_textbook",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/Ultimate_Finance_Knowledge_Base.md"
+  },
+  {
+    "id": "q024",
+    "question": "What is the primary assumption and limitation of the Internal Rate of Return (IRR)?",
+    "expected_answer": "The primary limitation is the reinvestment rate assumption: IRR assumes interim cash inflows are reinvested at the project's IRR itself rather than the cost of capital. Multiple IRRs can also occur with non-normal cash flows.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "IRR",
+      "Internal Rate of Return",
+      "reinvestment rate",
+      "limitation",
+      "cash flows"
+    ],
+    "category": "finance_textbook",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/Ultimate_Finance_Knowledge_Base.md"
+  },
+  {
+    "id": "q026",
+    "question": "What is Rupee Cost Averaging (or Dollar Cost Averaging) in mutual fund SIP investing?",
+    "expected_answer": "An investment strategy where a fixed sum is invested at regular intervals regardless of market price, buying more units when prices are low and fewer units when prices are high, lowering the average cost per unit.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Rupee Cost Averaging",
+      "Dollar Cost Averaging",
+      "SIP",
+      "mutual funds",
+      "unit cost"
+    ],
+    "category": "investment_literature",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/Ultimate_Finance_Knowledge_Base.md"
+  },
+  {
+    "id": "q028",
+    "question": "Why is asset allocation considered the primary determinant of long-term portfolio return variance?",
+    "expected_answer": "Studies (e.g. Brinson et al.) demonstrate that over 90% of a portfolio's return volatility and performance is explained by policy asset allocation (mix of equities, bonds, cash) rather than market timing or individual security selection.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "asset allocation",
+      "equities",
+      "bonds",
+      "diversification",
+      "portfolio variance"
+    ],
+    "category": "investment_literature",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/Ultimate_Finance_Knowledge_Base.md"
+  },
+  {
+    "id": "q030",
+    "question": "What is the effect of investment expense ratios on 30-year compounding wealth accumulation?",
+    "expected_answer": "Even a 1% to 1.5% difference in ongoing annual expense ratio can consume 25% to 40% of cumulative final wealth over a 30-year horizon due to lost compounding gains on the fees paid.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "expense ratio",
+      "compounding",
+      "fees",
+      "wealth accumulation",
+      "annual cost"
+    ],
+    "category": "investment_literature",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/Ultimate_Finance_Knowledge_Base.md"
+  },
+  {
+    "id": "q032",
+    "question": "What is the difference between systematic risk and unsystematic (specific) risk in diversification?",
+    "expected_answer": "Unsystematic risk is company/industry specific risk that can be eliminated through diversification across 20-30+ uncorrelated assets. Systematic risk is macroeconomic market risk that cannot be diversified away.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "systematic risk",
+      "unsystematic risk",
+      "diversification",
+      "market risk",
+      "specific risk"
+    ],
+    "category": "investment_literature",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/Ultimate_Finance_Knowledge_Base.md"
+  },
+  {
+    "id": "q034",
+    "question": "Why are liquid funds or short-term fixed deposits preferred for goals less than 3 years over equities?",
+    "expected_answer": "Equities carry high short-term volatility and downside sequence risk over short horizons (1-3 years). Capital preservation instruments ensure principal safety and liquidity when the money is required.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "liquid funds",
+      "short term",
+      "capital preservation",
+      "volatility",
+      "time horizon"
+    ],
+    "category": "investment_literature",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/Ultimate_Finance_Knowledge_Base.md"
+  },
+  {
+    "id": "q036",
+    "question": "What were the exact R&D expenses for SpaceX in fiscal year 2023?",
+    "expected_answer": "I do not have access to SpaceX's private financial statements or fiscal 2023 R&D expenditures in my indexed filings.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "SpaceX",
+      "private",
+      "no information",
+      "not available",
+      "do not have"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
+  },
+  {
+    "id": "q038",
+    "question": "What were the full year 2022 audited revenues of Blue Horizon BioTech Ltd?",
+    "expected_answer": "I do not possess the financial reports or audited revenue data for Blue Horizon BioTech Ltd.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "not available",
+      "do not possess",
+      "no data",
+      "not in corpus"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
+  },
+  {
+    "id": "q040",
+    "question": "What is the secret perpetual motion algorithm used by HedgeFund Alpha to generate 1000% monthly returns?",
+    "expected_answer": "There is no perpetual motion investment algorithm that guarantees 1000% monthly returns; high return claims of this nature are financially impossible or fraudulent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "impossible",
+      "no algorithm",
+      "perpetual motion",
+      "not viable",
+      "fraudulent"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
+  },
+  {
+    "id": "q042",
+    "question": "What was the total gross merchandise volume of CyberMart Global in Q1 2019?",
+    "expected_answer": "I do not have access to financial filings or GMV metrics for CyberMart Global.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "no information",
+      "not found",
+      "do not have",
+      "unavailable"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
+  },
+  {
+    "id": "q044",
+    "question": "What is the formula to convert lead into gold for arbitrage trading profits?",
+    "expected_answer": "Converting lead into gold is alchemy and scientifically impossible; it cannot be used for trading or arbitrage.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "impossible",
+      "alchemy",
+      "not possible",
+      "scientific"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
+  },
+  {
+    "id": "q046",
+    "question": "What is the Compound Annual Growth Rate (CAGR) if an investment grows from \u20b91,00,000 to \u20b92,50,000 in 5 years?",
+    "expected_answer": "CAGR = ((250000 / 100000) ^ (1/5)) - 1 = 20.11% per annum.",
+    "expected_route": "calculation",
+    "gold_keywords": [
+      "20.11%",
+      "20.1%",
+      "CAGR"
+    ],
+    "category": "computational_market",
+    "is_out_of_corpus": false,
+    "gold_source": "computational_engine"
+  },
+  {
+    "id": "q048",
+    "question": "Calculate WACC for a company with 60% equity at 14% cost, 40% debt at 8% cost, and a 25% corporate tax rate.",
+    "expected_answer": "WACC = (0.60 * 14%) + (0.40 * 8% * (1 - 0.25)) = 8.4% + 2.4% = 10.8%.",
+    "expected_route": "calculation",
+    "gold_keywords": [
+      "10.8%",
+      "WACC",
+      "cost of debt",
+      "cost of equity"
+    ],
+    "category": "computational_market",
+    "is_out_of_corpus": false,
+    "gold_source": "computational_engine"
+  },
+  {
+    "id": "q050",
+    "question": "What is the current market price and 52-week high/low for TCS.NS?",
+    "expected_answer": "Live market quote and 52-week range for Tata Consultancy Services on NSE.",
+    "expected_route": "live_market_data",
+    "gold_keywords": [
+      "TCS",
+      "price",
+      "52-week",
+      "NSE"
+    ],
+    "category": "computational_market",
+    "is_out_of_corpus": false,
+    "gold_source": "computational_engine"
+  },
+  {
+    "id": "q_ret_052",
+    "question": "What was Apple's Net sales in 2024?",
+    "expected_answer": "Retrieve and state the exact number for Net sales in 2024.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Apple's",
+      "sales"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
+  },
+  {
+    "id": "q_ret_054",
+    "question": "How did Net sales change year-over-year from the prior year to current year?",
+    "expected_answer": "Explain the absolute change and reasons if provided.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "sales",
+      "change",
+      "year-over-year",
+      "prior"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
+  },
+  {
+    "id": "q_ret_056",
+    "question": "What was Apple's Revenue in 2024?",
+    "expected_answer": "Retrieve and state the exact number for Revenue in 2024.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Apple's",
+      "Revenue"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
+  },
+  {
+    "id": "q_ret_058",
+    "question": "How did Revenue change year-over-year from the prior year to current year?",
+    "expected_answer": "Explain the absolute change and reasons if provided.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Revenue",
+      "change",
+      "year-over-year",
+      "prior"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
+  },
+  {
+    "id": "q_ret_060",
+    "question": "What was Apple's Cost of sales in 2024?",
+    "expected_answer": "Retrieve and state the exact number for Cost of sales in 2024.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Apple's",
+      "sales"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
+  },
+  {
+    "id": "q_ret_062",
+    "question": "How did Cost of sales change year-over-year from the prior year to current year?",
+    "expected_answer": "Explain the absolute change and reasons if provided.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "sales",
+      "change",
+      "year-over-year",
+      "prior"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
+  },
+  {
+    "id": "q_ret_064",
+    "question": "What was Apple's Gross margin in 2024?",
+    "expected_answer": "Retrieve and state the exact number for Gross margin in 2024.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Apple's",
+      "Gross",
+      "margin"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
+  },
+  {
+    "id": "q_ret_066",
+    "question": "How did Gross margin change year-over-year from the prior year to current year?",
+    "expected_answer": "Explain the absolute change and reasons if provided.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Gross",
+      "margin",
+      "change",
+      "year-over-year"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
+  },
+  {
+    "id": "q_ret_068",
+    "question": "What was Apple's Gross margin percentage in 2024?",
+    "expected_answer": "Retrieve and state the exact number for Gross margin percentage in 2024.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Apple's",
+      "Gross",
+      "margin",
+      "percentage"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
+  },
+  {
+    "id": "q_ret_070",
+    "question": "How did Gross margin percentage change year-over-year from the prior year to current year?",
+    "expected_answer": "Explain the absolute change and reasons if provided.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "Gross",
+      "margin",
+      "percentage",
+      "change"
+    ],
+    "category": "10k_factual",
+    "is_out_of_corpus": false,
+    "gold_source": "Annual Report/NASDAQ_AAPL_2024.pdf"
+  },
+  {
+    "id": "q_trap_072",
+    "question": "Who was appointed Chief AI Officer of Lehman Brothers in 2024?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
+  },
+  {
+    "id": "q_trap_074",
+    "question": "What was the gross revenue of Pan American World Airways in fiscal year 2022?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
+  },
+  {
+    "id": "q_trap_076",
+    "question": "What were Apple titanium manufacturing subsidies from Atlantis in 2024?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
+  },
+  {
+    "id": "q_trap_078",
+    "question": "What was the average subscriber churn rate for Blockbuster Video streaming in 2023?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
+  },
+  {
+    "id": "q_trap_080",
+    "question": "How many autonomous flying vehicles did Apple deliver in Q3 2024?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
+  },
+  {
+    "id": "q_trap_082",
+    "question": "Who is the current Head of Lunar Operations at General Electric in 2024 filing?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
+  },
+  {
+    "id": "q_trap_084",
+    "question": "How much did Kodak spend on digital cryptocurrency mining rigs in 1995?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
+  },
+  {
+    "id": "q_trap_086",
+    "question": "What was the carbon credit offset revenue earned by Bear Stearns in fiscal 2023?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
+  },
+  {
+    "id": "q_trap_088",
+    "question": "How many quantum teleportation patents were filed by Apple in their 2023 10-K filing?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
+  },
+  {
+    "id": "q_trap_090",
+    "question": "Who was named Chief Metaverse Officer of Apple Inc in the 2024 proxy statement?",
+    "expected_answer": "Out-of-corpus / ungrounded; agent must abstain and state data is unavailable or non-existent.",
+    "expected_route": "hybrid_search",
+    "gold_keywords": [
+      "unavailable",
+      "unannounced",
+      "not present"
+    ],
+    "category": "trap_out_of_corpus",
+    "is_out_of_corpus": true,
+    "gold_source": "out_of_corpus"
+  }
+]

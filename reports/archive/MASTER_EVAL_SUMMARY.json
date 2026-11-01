@@ -1,0 +1,96 @@
+{
+  "generated_at": "2026-09-30 18:58 UTC",
+  "suite_status": "HAS_FAILURES",
+  "total_tests": 82,
+  "total_passed": 80,
+  "total_failed": 2,
+  "pass_rate_pct": 97.6,
+  "groups": [
+    {
+      "group": "Phase 1 \u2014 Latency & Token Optimisation",
+      "status": "TIMEOUT",
+      "passed": 0,
+      "failed": 0,
+      "errors": 0,
+      "total": 0,
+      "missing_files": [],
+      "duration_s": 300
+    },
+    {
+      "group": "Phase 2 \u2014 Conversational Continuity",
+      "status": "PASS",
+      "passed": 8,
+      "failed": 0,
+      "errors": 0,
+      "total": 8,
+      "missing_files": [],
+      "duration_s": 141.8,
+      "output_tail": "============================= test session starts =============================\nplatform win32 -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0\nrootdir: E:\\finaceadviser\\reference_projects\\Hybrid-Graph-RAG-Financial-Analyser-main\nconfigfile: pytest.ini\nplugins: anyio-4.12.1, langsmith-0.12.6, asyncio-1.4.0, mock-3.15.1, typeguard-4.4.4\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 8 items\n\ntests\\test_conversational_continuity.py ....                             [ 50%]\ntests\\test_db_migration_safety.py ....                                   [100%]\n\n======================== 8 passed in 125.33s (0:02:05) ========================\nC:\\Users\\srcsi\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\requests\\__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.1) or chardet (7.4.3)/charset_normalizer (3.3.2) doesn't match a supported version!\n  warnings.warn("
+    },
+    {
+      "group": "Phase 3 \u2014 Async Document Ingestion",
+      "status": "PASS",
+      "passed": 37,
+      "failed": 0,
+      "errors": 0,
+      "total": 37,
+      "missing_files": [],
+      "duration_s": 39.6,
+      "output_tail": "============================= test session starts =============================\nplatform win32 -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0\nrootdir: E:\\finaceadviser\\reference_projects\\Hybrid-Graph-RAG-Financial-Analyser-main\nconfigfile: pytest.ini\nplugins: anyio-4.12.1, langsmith-0.12.6, asyncio-1.4.0, mock-3.15.1, typeguard-4.4.4\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 37 items\n\ntests\\test_document_ingestion_and_guardrails.py ......                   [ 16%]\ntests\\test_calculator.py ................                                [ 59%]\ntests\\test_calculator_extraction.py ...............                      [100%]\n\n============================== warnings summary ===============================\ntests/test_document_ingestion_and_guardrails.py::test_document_status_failure_path\ntests/test_document_ingestion_and_guardrails.py::test_document_status_failure_path\ntests/test_document_ingestion_and_guardrails.py::test_document_status_failure_path\n  C:\\Users\\srcsi\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\jose\\jwt.py:311: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).\n    now = timegm(datetime.utcnow().utctimetuple())\n\ntests/test_calculator.py: 37 warnings\n  E:\\finaceadviser\\reference_projects\\Hybrid-Graph-RAG-Financial-Analyser-main\\tools\\calculator.py:31: DeprecationWarning: ast.Num is deprecated and will be removed in Python 3.14; use ast.Constant instead\n    if hasattr(ast, \"Num\") and isinstance(node, getattr(ast, \"Num\")):\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n====================== 37 passed, 40 warnings in 23.13s =======================\nC:\\Users\\srcsi\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\requests\\__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.1) or chardet (7.4.3)/charset_normalizer (3.3.2) doesn't match a supported version!\n  warnings.warn("
+    },
+    {
+      "group": "Phase 4 \u2014 Knowledge Graph",
+      "status": "PASS",
+      "passed": 1,
+      "failed": 0,
+      "errors": 0,
+      "total": 1,
+      "missing_files": [],
+      "duration_s": 15.9,
+      "output_tail": "============================= test session starts =============================\nplatform win32 -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0\nrootdir: E:\\finaceadviser\\reference_projects\\Hybrid-Graph-RAG-Financial-Analyser-main\nconfigfile: pytest.ini\nplugins: anyio-4.12.1, langsmith-0.12.6, asyncio-1.4.0, mock-3.15.1, typeguard-4.4.4\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 1 item\n\ntests\\test_graph_traversal.py .                                          [100%]\n\n============================== 1 passed in 2.87s ==============================\nC:\\Users\\srcsi\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\requests\\__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.1) or chardet (7.4.3)/charset_normalizer (3.3.2) doesn't match a supported version!\n  warnings.warn("
+    },
+    {
+      "group": "Phase 5 \u2014 Cross-Cutting Testing",
+      "status": "FAIL",
+      "passed": 13,
+      "failed": 1,
+      "errors": 0,
+      "total": 14,
+      "missing_files": [],
+      "duration_s": 115.4,
+      "output_tail": "    ^^^^^^^^^^^^^^^^^^^^\nE   AssertionError: assert '|' in '**Insufficient verified evidence is available to provide a comparison between HDFC Bank and ICICI Bank.**  \\n\\n[Obtain recent financial statements or market data for both banks]'\n---------------------------- Captured stdout call -----------------------------\n[cache] MISS key=089331044e05\u2026\n---NODE: ROUTER---\nDecision: decompose, Depth: quick, Topic: Bank comparison, Entities: {'company': 'HDFC Bank, ICICI Bank'}\n---NODE: DECOMPOSITION---\nDecomposed into 3 queries: ['HDFC Bank financial performance and key metrics', 'ICICI Bank financial performance and key metrics', 'HDFC Bank vs ICICI Bank comparison']\n---NODE: RETRIEVER---\n  [Mode: SHARED CORPUS]\n  Retrieving for: HDFC Bank financial performance and key metrics\n  Retrieving for: ICICI Bank financial performance and key metrics\n  Retrieving for: HDFC Bank vs ICICI Bank comparison\n---NODE: EVIDENCE BUILDER---\n  [Evidence Builder: SYNTHESIS] depth='quick', doc=False (4 chunks bounded)\n[DEBUG] ---NODE: VERIFIER RUNNING (verifier_enabled=True)---\n[cache] SET  key=089331044e05\u2026\n============================== warnings summary ===============================\ntests/test_indian_context.py::test_indian_stock_query\ntests/test_indian_context.py::test_student_advisor_query\ntests/test_indian_context.py::test_company_comparison\n  C:\\Users\\srcsi\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\jose\\jwt.py:311: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).\n    now = timegm(datetime.utcnow().utctimetuple())\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_indian_context.py::test_company_comparison - AssertionError...\n============ 1 failed, 13 passed, 3 warnings in 102.79s (0:01:42) =============\nC:\\Users\\srcsi\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\requests\\__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.1) or chardet (7.4.3)/charset_normalizer (3.3.2) doesn't match a supported version!\n  warnings.warn("
+    },
+    {
+      "group": "Phase 6 \u2014 Daily Data Ingestion",
+      "status": "FAIL",
+      "passed": 13,
+      "failed": 1,
+      "errors": 0,
+      "total": 14,
+      "missing_files": [],
+      "duration_s": 91.2,
+      "output_tail": "============================= test session starts =============================\nplatform win32 -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0\nrootdir: E:\\finaceadviser\\reference_projects\\Hybrid-Graph-RAG-Financial-Analyser-main\nconfigfile: pytest.ini\nplugins: anyio-4.12.1, langsmith-0.12.6, asyncio-1.4.0, mock-3.15.1, typeguard-4.4.4\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 14 items\n\ntests\\test_daily_snapshot_job.py ......F                                 [ 50%]\ntests\\test_news_data.py .......                                          [100%]\n\n================================== FAILURES ===================================\n_______________________ test_mf_nav_nearest_date_lookup _______________________\ntests\\test_daily_snapshot_job.py:178: in test_mf_nav_nearest_date_lookup\n    assert rec[\"nav\"] == 200.0, (\nE   AssertionError: Expected nav from 2026-09-20 (nearest prior to 2026-09-23), got nav=210.0 from 2026-09-23\nE   assert 210.0 == 200.0\n=========================== short test summary info ===========================\nFAILED tests/test_daily_snapshot_job.py::test_mf_nav_nearest_date_lookup - As...\n=================== 1 failed, 13 passed in 73.73s (0:01:13) ===================\nC:\\Users\\srcsi\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\requests\\__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.1) or chardet (7.4.3)/charset_normalizer (3.3.2) doesn't match a supported version!\n  warnings.warn("
+    },
+    {
+      "group": "Auth & Security",
+      "status": "TIMEOUT",
+      "passed": 0,
+      "failed": 0,
+      "errors": 0,
+      "total": 0,
+      "missing_files": [],
+      "duration_s": 300
+    },
+    {
+      "group": "Market Data",
+      "status": "PASS",
+      "passed": 8,
+      "failed": 0,
+      "errors": 0,
+      "total": 8,
+      "missing_files": [],
+      "duration_s": 55.5,
+      "output_tail": "============================= test session starts =============================\nplatform win32 -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0\nrootdir: E:\\finaceadviser\\reference_projects\\Hybrid-Graph-RAG-Financial-Analyser-main\nconfigfile: pytest.ini\nplugins: anyio-4.12.1, langsmith-0.12.6, asyncio-1.4.0, mock-3.15.1, typeguard-4.4.4\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 8 items\n\ntests\\test_market_data.py ..                                             [ 25%]\ntests\\test_mf_api.py .                                                   [ 37%]\ntests\\test_math_solver.py .....                                          [100%]\n\n============================= 8 passed in 31.60s ==============================\nC:\\Users\\srcsi\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\requests\\__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.1) or chardet (7.4.3)/charset_normalizer (3.3.2) doesn't match a supported version!\n  warnings.warn("
+    }
+  ]
+}

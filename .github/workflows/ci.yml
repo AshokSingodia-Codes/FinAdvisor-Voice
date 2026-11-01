@@ -27,12 +27,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install --no-cache-dir -r requirements.txt
 
+      - name: Lint Maintained Code
+        run: |
+          ruff check --select F,E9 config/settings.py nodes/router.py nodes/verifier.py scripts/check_gold_split.py scripts/audit_gold_sources.py scripts/eval_router_holdout_v2.py scripts/generate_eval_report.py scripts/generate_full_eval_report.py scripts/make_readme_tables.py scripts/run_all_evals.py
+
       - name: Run Backend Tests
         env:
           JWT_SECRET: "ci-test-jwt-secret-key-32-chars-long"
           GROQ_API_KEY: "gsk_dummy_test_key_for_ci_env"
         run: |
-          pytest tests/test_auth.py tests/test_verifier.py -v
+          pytest -m "not requires_neo4j and not requires_llm" -v
 
   frontend-build:
     name: Build & Verify Frontend

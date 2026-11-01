@@ -39,6 +39,7 @@ test_e2e_financial_pdf_rag.py
 *.pkl
 graph_documents.pkl
 Annual Report/
+data/*.pdf
 
 # Node / Frontend
 node_modules/

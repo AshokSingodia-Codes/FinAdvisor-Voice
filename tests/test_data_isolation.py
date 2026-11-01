@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.requires_llm
+import pytest
 import time
 import io
 from fastapi.testclient import TestClient

@@ -1,0 +1,57 @@
+{
+  "dataset": "router_holdout_v2.json",
+  "sha256": "a9e969d59686cb8a70d161c5fc42dfbdd3dbdf077c87b671bc4cd2fa07c24bbd",
+  "split": "holdout_v2",
+  "router_path": "fallback_heuristic",
+  "status": "measured",
+  "n": 30,
+  "overall_accuracy": 0.8333,
+  "per_route_metrics": {
+    "calculation": {
+      "total": 5,
+      "correct": 2,
+      "accuracy": 0.4
+    },
+    "math_calculation": {
+      "total": 5,
+      "correct": 5,
+      "accuracy": 1.0
+    },
+    "live_market_data": {
+      "total": 5,
+      "correct": 4,
+      "accuracy": 0.8
+    },
+    "current_events": {
+      "total": 5,
+      "correct": 5,
+      "accuracy": 1.0
+    },
+    "direct_answer": {
+      "total": 5,
+      "correct": 4,
+      "accuracy": 0.8
+    },
+    "hybrid_search": {
+      "total": 5,
+      "correct": 5,
+      "accuracy": 1.0
+    }
+  },
+  "confusion_matrix": {
+    "calculation -> calculation": 2,
+    "calculation -> hybrid_search": 3,
+    "current_events -> current_events": 5,
+    "direct_answer -> direct_answer": 4,
+    "direct_answer -> hybrid_search": 1,
+    "hybrid_search -> hybrid_search": 5,
+    "live_market_data -> current_events": 1,
+    "live_market_data -> live_market_data": 4,
+    "math_calculation -> math_calculation": 5
+  },
+  "existing_test_no_traps": {
+    "n": 30,
+    "correct": 28,
+    "accuracy": 0.9333
+  }
+}

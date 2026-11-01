@@ -9,12 +9,11 @@ MASTER_EVAL_REPORT.md in the reports/ directory.
 Usage:
     python scripts/generate_full_eval_report.py
 """
-import os
-import sys
 import json
 import subprocess
+import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -23,7 +22,7 @@ sys.path.insert(0, str(ROOT))
 REPORT_DIR = ROOT / "reports"
 REPORT_DIR.mkdir(exist_ok=True)
 
-TIMESTAMP = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+TIMESTAMP = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -48,8 +47,8 @@ TEST_GROUPS = {
         "tests/test_calculator.py",
         "tests/test_calculator_extraction.py",
     ],
-    "Phase 4 — Knowledge Graph": [
-        "tests/test_graph_traversal.py",
+    "Phase 4 — Hybrid Search & Retrieval": [
+        "experiments/test_graph_traversal.py",
     ],
     "Phase 5 — Cross-Cutting Testing": [
         "tests/test_router.py",
@@ -164,7 +163,7 @@ def main():
         router_eval  = load_eval("reports/router_eval_results.json")
     trap_eval        = load_eval("reports/trap_eval.json")
     faithfulness     = load_eval("reports/faithfulness_eval.json")
-    category_metrics = load_eval("reports/category_metrics.json")
+    load_eval("reports/category_metrics.json")
 
     total_passed = sum(r["passed"] for r in results)
     total_failed = sum(r["failed"] + r["errors"] for r in results)

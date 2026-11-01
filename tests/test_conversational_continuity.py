@@ -1,3 +1,6 @@
+import pytest
+pytestmark = pytest.mark.requires_llm
+import pytest
 
 import unittest
 import uuid

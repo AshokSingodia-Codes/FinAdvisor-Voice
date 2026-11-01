@@ -1,3 +1,5 @@
+import pytest
+pytestmark = pytest.mark.requires_llm
 """
 tests/test_personal_context_isolation.py
 -----------------------------------------

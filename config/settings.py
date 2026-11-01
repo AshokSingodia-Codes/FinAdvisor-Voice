@@ -1,10 +1,14 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import logging
+
+logger = logging.getLogger(__name__)
+
 from pydantic import Field
-from typing import Optional
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
     # Neo4j Settings
-    AURA_INSTANCENAME: Optional[str] = Field("Instance01", description="Neo4j Aura Instance Name")
+    AURA_INSTANCENAME: str | None = Field("Instance01", description="Neo4j Aura Instance Name")
     NEO4J_URI: str = Field("bolt://localhost:7687", description="Neo4j Connection URI")
     NEO4J_USERNAME: str = Field("neo4j", description="Neo4j Username")
     NEO4J_PASSWORD: str = Field("password", description="Neo4j Password")
@@ -17,10 +21,10 @@ class Settings(BaseSettings):
     SYNTHESIS_MODEL: str = Field("openai/gpt-oss-120b", description="High-capacity Synthesis Groq Model")
     MAX_CHAT_HISTORY_TURNS: int = Field(6, description="Max conversation turns passed into StateGraph")
     
-    GITHUB_API_KEY: Optional[str] = Field(None, description="GitHub PAT for Models API fallback")
-    OPENROUTER_API_KEY: Optional[str] = Field(None, description="OpenRouter API Key for fallback")
+    GITHUB_API_KEY: str | None = Field(None, description="GitHub PAT for Models API fallback")
+    OPENROUTER_API_KEY: str | None = Field(None, description="OpenRouter API Key for fallback")
     OPENROUTER_MODEL: str = Field("mistralai/mistral-small-24b-instruct-2501", description="OpenRouter Fallback Model")
-    GOOGLE_API_KEY: Optional[str] = Field(None, description="Google API Key for Gemini fallback")
+    GOOGLE_API_KEY: str | None = Field(None, description="Google API Key for Gemini fallback")
     GEMINI_MODEL: str = Field("gemini-3.5-flash-lite", description="Google Gemini Fallback Chat Model (highest free-tier RPD limit)")
     
     # RAG & Embedding Settings
@@ -39,37 +43,40 @@ class Settings(BaseSettings):
     PERSONAL_CONTEXT_PROVIDERS: str = Field("groq,openrouter", description="Allowed LLM providers for requests containing personal document context")
     PERSONAL_CONTEXT_EMBEDDING: str = Field("off", description="Whether to embed user queries when personal document context is active (off = BM25 fallback)")
     RERANKER_PROVIDER: str = Field("none", description="Reranker Provider (none | flashrank)")
+    VERIFIER_ENABLED: bool = Field(False, description='Enable Self-RAG verification')
     
     # LangSmith Observability
     LANGCHAIN_TRACING_V2: str = Field("false", description="Enable LangSmith Tracing")
-    LANGCHAIN_API_KEY: Optional[str] = Field(None, description="LangSmith API Key")
+    LANGCHAIN_API_KEY: str | None = Field(None, description="LangSmith API Key")
     LANGCHAIN_PROJECT: str = Field("finadvisor-x", description="LangSmith Project Name")
     LANGCHAIN_ENDPOINT: str = Field("https://api.smith.langchain.com", description="LangSmith Endpoint")
     
     # Auth & Security Settings
+    ENVIRONMENT: str = Field("development", description="Runtime environment (development, test, production)")
+
     JWT_SECRET: str = Field("finadvisor-secure-jwt-secret-key-2026-x", description="JWT Secret Key")
-    JWT_SECRET_KEY: Optional[str] = Field(None, description="Alternative JWT Secret Key alias")
+    JWT_SECRET_KEY: str | None = Field(None, description="Alternative JWT Secret Key alias")
     JWT_ALGORITHM: str = Field("HS256", description="JWT Algorithm")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(60 * 24, description="JWT Expiration in minutes")
     
     # Database Settings (Neon PostgreSQL / Local SQLite Fallback)
-    DATABASE_URL: Optional[str] = Field(None, description="PostgreSQL Connection URI (Neon pooled connection with sslmode=require)")
+    DATABASE_URL: str | None = Field(None, description="PostgreSQL Connection URI (Neon pooled connection with sslmode=require)")
 
     # Document Encryption (Fernet AES-128-CBC + HMAC-SHA256)
-    ENCRYPTION_KEY: Optional[str] = Field(None, description="Fernet encryption key for personal document content")
+    ENCRYPTION_KEY: str | None = Field(None, description="Fernet encryption key for personal document content")
 
     # Brevo (Sendinblue) HTTPS Email API
-    BREVO_API_KEY: Optional[str] = Field(None, description="Brevo (Sendinblue) API Key")
-    BREVO_SENDER_EMAIL: Optional[str] = Field(None, description="Brevo Verified Sender Email")
+    BREVO_API_KEY: str | None = Field(None, description="Brevo (Sendinblue) API Key")
+    BREVO_SENDER_EMAIL: str | None = Field(None, description="Brevo Verified Sender Email")
     BREVO_SENDER_NAME: str = Field("FinAdvisor-X", description="Brevo Sender Display Name")
 
     # SMTP / Email Settings (Fallback)
-    SMTP_HOST: Optional[str] = Field(None, description="SMTP Server Host (e.g. smtp.gmail.com)")
-    SMTP_SERVER: Optional[str] = Field(None, description="Alternative alias for SMTP Server Host")
+    SMTP_HOST: str | None = Field(None, description="SMTP Server Host (e.g. smtp.gmail.com)")
+    SMTP_SERVER: str | None = Field(None, description="Alternative alias for SMTP Server Host")
     SMTP_PORT: int = Field(587, description="SMTP Server Port")
-    SMTP_USER: Optional[str] = Field(None, description="SMTP Username")
-    SMTP_PASSWORD: Optional[str] = Field(None, description="SMTP Password / App Password")
-    SMTP_FROM_EMAIL: Optional[str] = Field(None, description="Sender email address")
+    SMTP_USER: str | None = Field(None, description="SMTP Username")
+    SMTP_PASSWORD: str | None = Field(None, description="SMTP Password / App Password")
+    SMTP_FROM_EMAIL: str | None = Field(None, description="Sender email address")
     SMTP_TLS: bool = Field(True, description="Enable STARTTLS for SMTP")
     
     model_config = SettingsConfigDict(
@@ -81,14 +88,28 @@ class Settings(BaseSettings):
 
     @property
     def effective_jwt_secret(self) -> str:
-        return self.JWT_SECRET_KEY or self.JWT_SECRET
+        secret = self.JWT_SECRET_KEY or self.JWT_SECRET
+        insecure_defaults = {
+            "",
+            "secret",
+            "changeme",
+            "finadvisor-secure-jwt-secret-key-2026-x",
+            "default_insecure_secret",
+        }
+        if self.ENVIRONMENT.lower() == "production":
+            if not secret or secret.strip() in insecure_defaults or len(secret) < 32:
+                raise ValueError(
+                    "Insecure or missing JWT secret in production! Set a cryptographically "
+                    "secure JWT_SECRET or JWT_SECRET_KEY of at least 32 characters."
+                )
+        return secret
 
     @property
-    def effective_smtp_host(self) -> Optional[str]:
+    def effective_smtp_host(self) -> str | None:
         return self.SMTP_HOST or self.SMTP_SERVER
 
     @property
-    def effective_database_url(self) -> Optional[str]:
+    def effective_database_url(self) -> str | None:
         if not self.DATABASE_URL:
             return None
         url = self.DATABASE_URL.strip()
@@ -126,7 +147,7 @@ def validate_groq_models(s: Settings):
         ("VERIFIER_MODEL", s.VERIFIER_MODEL),
         ("SYNTHESIS_MODEL", s.SYNTHESIS_MODEL),
     ]:
-        if model_str and model_str not in KNOWN_GROQ_MODELS and not (model_str.startswith("llama") or model_str.startswith("meta-") or model_str.startswith("custom/") or model_str.startswith("openai/") or model_str.startswith("qwen/")):
+        if model_str and model_str not in KNOWN_GROQ_MODELS and not (model_str.startswith(("llama", "meta-", "custom/", "openai/", "qwen/"))):
             logger.warning(f"[Settings] Custom Groq model '{model_str}' configured for {name}.")
 
 # Instantiate a singleton settings object

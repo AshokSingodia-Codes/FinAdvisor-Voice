@@ -1,0 +1,15 @@
+{
+  "split": "split_test",
+  "router_path": "fallback_heuristic",
+  "total_test_queries": 45,
+  "correct": 43,
+  "accuracy_pct": 95.6,
+  "avg_latency_ms": 322.97,
+  "confusion_matrix": {
+    "calculation -> calculation": 1,
+    "calculation -> hybrid_search": 1,
+    "hybrid_search -> hybrid_search": 41,
+    "hybrid_search -> live_market_data": 1,
+    "live_market_data -> live_market_data": 1
+  }
+}

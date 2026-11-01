@@ -1,0 +1,16 @@
+{
+  "pytorch_768": {
+    "precision_at_5": 0.4059,
+    "recall_at_5": 0.6627,
+    "mrr": 0.7118,
+    "avg_latency_ms": 1038.64
+  },
+  "onnx_384": {
+    "precision_at_5": 0.3706,
+    "recall_at_5": 0.601,
+    "mrr": 0.5564,
+    "avg_latency_ms": 14.14
+  },
+  "queries_evaluated": 34,
+  "total_corpus_chunks": 2881
+}

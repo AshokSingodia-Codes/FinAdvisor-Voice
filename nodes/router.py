@@ -1,18 +1,18 @@
 import re
 import time
-import json
-from typing import Dict, Tuple, Optional, Any
+
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
-from graph.state import AgentState
-from core.db import fast_chat, get_structured_fast_chat
-from core.greeting_handler import is_greeting_or_chitchat
+
+from core.db import get_structured_fast_chat
 from core.domain_guardrails import is_out_of_domain_query
-from tools.fast_math import try_evaluate_fast_math
+from core.greeting_handler import is_greeting_or_chitchat
 from core.memory import get_conversation_continuity, save_conversation_continuity
+from graph.state import AgentState
+from tools.fast_math import try_evaluate_fast_math
 
 # 10-Minute TTL Cache for identical router queries
-_ROUTER_CACHE: Dict[str, Tuple[str, str, float]] = {}
+_ROUTER_CACHE: dict[str, tuple[str, str, float]] = {}
 _ROUTER_CACHE_TTL = 600  # 10 minutes
 
 # trigger word/phrase sets used as fast-path pre-classification
@@ -41,7 +41,7 @@ DEEP_TRIGGERS = {
     "break down completely", "exhaustively", "full breakdown", "walk me through",
     "explain thoroughly", "give me everything", "all the details", "explain everything",
     "explain properly", "explain properly everything", "expalin properlly evverything",
-    "explain properly everything", "explain all", "explain it all",
+    "explain all", "explain it all",
     "complete analysis", "full analysis", "detailed analysis",
     "with formulas", "show your work", "show the math", "explain the reasoning",
 }
@@ -74,7 +74,7 @@ class Route(BaseModel):
     decision: str = Field(
         description="The routing decision. Must be one of: 'decompose', 'hybrid_search', 'financial_table', 'calculation', 'math_calculation', 'direct_answer', 'live_market_data', 'current_events'"
     )
-    resolved_query: Optional[str] = Field(
+    resolved_query: str | None = Field(
         default=None,
         description="Rewrite the question into a complete, standalone question resolving any anaphoric pronouns or implicit references (e.g. 'its P/E', 'show its revenue', 'and this one') using active entities. If already self-contained, repeat the question."
     )
@@ -82,11 +82,11 @@ class Route(BaseModel):
         default=False,
         description="Set to true if the question is genuinely unrelated to the active entities/topic and shifts to a new subject (e.g., asking about compound interest or general math after discussing Reliance). When true, old entities will be reset."
     )
-    extracted_entities: Dict[str, Optional[str]] = Field(
+    extracted_entities: dict[str, str | None] = Field(
         default_factory=dict,
         description="Entities mentioned or updated: 'company', 'ticker', 'mutual_fund', 'metric'."
     )
-    conversation_topic: Optional[str] = Field(
+    conversation_topic: str | None = Field(
         default=None,
         description="A short 2-5 word summary of the active conversation thread (e.g., 'Reliance Financials', 'Compound Interest', 'SIP Return')."
     )
@@ -184,7 +184,7 @@ def route_question(state: AgentState):
     # --- Fast-Path 2: Domain Boundary Guardrail (Non-financial code/trivia refusal) (<1ms) ---
     is_ood, ood_refusal = is_out_of_domain_query(question)
     if is_ood and ood_refusal and not document_id:
-        print(f"  [Router: FAST-PATH DOMAIN GUARDRAIL] Out of domain query -> 'direct_answer'")
+        print("  [Router: FAST-PATH DOMAIN GUARDRAIL] Out of domain query -> 'direct_answer'")
         return {
             "routing_decision": "direct_answer",
             "current_question": question,
@@ -423,7 +423,7 @@ def route_question(state: AgentState):
             decision = "math_calculation"
         elif has_digits and is_calculation_query and any(term in lower for term in ["wacc", "npv", "cagr", "dcf", "yoy", "growth", "margin", "interest", "sip", "emi", "irr"]):
             decision = "calculation"
-        elif any(term in lower for term in ["what is", "define", "explain", "how does", "formula for", "definition", "rule", "rules", "tax", "budget", "finance", "regulation", "guideline", "rbi", "sebi"]):
+        elif any(term in lower for term in ["what is", "what were", "what was", "how much", "who was", "why ", "define", "explain", "how does", "formula for", "definition", "rule", "rules", "tax", "budget", "finance", "regulation", "guideline", "rbi", "sebi", "revenue", "sales", "income", "profit", "debt", "expense", "expenses", "dividend", "margin", "cash", "shares", "filing", "10-k", "annual report", "fy20", "fy 20", "fiscal", "quarter", "apple", "iphone", "services", "segment", "fund", "portfolio", "asset"]):
             decision = "hybrid_search"
         elif any(term in lower for term in ["wacc", "npv", "cagr", "dcf", "yoy", "growth", "margin"]):
             decision = "calculation"
